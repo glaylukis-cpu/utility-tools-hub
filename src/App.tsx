@@ -563,7 +563,9 @@ function ExcelConverter() {
     (async () => {
       try {
         const tauriApi = (await import("@tauri-apps/api/webview")).getCurrentWebview;
-        unlisten = await tauriApi().onDragDropEvent((payload: any) => {
+        unlisten = await tauriApi().onDragDropEvent((event: any) => {
+          const payload = event.payload;
+
           if (payload.type === "over") {
             setIsDragging(true);
           } else if (payload.type === "drop") {
