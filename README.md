@@ -3,6 +3,23 @@
 # 
 
 # Utility Tools Hub is a Tauri desktop app foundation for bundling multiple useful PC tools into one application.
+#
+# ## Download
+#
+# Download the latest Windows installer from the GitHub Releases page.
+#
+# Release page:
+# https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.1.0
+#
+# Recommended installer:
+# - `Utility.Tools.Hub_0.1.0_x64-setup.exe`
+#
+# Alternative installer:
+# - `Utility.Tools.Hub_0.1.0_x64_en-US.msi`
+#
+# For normal Windows installation, use the `setup.exe` installer.
+# The `.msi` package is also available for installer-based distribution.
+#
 
 # 
 
