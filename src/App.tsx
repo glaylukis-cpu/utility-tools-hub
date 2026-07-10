@@ -439,6 +439,10 @@ function ExcelToolPage({ onBack }: { onBack: () => void }) {
 
 const CONVERTER_DIR_KEY = "excel-converter-directory";
 
+function getFileName(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
 function loadSavedConverterDir(): string | null {
   try {
     return localStorage.getItem(CONVERTER_DIR_KEY) ?? null;
@@ -581,8 +585,9 @@ function ExcelConverter() {
           </div>
 
           {converterDir && (
-            <div style={{ marginBottom: 8, fontSize: ".8rem", color: "#868e96" }}>
-              Path: {converterDir}
+            <div className="debug-row" style={{ marginBottom: 8 }}>
+              <span className="debug-label">Converter folder</span>
+              <div className="settings-path">{converterDir}</div>
             </div>
           )}
 
@@ -607,7 +612,7 @@ function ExcelConverter() {
         </button>
 
         {inputPath && (
-          <div className="path-display">Selected: {inputPath}</div>
+          <div className="path-display">Selected file: {getFileName(inputPath)}</div>
         )}
 
         <label className="form-label" style={{ marginTop: 12 }}>
@@ -638,8 +643,24 @@ function ExcelConverter() {
 
               <details className="debug-details">
                 <summary>Debug details</summary>
-                <div className="path-display">Output: {result.output}</div>
-                <pre className="result-output">{result.cli_stdout}</pre>
+                <div className="debug-row">
+                  <span className="debug-label">Input</span>
+                  <div className="debug-value">{result.input}</div>
+                </div>
+                <div className="debug-row">
+                  <span className="debug-label">Output</span>
+                  <div className="debug-value">{result.output}</div>
+                </div>
+                <div className="debug-row">
+                  <span className="debug-label">Mode</span>
+                  <div className="debug-value">{result.mode}</div>
+                </div>
+                {result.cli_stdout && (
+                  <div className="debug-row">
+                    <span className="debug-label">CLI output</span>
+                    <pre className="result-output">{result.cli_stdout}</pre>
+                  </div>
+                )}
               </details>
 
               {result.preview_html && (
