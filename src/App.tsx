@@ -5,6 +5,12 @@ type Page = "dashboard" | "tools" | "account" | "billing" | "settings";
 
 export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
+  const [selectedTool, setSelectedTool] = useState<string | null>(null);
+
+  const openTool = (tool: string) => {
+    setSelectedTool(tool);
+    setPage("tools");
+  };
 
   return (
     <div className="app-layout">
@@ -20,8 +26,8 @@ export default function App() {
           ].map((item) => (
             <li key={item.id}>
               <button
-                className={page === item.id ? "active" : ""}
-                onClick={() => setPage(item.id)}
+                className={page === item.id && !selectedTool ? "active" : ""}
+                onClick={() => { setPage(item.id); setSelectedTool(null); }}
               >
                 <span>{item.icon}</span>
                 {item.label}
@@ -32,11 +38,12 @@ export default function App() {
       </aside>
 
       <main className="main-content">
-        {page === "dashboard" && <DashboardPage />}
-        {page === "tools" && <ToolsPage />}
-        {page === "account" && <AccountPage />}
-        {page === "billing" && <BillingPage />}
-        {page === "settings" && <SettingsPage />}
+        {selectedTool && <ExcelToolPage onBack={() => { setSelectedTool(null); }} />}
+        {!selectedTool && page === "dashboard" && <DashboardPage onOpenTool={openTool} />}
+        {!selectedTool && page === "tools" && <ToolsPage onOpenTool={openTool} />}
+        {!selectedTool && page === "account" && <AccountPage />}
+        {!selectedTool && page === "billing" && <BillingPage />}
+        {!selectedTool && page === "settings" && <SettingsPage />}
       </main>
     </div>
   );
@@ -44,7 +51,7 @@ export default function App() {
 
 /* ── Dashboard ── */
 
-function DashboardPage() {
+function DashboardPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) {
   return (
     <div>
       <div className="page-header">
@@ -75,7 +82,10 @@ function DashboardPage() {
 
       <div className="section-title">最近使ったツール</div>
       <div className="recent-tools">
-        <span className="recent-tag">Excel → HTML Converter</span>
+        <button className="recent-tag" onClick={() => onOpenTool?.("excel-html-converter")}>
+          Excel → HTML Converter
+        </button>
+
         <span className="recent-tag">Image Compressor</span>
         <span className="recent-tag">CSV Formatter</span>
       </div>
@@ -152,7 +162,7 @@ const tools = [
   },
 ];
 
-function ToolsPage() {
+function ToolsPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) {
   return (
     <div>
       <div className="page-header">
@@ -162,7 +172,7 @@ function ToolsPage() {
 
       <div className="card-grid">
         {tools.map((t, i) => (
-          <ToolCard key={i} tool={t} />
+          <ToolCard key={i} tool={t} onOpenTool={onOpenTool} />
         ))}
       </div>
     </div>
@@ -171,6 +181,7 @@ function ToolsPage() {
 
 function ToolCard({
   tool: { name, desc, badge, status, locked },
+  onOpenTool,
 }: {
   tool: {
     name: string;
@@ -179,6 +190,7 @@ function ToolCard({
     status: string;
     locked: boolean;
   };
+  onOpenTool?: (tool: string) => void;
 }) {
   const badgeClass =
     badge === "Free"
@@ -200,7 +212,9 @@ function ToolCard({
             Open
           </button>
         ) : (
-          <button className="btn btn-primary">Open</button>
+          <button className="btn btn-primary" onClick={() => onOpenTool?.("excel-html-converter")}>
+            Open
+          </button>
         )}
         <span
           className={`status-text ${
@@ -375,6 +389,66 @@ function SettingsPage() {
             <span className="settings-value">0.1.0</span>
           </li>
         </ul>
+      </div>
+    </div>
+  );
+}
+
+
+/* ── Excel Tool Detail Page ── */
+
+function ExcelToolPage({ onBack }: { onBack: () => void }) {
+  const [message, setMessage] = useState(false);
+
+  return (
+    <div>
+      <div className="page-header">
+        <button className="btn btn-outline" onClick={onBack}>Back to Tools</button>
+      </div>
+
+      <h1>Excel to HTML Converter</h1>
+
+      {message && (
+        <div className="toast">
+          Excel converter integration is not implemented yet.
+        </div>
+      )}
+
+      <p className="tool-intro-desc">
+        Convert Excel files into clean HTML output.
+      </p>
+
+      <div className="card tool-detail-card">
+        <div className="tool-section">
+          <strong>Status:</strong>
+          <br />
+          Local converter integration is planned.
+        </div>
+
+        <div className="tool-section">
+          <strong>Current scope:</strong>
+          <ul className="scope-list">
+            <li>Tool entry screen</li>
+            <li>Hub navigation</li>
+            <li>Desktop app shell integration</li>
+          </ul>
+        </div>
+
+        <div className="tool-section">
+          <strong>Not yet implemented:</strong>
+          <ul className="scope-list">
+            <li>Excel file upload</li>
+            <li>Conversion execution</li>
+            <li>HTML preview</li>
+            <li>Export/download</li>
+          </ul>
+        </div>
+
+        <div style={{ marginTop: 20, textAlign: "center" }}>
+          <button className="btn btn-primary" onClick={() => setMessage(true)}>
+            Open Tool
+          </button>
+        </div>
       </div>
     </div>
   );
