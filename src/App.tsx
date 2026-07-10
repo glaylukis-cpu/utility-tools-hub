@@ -470,7 +470,7 @@ interface ExcelConversionResult {
 
 function ExcelConverter() {
   const [converterDir, setConverterDir] = useState<string | null>(null);
-  const [detecting, setDetecting] = useState(true);
+  const [_detecting, setDetecting] = useState(true); // kept for dev fallback diagnostics
   const [inputPath, setInputPath] = useState<string | null>(null);
   const [zipOutput, setZipOutput] = useState(false);
   const [status, setStatus] = useState<ExcelConverterStatus>("idle");
@@ -503,20 +503,6 @@ function ExcelConverter() {
     return () => { cancelled = true; };
   }, []);
 
-  const pickConverterDir = async () => {
-    try {
-      const picked: string | null = await invokeTauri<string | null>("select_converter_directory_dev", {});
-      if (picked) {
-        setConverterDir(picked);
-        saveConverterDir(picked);
-      }
-    } catch (err: any) {
-      const msg = typeof err === "string" ? err : JSON.stringify(err);
-      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: msg });
-      setStatus("error");
-    }
-  };
-
   const pickFile = async () => {
     try {
       const picked: string | null = await invokeTauri<string | null>("select_excel_file_dev", {});
@@ -536,16 +522,11 @@ function ExcelConverter() {
       setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Please select a file first." });
       return;
     }
-    if (!converterDir) {
-      setStatus("error");
-      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Converter directory is required." });
-      return;
-    }
     setStatus("running");
     try {
       const res = await invokeTauri<ExcelConversionResult>("convert_excel_to_html_preview_dev", {
         inputPath,
-        converterDir,
+        converterDir: converterDir ?? "",
         zip: zipOutput,
       });
       setResult(res);
@@ -600,43 +581,9 @@ function ExcelConverter() {
         Pick an Excel file, convert it, and preview the generated HTML.
       </p>
 
-      {!converterDir && !detecting && (
-        <div className="engine-missing" style={{ background: "#fffbeb", padding: 12, borderRadius: 8, marginTop: 4 }}>
-          <span style={{ fontSize: "0.9rem" }}>
-            Converter engine not found. Please use Advanced settings below to select the converter folder.
-          </span>
-        </div>
-      )}
-
-      <details className="advanced-settings">
-        <summary>Advanced settings</summary>
-        <div style={{ padding: "8px 0" }}>
-          <div className="engine-status" style={{ marginBottom: 8 }}>
-            {converterDir ? (
-              <span className="engine-ready">Converter engine ready</span>
-            ) : detecting ? (
-              <span style={{ color: "#64748b", fontSize: ".85rem" }}>Detecting converter directory…</span>
-            ) : (
-              <span className="engine-missing">Converter engine not found</span>
-            )}
-          </div>
-
-          {converterDir && (
-            <div className="debug-row" style={{ marginBottom: 8 }}>
-              <span className="debug-label">Converter folder</span>
-              <div className="settings-path">{converterDir}</div>
-            </div>
-          )}
-
-          <button
-            className="btn btn-outline"
-            onClick={pickConverterDir}
-            disabled={status === "running"}
-          >
-            {converterDir ? "Change folder..." : "Select folder..."}
-          </button>
-        </div>
-      </details>
+      <div className="engine-status" style={{ marginBottom: 8 }}>
+        <span className="engine-ready">Built-in converter ready</span>
+      </div>
 
       <div className="form-fields">
         <div className={`drop-zone ${isDragging ? "drop-zone-active" : ""}`}>
@@ -647,7 +594,7 @@ function ExcelConverter() {
         <button
           className="btn btn-outline file-select-button"
           onClick={pickFile}
-          disabled={status === "running" || !converterDir}
+          disabled={status === "running"}
           style={{ marginTop: 8 }}
         >
           Select Excel file
@@ -664,7 +611,7 @@ function ExcelConverter() {
 
         <button
           className="btn btn-primary"
-          disabled={status === "running" || !inputPath || !converterDir}
+          disabled={status === "running" || !inputPath}
           onClick={convertAndPreview}
           style={{ marginTop: 8 }}
         >
