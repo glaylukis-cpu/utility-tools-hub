@@ -442,3 +442,36 @@ body {
   max-height: 300px;
   overflow-y: auto;
 }
+
+/* ── Phase 4 prototype styles ── */
+
+.phase4-prototype {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  border-radius: 12px;
+}
+
+.phase4-result {
+  margin-top: 16px;
+}
+
+.path-display {
+  margin-top: 8px;
+  padding: 10px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+.html-preview-frame {
+  width: 100%;
+  min-height: 420px;
+  margin-top: 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}

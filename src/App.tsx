@@ -576,8 +576,140 @@ function ExcelToolPage({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
+      {/* Phase 4 prototype: file picker + preview */}
+      <Phase4Prototype />
+
       {/* Development CLI Bridge section */}
       <DevCliBridge />
+    </div>
+  );
+}
+
+
+/* ── Phase4: File picker + HTML preview prototype ── */
+
+type Phase4Status = "idle" | "running" | "success" | "error";
+
+interface Phase4Result {
+  ok: boolean;
+  mode: string;
+  input: string;
+  output: string;
+  preview_html?: string | null;
+  cli_stdout: string;
+}
+
+function Phase4Prototype() {
+  const [converterDir, setConverterDir] = useState("../excel-html-converter");
+  const [inputPath, setInputPath] = useState<string | null>(null);
+  const [zipOutput, setZipOutput] = useState(false);
+  const [status, setStatus] = useState<Phase4Status>("idle");
+  const [result, setResult] = useState<Phase4Result | null>(null);
+
+  const pickFile = async () => {
+    try {
+      const picked: string | null = await invokeTauri<string | null>("select_excel_file_dev", {});
+      setInputPath(picked || null);
+      setResult(null);
+      setStatus("idle");
+    } catch (err: any) {
+      const msg = typeof err === "string" ? err : JSON.stringify(err);
+      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: msg });
+      setStatus("error");
+    }
+  };
+
+  const convertAndPreview = async () => {
+    if (!inputPath) {
+      setStatus("error");
+      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Please select a file first." });
+      return;
+    }
+    if (!converterDir) {
+      setStatus("error");
+      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Converter directory is required." });
+      return;
+    }
+    setStatus("running");
+    try {
+      const res = await invokeTauri<Phase4Result>("convert_excel_to_html_preview_dev", {
+        inputPath,
+        converterDir,
+        zip: zipOutput,
+      });
+      setResult(res);
+      setStatus(res.ok ? "success" : "error");
+    } catch (err: any) {
+      const msg = typeof err === "string" ? err : JSON.stringify(err);
+      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: msg });
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div className="phase4-prototype">
+      <h3>Phase4 Excel Converter Prototype</h3>
+      <p style={{ fontSize: ".85rem", color: "#64748b" }}>
+        Select an .xlsx file, convert it through the Tauri command bridge, and preview the generated HTML.
+      </p>
+
+      <div className="form-fields">
+        <label className="form-label">
+          Converter directory
+          <input
+            type="text"
+            value={converterDir}
+            onChange={(e) => setConverterDir(e.target.value)}
+            style={{ width: "100%", padding: ".5rem", marginTop: 4 }}
+          />
+        </label>
+
+        <button className="btn btn-outline" onClick={pickFile} disabled={status === "running"} style={{ marginTop: 8 }}>
+          Select .xlsx file
+        </button>
+
+        {inputPath && (
+          <div className="path-display">Selected: {inputPath}</div>
+        )}
+
+        <label className="form-label" style={{ marginTop: 12 }}>
+          <input type="checkbox" checked={zipOutput} onChange={(e) => setZipOutput(e.target.checked)} />
+          &nbsp; ZIP output
+        </label>
+
+        <button
+          className="btn btn-primary"
+          disabled={status === "running" || !inputPath}
+          onClick={convertAndPreview}
+          style={{ marginTop: 8 }}
+        >
+          {status === "running" ? "Running..." : "Convert and preview"}
+        </button>
+      </div>
+
+      {result && (
+        <div className="phase4-result">
+          {status === "error" && <div style={{ color: "#dc2626", marginTop: 12 }}>❌ {result.cli_stdout}</div>}
+          {status === "success" && (
+            <>
+              <div style={{ marginTop: 12, marginBottom: 4 }}>✅ Conversion successful</div>
+              <div className="path-display">Output: {result.output}</div>
+              <pre className="result-output">{result.cli_stdout}</pre>
+              {result.preview_html && (
+                <>
+                  <div style={{ marginTop: 12, marginBottom: 4 }}>HTML Preview:</div>
+                  <iframe
+                    title="Excel HTML Preview"
+                    srcDoc={result.preview_html}
+                    sandbox=""
+                    className="html-preview-frame"
+                  />
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
