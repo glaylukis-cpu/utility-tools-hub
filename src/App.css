@@ -592,3 +592,132 @@ body {
   font-size: 0.8rem;
   color: #868e96;
 }
+
+/* ── Free / Pro plan UI placeholders ── */
+
+.plan-status-indicator {
+  margin-top: 20px;
+  padding: 10px 16px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.plan-label {
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.plan-label-free {
+  background: #d3f9d8;
+  color: #2b8a3e;
+}
+
+.plan-label-paid {
+  background: #fff3bf;
+  color: #e67700;
+}
+
+.plan-label-offline_grace {
+  background: #e7f5ff;
+  color: #1971c2;
+}
+
+.plan-sublabel {
+  color: #868e96;
+  font-size: 0.8rem;
+}
+
+.pro-features-section {
+  margin-top: 24px;
+}
+
+.pro-features-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 4px;
+}
+
+.pro-features-desc {
+  font-size: 0.8rem;
+  color: #868e96;
+  margin-bottom: 12px;
+}
+
+.pro-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.pro-feature-card {
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  position: relative;
+}
+
+.pro-feature-card:hover {
+  border-color: #1a73e8;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
+}
+
+.pro-feature-icon {
+  font-size: 1.4rem;
+  margin-bottom: 6px;
+}
+
+.pro-feature-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #212529;
+  margin-bottom: 2px;
+}
+
+.pro-feature-desc {
+  font-size: 0.8rem;
+  color: #868e96;
+  margin-bottom: 8px;
+}
+
+.pro-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #fff3bf;
+  color: #e67700;
+  border-radius: 10px;
+}
+
+.upgrade-message {
+  margin-top: 16px;
+  padding: 16px 20px;
+  background: #e8f0fe;
+  border: 1px solid #c5d8f8;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.upgrade-message p {
+  font-size: 0.85rem;
+  color: #1a73e8;
+  margin-bottom: 12px;
+}
+
+.upgrade-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}

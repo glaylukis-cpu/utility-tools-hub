@@ -13,6 +13,11 @@ function invokeTauri<T = unknown>(cmd: string, args?: Record<string, unknown>): 
 
 type Page = "dashboard" | "tools" | "account" | "billing" | "settings";
 
+/* ── Plan Status ── */
+
+type PlanStatus = "free" | "paid" | "offline_grace";
+const currentPlan: PlanStatus = "free";
+
 export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
@@ -476,6 +481,7 @@ function ExcelConverter() {
   const [status, setStatus] = useState<ExcelConverterStatus>("idle");
   const [result, setResult] = useState<ExcelConversionResult | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [showUpgradeMessage, setShowUpgradeMessage] = useState(false);
 
   // On mount: load saved directory or auto-detect
   useEffect(() => {
@@ -667,6 +673,72 @@ function ExcelConverter() {
           )}
         </div>
       )}
+
+      {/* ── Plan Status Indicator ── */}
+      <div className="plan-status-indicator">
+        <span className={`plan-label plan-label-${currentPlan}`}>Current plan: {currentPlan}</span>
+        {currentPlan === "free" && (
+          <span className="plan-sublabel">Upgrade available</span>
+        )}
+      </div>
+
+      {/* ── Pro Features ── */}
+      <div className="pro-features-section">
+        <div className="pro-features-title">Pro features</div>
+        <p className="pro-features-desc">
+          These features will be available with a Pro plan. Sign-in and payment are not implemented yet.
+        </p>
+
+        <div className="pro-feature-grid">
+          <div className="pro-feature-card" onClick={() => setShowUpgradeMessage(true)}>
+            <div className="pro-feature-icon">📦</div>
+            <div className="pro-feature-name">Export HTML</div>
+            <div className="pro-feature-desc">Download the full converted HTML file</div>
+            <span className="pro-badge">Pro</span>
+          </div>
+
+          <div className="pro-feature-card" onClick={() => setShowUpgradeMessage(true)}>
+            <div className="pro-feature-icon">📁</div>
+            <div className="pro-feature-name">Export ZIP</div>
+            <div className="pro-feature-desc">Package all sheets into a ZIP archive</div>
+            <span className="pro-badge">Pro</span>
+          </div>
+
+          <div className="pro-feature-card" onClick={() => setShowUpgradeMessage(true)}>
+            <div className="pro-feature-icon">🔁</div>
+            <div className="pro-feature-name">Batch conversion</div>
+            <div className="pro-feature-desc">Convert multiple files at once</div>
+            <span className="pro-badge">Pro</span>
+          </div>
+
+          <div className="pro-feature-card" onClick={() => setShowUpgradeMessage(true)}>
+            <div className="pro-feature-icon">📄</div>
+            <div className="pro-feature-name">Larger file support</div>
+            <div className="pro-feature-desc">Remove file size limits for big workbooks</div>
+            <span className="pro-badge">Pro</span>
+          </div>
+        </div>
+
+        {showUpgradeMessage && (
+          <div className="upgrade-message">
+            <p>This feature will be available in Pro.<br />Sign-in and payment are not implemented yet.</p>
+            <div className="upgrade-buttons">
+              <button
+                className="btn btn-primary"
+                onClick={() => setShowUpgradeMessage(false)}
+              >
+                Upgrade to Pro (coming soon)
+              </button>
+              <button
+                className="btn btn-outline"
+                onClick={() => setShowUpgradeMessage(false)}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
