@@ -557,35 +557,39 @@ function ExcelConverter() {
     }
   };
 
-  const onDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (!converterDir) return;
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-
-    const nameLower = file.name.toLowerCase();
-    if (!nameLower.endsWith(".xlsx")) {
-      setStatus("error");
-      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Only .xlsx files are accepted." });
-      return;
-    }
-
-    const fullPath = (file as any).path ?? "";
-    if (!fullPath) {
-      setStatus("error");
-      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Could not read the dropped file path. Please use Select Excel file instead." });
-      return;
-    }
-
-    setInputPath(fullPath);
-    setResult(null);
-    setStatus("idle");
-  };
-
-  const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
-  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
+  // Tauri webview file drop (works where React HTML5 D&D fails)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        const tauriApi = (await import("@tauri-apps/api/webview")).getCurrentWebview;
+        unlisten = await tauriApi().onDragDropEvent((payload: any) => {
+          if (payload.type === "over") {
+            setIsDragging(true);
+          } else if (payload.type === "drop") {
+            setIsDragging(false);
+            const paths = payload.paths ?? [];
+            if (paths.length === 0) return;
+            const droppedPath = paths[0];
+            const nameLower = droppedPath.toLowerCase();
+            if (!nameLower.endsWith(".xlsx")) {
+              setStatus("error");
+              setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Only .xlsx files are accepted." });
+              return;
+            }
+            setInputPath(droppedPath);
+            setResult(null);
+            setStatus("idle");
+          } else {
+            setIsDragging(false);
+          }
+        });
+      } catch {
+        // non-Tauri environment — skip
+      }
+    })();
+    return () => { unlisten?.(); };
+  }, []);
 
   return (
     <div className="phase4-prototype">
@@ -633,13 +637,7 @@ function ExcelConverter() {
       </details>
 
       <div className="form-fields">
-        <div
-          className={`drop-zone ${isDragging ? "drop-zone-active" : ""}`}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={onDrop}
-        >
+        <div className={`drop-zone ${isDragging ? "drop-zone-active" : ""}`}>
           <div className="drop-zone-text">Drag and drop an Excel file here</div>
           <div className="drop-zone-subtext">or use Select Excel file button below</div>
         </div>
