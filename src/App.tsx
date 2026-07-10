@@ -428,18 +428,36 @@ function ExcelToolPage({ onBack }: { onBack: () => void }) {
         <p>Convert Excel files into clean HTML output.</p>
       </div>
 
-      {/* Phase 4 prototype: file picker + preview */}
-      <Phase4Prototype />
+      {/* Excel converter: file picker + preview */}
+      <ExcelConverter />
     </div>
   );
 }
 
 
-/* ── Phase4: File picker + HTML preview prototype ── */
+/* ── Excel Converter: file picker + HTML preview ── */
 
-type Phase4Status = "idle" | "running" | "success" | "error";
+const CONVERTER_DIR_KEY = "excel-converter-directory";
 
-interface Phase4Result {
+function loadSavedConverterDir(): string {
+  try {
+    return localStorage.getItem(CONVERTER_DIR_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function saveConverterDir(path: string) {
+  try {
+    localStorage.setItem(CONVERTER_DIR_KEY, path);
+  } catch {
+    /* ignore */
+  }
+}
+
+type ExcelConverterStatus = "idle" | "running" | "success" | "error";
+
+interface ExcelConversionResult {
   ok: boolean;
   mode: string;
   input: string;
@@ -448,12 +466,26 @@ interface Phase4Result {
   cli_stdout: string;
 }
 
-function Phase4Prototype() {
-  const [converterDir, setConverterDir] = useState("../excel-html-converter");
+function ExcelConverter() {
+  const [converterDir, setConverterDir] = useState<string>(loadSavedConverterDir);
   const [inputPath, setInputPath] = useState<string | null>(null);
   const [zipOutput, setZipOutput] = useState(false);
-  const [status, setStatus] = useState<Phase4Status>("idle");
-  const [result, setResult] = useState<Phase4Result | null>(null);
+  const [status, setStatus] = useState<ExcelConverterStatus>("idle");
+  const [result, setResult] = useState<ExcelConversionResult | null>(null);
+
+  const pickConverterDir = async () => {
+    try {
+      const picked: string | null = await invokeTauri<string | null>("select_converter_directory_dev", {});
+      if (picked) {
+        setConverterDir(picked);
+        saveConverterDir(picked);
+      }
+    } catch (err: any) {
+      const msg = typeof err === "string" ? err : JSON.stringify(err);
+      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: msg });
+      setStatus("error");
+    }
+  };
 
   const pickFile = async () => {
     try {
@@ -481,7 +513,7 @@ function Phase4Prototype() {
     }
     setStatus("running");
     try {
-      const res = await invokeTauri<Phase4Result>("convert_excel_to_html_preview_dev", {
+      const res = await invokeTauri<ExcelConversionResult>("convert_excel_to_html_preview_dev", {
         inputPath,
         converterDir,
         zip: zipOutput,
@@ -497,20 +529,31 @@ function Phase4Prototype() {
 
   return (
     <div className="phase4-prototype">
-      <h3>Phase4 Excel Converter Prototype</h3>
+      <h3>Excel Converter</h3>
       <p style={{ fontSize: ".85rem", color: "#64748b" }}>
-        Select an .xlsx file, convert it through the Tauri command bridge, and preview the generated HTML.
+        Pick an Excel file, convert it, and preview the generated HTML.
       </p>
 
       <div className="form-fields">
         <label className="form-label">
           Converter directory
-          <input
-            type="text"
-            value={converterDir}
-            onChange={(e) => setConverterDir(e.target.value)}
-            style={{ width: "100%", padding: ".5rem", marginTop: 4 }}
-          />
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <input
+              type="text"
+              value={converterDir}
+              readOnly
+              placeholder="No directory selected"
+              style={{ flex: 1, padding: ".5rem", cursor: "default" }}
+            />
+            <button
+              className="btn btn-outline"
+              onClick={pickConverterDir}
+              disabled={status === "running"}
+              style={{ whiteSpace: "nowrap" }}
+            >
+              Browse…
+            </button>
+          </div>
         </label>
 
         <button className="btn btn-outline" onClick={pickFile} disabled={status === "running"} style={{ marginTop: 8 }}>

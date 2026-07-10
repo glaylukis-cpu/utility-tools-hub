@@ -19,6 +19,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       convert_excel_to_html_dev,
       select_excel_file_dev,
+      select_converter_directory_dev,
       convert_excel_to_html_preview_dev,
     ])
     .run(tauri::generate_context!())
@@ -121,6 +122,18 @@ fn select_excel_file_dev() -> Result<Option<String>, String> {
     .add_filter("Excel", &["xlsx"])
     .set_title("Select Excel file (.xlsx)")
     .pick_file();
+
+  match picked {
+    Some(p) => Ok(Some(p.to_string_lossy().into_owned())),
+    None => Ok(None),
+  }
+}
+
+#[tauri::command]
+fn select_converter_directory_dev() -> Result<Option<String>, String> {
+  let picked = rfd::FileDialog::new()
+    .set_title("Select converter directory")
+    .pick_folder();
 
   match picked {
     Some(p) => Ok(Some(p.to_string_lossy().into_owned())),
