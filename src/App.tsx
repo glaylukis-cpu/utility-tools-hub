@@ -699,8 +699,8 @@ function ExcelConverter() {
 
           <div className="pro-feature-card" onClick={() => setShowUpgradeMessage(true)}>
             <div className="pro-feature-icon">📁</div>
-            <div className="pro-feature-name">Export ZIP</div>
-            <div className="pro-feature-desc">Package all sheets into a ZIP archive</div>
+            <div className="pro-feature-name">Advanced ZIP export</div>
+            <div className="pro-feature-desc">Package multiple files with advanced ZIP options</div>
             <span className="pro-badge">Pro</span>
           </div>
 
