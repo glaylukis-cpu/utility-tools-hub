@@ -459,3 +459,56 @@ body {
   border-radius: 8px;
   background: #ffffff;
 }
+
+/* ── Excel Converter user-facing polish ── */
+
+.engine-status {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.engine-ready {
+  color: #2b8a3e;
+}
+
+.engine-missing {
+  color: #dc2626;
+}
+
+.advanced-settings {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.advanced-settings summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.debug-details {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.debug-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.success-summary {
+  font-size: 0.9rem;
+  color: #2b8a3e;
+  font-weight: 600;
+}

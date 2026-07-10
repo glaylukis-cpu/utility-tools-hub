@@ -559,58 +559,51 @@ function ExcelConverter() {
         Pick an Excel file, convert it, and preview the generated HTML.
       </p>
 
-      <div className="form-fields">
-        {!converterDir && (
-          <div style={{ background: "#fffbeb", padding: 12, borderRadius: 8, marginTop: 4 }}>
-            <span style={{ fontSize: "0.9rem" }}>
-              Converter directory was not found automatically. Please click the browser… button below to select the folder that contains <code style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 4 }}>app/cli.py</code>.
-            </span>
+      {!converterDir && !detecting && (
+        <div className="engine-missing" style={{ background: "#fffbeb", padding: 12, borderRadius: 8, marginTop: 4 }}>
+          <span style={{ fontSize: "0.9rem" }}>
+            Converter engine not found. Please use Advanced settings below to select the converter folder.
+          </span>
+        </div>
+      )}
+
+      <details className="advanced-settings">
+        <summary>Advanced settings</summary>
+        <div style={{ padding: "8px 0" }}>
+          <div className="engine-status" style={{ marginBottom: 8 }}>
+            {converterDir ? (
+              <span className="engine-ready">Converter engine ready</span>
+            ) : detecting ? (
+              <span style={{ color: "#64748b", fontSize: ".85rem" }}>Detecting converter directory…</span>
+            ) : (
+              <span className="engine-missing">Converter engine not found</span>
+            )}
           </div>
-        )}
 
-        {converterDir && (
-          <label className="form-label">
-            Converter directory
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <input
-                type="text"
-                value={converterDir}
-                readOnly
-                placeholder="No directory selected"
-                style={{ flex: 1, padding: ".5rem", cursor: "default" }}
-              />
-              <button
-                className="btn btn-outline"
-                onClick={pickConverterDir}
-                disabled={status === "running"}
-                style={{ whiteSpace: "nowrap" }}
-              >
-                Browse…
-              </button>
+          {converterDir && (
+            <div style={{ marginBottom: 8, fontSize: ".8rem", color: "#868e96" }}>
+              Path: {converterDir}
             </div>
-          </label>
-        )}
+          )}
 
-        {!converterDir && detecting ? (
-          <div style={{ padding: ".5rem", color: "#64748b", fontSize: ".85rem" }}>Detecting converter directory…</div>
-        ) : !converterDir ? (
           <button
             className="btn btn-outline"
             onClick={pickConverterDir}
             disabled={status === "running"}
-            style={{ marginTop: 4 }}
           >
-            Browse for converter directory…
+            {converterDir ? "Change folder..." : "Select folder..."}
           </button>
-        ) : null}
+        </div>
+      </details>
 
+      <div className="form-fields">
         <button
           className="btn btn-outline"
           onClick={pickFile}
           disabled={status === "running" || !converterDir}
           style={{ marginTop: 8 }}
         >
-          Select .xlsx file
+          Select Excel file
         </button>
 
         {inputPath && (
@@ -634,12 +627,21 @@ function ExcelConverter() {
 
       {result && (
         <div className="phase4-result">
-          {status === "error" && <div style={{ color: "#dc2626", marginTop: 12 }}>❌ {result.cli_stdout}</div>}
+          {status === "error" && (
+            <div style={{ color: "#dc2626", marginTop: 12 }}>❌ {result.cli_stdout}</div>
+          )}
           {status === "success" && (
             <>
-              <div style={{ marginTop: 12, marginBottom: 4 }}>✅ Conversion successful</div>
-              <div className="path-display">Output: {result.output}</div>
-              <pre className="result-output">{result.cli_stdout}</pre>
+              <div className="success-summary" style={{ marginTop: 12, marginBottom: 4 }}>
+                ✅ Conversion successful. Preview is ready below.
+              </div>
+
+              <details className="debug-details">
+                <summary>Debug details</summary>
+                <div className="path-display">Output: {result.output}</div>
+                <pre className="result-output">{result.cli_stdout}</pre>
+              </details>
+
               {result.preview_html && (
                 <>
                   <div style={{ marginTop: 12, marginBottom: 4 }}>HTML Preview:</div>
