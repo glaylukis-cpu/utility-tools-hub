@@ -38,7 +38,10 @@ export default function App() {
       </aside>
 
       <main className="main-content">
-        {selectedTool && <ExcelToolPage onBack={() => { setSelectedTool(null); }} />}
+        {selectedTool === "excel-html-converter" && <ExcelToolPage onBack={() => setSelectedTool(null)} />}
+        {(selectedTool == "html-table-editor" || selectedTool == "batch-file-renamer") && (
+          <PendingToolPage tool={selectedTool!} onBack={() => setSelectedTool(null)} />
+        )}
         {!selectedTool && page === "dashboard" && <DashboardPage onOpenTool={openTool} />}
         {!selectedTool && page === "tools" && <ToolsPage onOpenTool={openTool} />}
         {!selectedTool && page === "account" && <AccountPage />}
@@ -95,19 +98,21 @@ function DashboardPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) 
         <ToolCardMini
           name="HTML Table Editor"
           desc="ブラウザでHTMLテーブルを編集・エクスポート"
+          onClick={() => onOpenTool?.("html-table-editor")}
         />
         <ToolCardMini
           name="Batch File Renamer"
           desc="複数のファイルを一度にリネーム"
+          onClick={() => onOpenTool?.("batch-file-renamer")}
         />
       </div>
     </div>
   );
 }
 
-function ToolCardMini({ name, desc }: { name: string; desc: string }) {
+function ToolCardMini({ name, desc, onClick }: { name: string; desc: string; onClick?: () => void }) {
   return (
-    <div className="tool-card">
+    <div className="tool-card" style={{ cursor: "default" }} onClick={onClick}>
       <div className="tool-name">{name}</div>
       <div className="tool-desc">{desc}</div>
       <span className="badge badge-pro">Pro</span>
@@ -444,6 +449,81 @@ function ExcelToolPage({ onBack }: { onBack: () => void }) {
             <li>Conversion execution</li>
             <li>HTML preview</li>
             <li>Export/download</li>
+          </ul>
+        </div>
+
+        <div style={{ marginTop: 20, textAlign: "center" }}>
+          <button className="btn btn-primary" onClick={() => setMessage(true)}>
+            Open Tool
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ── Pending Tool Detail Page ── */
+
+const pendingToolInfo: Record<string, { name: string; desc: string }> = {
+  "html-table-editor": {
+    name: "HTML Table Editor",
+    desc: "Edit and export HTML tables inside the desktop hub.",
+  },
+  "batch-file-renamer": { name: "Batch File Renamer", desc: "Rename multiple files at once." },
+};
+
+function PendingToolPage({ tool, onBack }: { tool: string; onBack: () => void }) {
+  const [message, setMessage] = useState(false);
+  const info = pendingToolInfo[tool] || { name: tool, desc: "Tool details coming soon." };
+
+  return (
+    <div>
+      <button className="btn btn-outline" style={{ marginBottom: 20 }} onClick={onBack}>
+        ← Back
+      </button>
+
+      <div className="page-header">
+        <h1>{info.name}</h1>
+        <p>{info.desc}</p>
+      </div>
+
+      {message && (
+        <div className="toast">This tool is not implemented yet.</div>
+      )}
+
+      <div className="card tool-detail-card">
+        <div className="tool-section">
+          <strong>Status:</strong>
+          <br />
+          This tool is not implemented yet.
+        </div>
+
+        <div className="tool-section">
+          <strong>Current scope:</strong>
+          <ul className="scope-list">
+            <li>Tool entry screen</li>
+            <li>Hub navigation</li>
+            <li>Placeholder detail page</li>
+          </ul>
+        </div>
+
+        <div className="tool-section">
+          <strong>Not yet implemented:</strong>
+          <ul className="scope-list">
+            {tool === "html-table-editor" ? (
+              <>
+                <li>Table editing</li>
+                <li>HTML import</li>
+                <li>Export/download</li>
+              </>
+            ) : (
+              <>
+                <li>Batch file selection</li>
+                <li>Rename pattern configuration</li>
+                <li>Execute rename</li>
+              </>
+            )}
           </ul>
         </div>
 
