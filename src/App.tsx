@@ -646,7 +646,7 @@ function ExcelConverter() {
                   <iframe
                     title="Excel HTML Preview"
                     srcDoc={result.preview_html}
-                    sandbox=""
+                    sandbox="allow-scripts"
                     className="html-preview-frame"
                   />
                 </>
