@@ -402,21 +402,24 @@ function ExcelToolPage({ onBack }: { onBack: () => void }) {
 
   return (
     <div>
-      <div className="page-header">
-        <button className="btn btn-outline" onClick={onBack}>Back to Tools</button>
-      </div>
+      <button
+        className="btn btn-outline"
+        style={{ marginBottom: 20 }}
+        onClick={onBack}
+      >
+        ← Back to Tools
+      </button>
 
-      <h1>Excel to HTML Converter</h1>
+      <div className="page-header">
+        <h1>Excel to HTML Converter</h1>
+        <p>Convert Excel files into clean HTML output.</p>
+      </div>
 
       {message && (
         <div className="toast">
           Excel converter integration is not implemented yet.
         </div>
       )}
-
-      <p className="tool-intro-desc">
-        Convert Excel files into clean HTML output.
-      </p>
 
       <div className="card tool-detail-card">
         <div className="tool-section">
