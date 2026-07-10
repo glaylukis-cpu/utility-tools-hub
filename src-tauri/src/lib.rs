@@ -20,6 +20,7 @@ pub fn run() {
       convert_excel_to_html_dev,
       select_excel_file_dev,
       select_converter_directory_dev,
+      detect_converter_directory_dev,
       convert_excel_to_html_preview_dev,
     ])
     .run(tauri::generate_context!())
@@ -139,6 +140,41 @@ fn select_converter_directory_dev() -> Result<Option<String>, String> {
     Some(p) => Ok(Some(p.to_string_lossy().into_owned())),
     None => Ok(None),
   }
+}
+
+fn is_converter_dir(path: &Path) -> bool {
+  path.join("app").join("cli.py").exists()
+}
+
+#[tauri::command]
+fn detect_converter_directory_dev() -> Result<Option<String>, String> {
+  let mut candidates: Vec<PathBuf> = Vec::new();
+
+  // relative paths from current working directory
+  if let Ok(cwd) = std::env::current_dir() {
+    candidates.push(cwd.join("..").join("excel-html-converter"));
+    candidates.push(cwd.join("..").join("..").join("excel-html-converter"));
+  }
+
+  // absolute paths
+  candidates.push(PathBuf::from("/workspace/project/excel-html-converter"));
+  candidates.push(PathBuf::from("C:\\Users\\glayl\\projects\\excel-html-converter"));
+
+  // USERPROFILE-based path (Windows)
+  if let Ok(userprofile) = std::env::var("USERPROFILE") {
+    candidates.push(
+      PathBuf::from(&userprofile).join("projects").join("excel-html-converter"),
+    );
+  }
+
+  for candidate in candidates {
+    if is_converter_dir(&candidate) {
+      let resolved = candidate.canonicalize().unwrap_or(candidate);
+      return Ok(Some(resolved.to_string_lossy().into_owned()));
+    }
+  }
+
+  Ok(None)
 }
 
 #[derive(Serialize)]

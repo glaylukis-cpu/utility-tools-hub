@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
@@ -439,20 +439,18 @@ function ExcelToolPage({ onBack }: { onBack: () => void }) {
 
 const CONVERTER_DIR_KEY = "excel-converter-directory";
 
-function loadSavedConverterDir(): string {
+function loadSavedConverterDir(): string | null {
   try {
-    return localStorage.getItem(CONVERTER_DIR_KEY) ?? "";
+    return localStorage.getItem(CONVERTER_DIR_KEY) ?? null;
   } catch {
-    return "";
+    return null;
   }
 }
 
 function saveConverterDir(path: string) {
   try {
     localStorage.setItem(CONVERTER_DIR_KEY, path);
-  } catch {
-    /* ignore */
-  }
+  } catch { /* ignore */ }
 }
 
 type ExcelConverterStatus = "idle" | "running" | "success" | "error";
@@ -467,11 +465,38 @@ interface ExcelConversionResult {
 }
 
 function ExcelConverter() {
-  const [converterDir, setConverterDir] = useState<string>(loadSavedConverterDir);
+  const [converterDir, setConverterDir] = useState<string | null>(null);
+  const [detecting, setDetecting] = useState(true);
   const [inputPath, setInputPath] = useState<string | null>(null);
   const [zipOutput, setZipOutput] = useState(false);
   const [status, setStatus] = useState<ExcelConverterStatus>("idle");
   const [result, setResult] = useState<ExcelConversionResult | null>(null);
+
+  // On mount: load saved directory or auto-detect
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const saved = loadSavedConverterDir();
+      if (saved) {
+        if (!cancelled) setConverterDir(saved);
+        return;
+      }
+      try {
+        const found: string | null = await invokeTauri<string | null>(
+          "detect_converter_directory_dev", {}
+        );
+        if (!cancelled && found) {
+          setConverterDir(found);
+          saveConverterDir(found);
+        }
+      } catch {
+        // detection failed in non-tauri env → keep null
+      } finally {
+        if (!cancelled) setDetecting(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const pickConverterDir = async () => {
     try {
@@ -535,28 +560,56 @@ function ExcelConverter() {
       </p>
 
       <div className="form-fields">
-        <label className="form-label">
-          Converter directory
-          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-            <input
-              type="text"
-              value={converterDir}
-              readOnly
-              placeholder="No directory selected"
-              style={{ flex: 1, padding: ".5rem", cursor: "default" }}
-            />
-            <button
-              className="btn btn-outline"
-              onClick={pickConverterDir}
-              disabled={status === "running"}
-              style={{ whiteSpace: "nowrap" }}
-            >
-              Browse…
-            </button>
+        {!converterDir && (
+          <div style={{ background: "#fffbeb", padding: 12, borderRadius: 8, marginTop: 4 }}>
+            <span style={{ fontSize: "0.9rem" }}>
+              Converter directory was not found automatically. Please click the browser… button below to select the folder that contains <code style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 4 }}>app/cli.py</code>.
+            </span>
           </div>
-        </label>
+        )}
 
-        <button className="btn btn-outline" onClick={pickFile} disabled={status === "running"} style={{ marginTop: 8 }}>
+        {converterDir && (
+          <label className="form-label">
+            Converter directory
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input
+                type="text"
+                value={converterDir}
+                readOnly
+                placeholder="No directory selected"
+                style={{ flex: 1, padding: ".5rem", cursor: "default" }}
+              />
+              <button
+                className="btn btn-outline"
+                onClick={pickConverterDir}
+                disabled={status === "running"}
+                style={{ whiteSpace: "nowrap" }}
+              >
+                Browse…
+              </button>
+            </div>
+          </label>
+        )}
+
+        {!converterDir && detecting ? (
+          <div style={{ padding: ".5rem", color: "#64748b", fontSize: ".85rem" }}>Detecting converter directory…</div>
+        ) : !converterDir ? (
+          <button
+            className="btn btn-outline"
+            onClick={pickConverterDir}
+            disabled={status === "running"}
+            style={{ marginTop: 4 }}
+          >
+            Browse for converter directory…
+          </button>
+        ) : null}
+
+        <button
+          className="btn btn-outline"
+          onClick={pickFile}
+          disabled={status === "running" || !converterDir}
+          style={{ marginTop: 8 }}
+        >
           Select .xlsx file
         </button>
 
@@ -571,7 +624,7 @@ function ExcelConverter() {
 
         <button
           className="btn btn-primary"
-          disabled={status === "running" || !inputPath}
+          disabled={status === "running" || !inputPath || !converterDir}
           onClick={convertAndPreview}
           style={{ marginTop: 8 }}
         >
