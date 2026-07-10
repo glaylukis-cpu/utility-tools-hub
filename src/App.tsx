@@ -410,118 +410,9 @@ function SettingsPage() {
 }
 
 
-/* ── Dev CLI Bridge for Excel conversion ── */
-
-interface DevCliBridgeState {
-  converterDir: string;
-  inputPath: string;
-  outputPath: string;
-  zipOutput: boolean;
-  status: "idle" | "running" | "success" | "error";
-  result: string | null;
-}
-
-function DevCliBridge() {
-  const [s, setS] = useState<DevCliBridgeState>({
-    converterDir: "../excel-html-converter",
-    inputPath: "/tmp/cli_test.xlsx",
-    outputPath: "/tmp/utility_tools_hub_cli_test_output.html",
-    zipOutput: false,
-    status: "idle",
-    result: null,
-  });
-
-  const runConversion = async () => {
-    if (!s.converterDir || !s.inputPath || !s.outputPath) {
-      setS((p) => ({ ...p, status: "error", result: "All fields are required." }));
-      return;
-    }
-    setS((p) => ({ ...p, status: "running", result: null }));
-    try {
-      const res = await invokeTauri<string>("convert_excel_to_html_dev", {
-        inputPath: s.inputPath,
-        outputPath: s.outputPath,
-        converterDir: s.converterDir,
-        zip: s.zipOutput,
-      });
-      setS((p) => ({ ...p, status: "success", result: res }));
-    } catch (err: any) {
-      setS((p) => ({
-        ...p,
-        status: "error",
-        result: typeof err === "string" ? err : JSON.stringify(err),
-      }));
-    }
-  };
-
-  return (
-    <div className="dev-bridge">
-      <h3>Development CLI Bridge</h3>
-      <p style={{ fontSize: ".85rem", color: "#64748b" }}>
-        This is a development-only bridge for testing the Tauri command path.
-      </p>
-
-      <div className="form-fields">
-        <label className="form-label">
-          Converter directory
-          <input
-            type="text"
-            value={s.converterDir}
-            onChange={(e) => setS((p) => ({ ...p, converterDir: e.target.value }))}
-            style={{ width: "100%", padding: ".5rem", marginTop: 4 }}
-          />
-        </label>
-
-        <label className="form-label">
-          Input .xlsx path
-          <input
-            type="text"
-            value={s.inputPath}
-            onChange={(e) => setS((p) => ({ ...p, inputPath: e.target.value }))}
-            style={{ width: "100%", padding: ".5rem", marginTop: 4 }}
-          />
-        </label>
-
-        <label className="form-label">
-          Output path
-          <input
-            type="text"
-            value={s.outputPath}
-            onChange={(e) => setS((p) => ({ ...p, outputPath: e.target.value }))}
-            style={{ width: "100%", padding: ".5rem", marginTop: 4 }}
-          />
-        </label>
-
-        <label className="form-label">
-          <input type="checkbox" checked={s.zipOutput} onChange={(e) => setS((p) => ({ ...p, zipOutput: e.target.checked }))} />
-          &nbsp; ZIP output
-        </label>
-      </div>
-
-      <button
-        className="btn btn-primary"
-        disabled={s.status === "running"}
-        onClick={runConversion}
-        style={{ marginTop: 8 }}
-      >
-        {s.status === "running" ? "Running..." : "Run dev conversion"}
-      </button>
-
-      {s.result !== null && (
-        <pre className="result-output">
-          {s.status === "error" ? `\u274C ${s.result}` : `\u2705 ${s.result}`}
-        </pre>
-      )}
-    </div>
-  );
-}
-
-
 /* ── Excel Tool Detail Page ── */
 
 function ExcelToolPage({ onBack }: { onBack: () => void }) {
-  const [message, setMessage] = useState(false);
-
   return (
     <div>
       <button
@@ -537,50 +428,8 @@ function ExcelToolPage({ onBack }: { onBack: () => void }) {
         <p>Convert Excel files into clean HTML output.</p>
       </div>
 
-      {message && (
-        <div className="toast">
-          Excel converter integration is not implemented yet.
-        </div>
-      )}
-
-      <div className="card tool-detail-card">
-        <div className="tool-section">
-          <strong>Status:</strong>
-          <br />
-          Local converter integration is planned.
-        </div>
-
-        <div className="tool-section">
-          <strong>Current scope:</strong>
-          <ul className="scope-list">
-            <li>Tool entry screen</li>
-            <li>Hub navigation</li>
-            <li>Desktop app shell integration</li>
-          </ul>
-        </div>
-
-        <div className="tool-section">
-          <strong>Not yet implemented:</strong>
-          <ul className="scope-list">
-            <li>Excel file upload</li>
-            <li>Conversion execution</li>
-            <li>HTML preview</li>
-            <li>Export/download</li>
-          </ul>
-        </div>
-
-        <div style={{ marginTop: 20, textAlign: "center" }}>
-          <button className="btn btn-primary" onClick={() => setMessage(true)}>
-            Open Tool
-          </button>
-        </div>
-      </div>
-
       {/* Phase 4 prototype: file picker + preview */}
       <Phase4Prototype />
-
-      {/* Development CLI Bridge section */}
-      <DevCliBridge />
     </div>
   );
 }
