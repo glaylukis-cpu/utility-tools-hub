@@ -475,6 +475,7 @@ function ExcelConverter() {
   const [zipOutput, setZipOutput] = useState(false);
   const [status, setStatus] = useState<ExcelConverterStatus>("idle");
   const [result, setResult] = useState<ExcelConversionResult | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // On mount: load saved directory or auto-detect
   useEffect(() => {
@@ -556,6 +557,36 @@ function ExcelConverter() {
     }
   };
 
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (!converterDir) return;
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+
+    const nameLower = file.name.toLowerCase();
+    if (!nameLower.endsWith(".xlsx")) {
+      setStatus("error");
+      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Only .xlsx files are accepted." });
+      return;
+    }
+
+    const fullPath = (file as any).path ?? "";
+    if (!fullPath) {
+      setStatus("error");
+      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Could not read the dropped file path. Please use Select Excel file instead." });
+      return;
+    }
+
+    setInputPath(fullPath);
+    setResult(null);
+    setStatus("idle");
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
+
   return (
     <div className="phase4-prototype">
       <h3>Excel Converter</h3>
@@ -602,8 +633,19 @@ function ExcelConverter() {
       </details>
 
       <div className="form-fields">
+        <div
+          className={`drop-zone ${isDragging ? "drop-zone-active" : ""}`}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={onDrop}
+        >
+          <div className="drop-zone-text">Drag and drop an Excel file here</div>
+          <div className="drop-zone-subtext">or use Select Excel file button below</div>
+        </div>
+
         <button
-          className="btn btn-outline"
+          className="btn btn-outline file-select-button"
           onClick={pickFile}
           disabled={status === "running" || !converterDir}
           style={{ marginTop: 8 }}

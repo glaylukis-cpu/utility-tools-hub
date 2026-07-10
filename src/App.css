@@ -559,3 +559,36 @@ body {
   white-space: nowrap;
   overflow-x: auto;
 }
+
+.file-select-button {
+  width: 100%;
+  padding: 12px 20px;
+  font-size: 0.95rem;
+  border-width: 2px;
+}
+
+.drop-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+  background: #ffffff;
+}
+
+.drop-zone-active {
+  background: #eff6ff;
+  border-color: #1a73e8;
+}
+
+.drop-zone-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 4px;
+}
+
+.drop-zone-subtext {
+  font-size: 0.8rem;
+  color: #868e96;
+}
