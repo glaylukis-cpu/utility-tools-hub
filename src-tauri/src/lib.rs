@@ -2,10 +2,12 @@ use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use tauri_plugin_shell::ShellExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_shell::init())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -206,17 +208,52 @@ fn generate_output_path(input_path: &str, is_zip: bool) -> Result<String, String
   Ok(out_dir.join(filename).to_string_lossy().into_owned())
 }
 
+async fn run_sidecar_conversion(
+  app: &tauri::AppHandle,
+  input_path: &str,
+  output_path: &str,
+  use_zip: bool,
+) -> Result<String, String> {
+  let mut args = vec![
+    input_path.to_string(),
+    "--out".to_string(),
+    output_path.to_string(),
+  ];
+
+  if use_zip {
+    args.push("--zip".to_string());
+  }
+
+  let output = app
+    .shell()
+    .sidecar("excel-html-converter")
+    .map_err(|e| format!("Excel converter sidecar is not available: {}", e))?
+    .args(args)
+    .output()
+    .await
+    .map_err(|e| format!("Failed to run Excel converter sidecar: {}", e))?;
+
+  let stdout_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+  let stderr_str = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+  if output.status.success() {
+    Ok(stdout_str)
+  } else {
+    Err(format!(
+      "Excel converter sidecar exited with code {:?}. Stderr: {}",
+      output.status.code(),
+      if stderr_str.is_empty() { "n/a" } else { &stderr_str }
+    ))
+  }
+}
+
 #[tauri::command]
-fn convert_excel_to_html_preview_dev(
+async fn convert_excel_to_html_preview_dev(
+  app: tauri::AppHandle,
   input_path: String,
   converter_dir: String,
   zip: Option<bool>,
 ) -> Result<ExcelConversionPreview, String> {
-  // safety checks
-  let conv = PathBuf::from(&converter_dir);
-  if !conv.join("app").join("cli.py").exists() {
-    return Err(format!("Converter CLI not found at app/cli.py inside {}", converter_dir));
-  }
   if !input_path.ends_with(".xlsx") {
     return Err("input_path must end with .xlsx".into());
   }
@@ -224,8 +261,26 @@ fn convert_excel_to_html_preview_dev(
   let is_zip = zip.unwrap_or(false);
   let output_path = generate_output_path(&input_path, is_zip)?;
 
-  // run conversion (reuses existing logic)
-  let cli_stdout = find_and_run_conversion(&converter_dir, &input_path, &output_path, is_zip)?;
+  // try sidecar first; fall back to Python CLI if sidecar fails
+  let cli_stdout = match run_sidecar_conversion(&app, &input_path, &output_path, is_zip).await {
+    Ok(stdout) => stdout,
+    Err(sidecar_err) => {
+      let conv = PathBuf::from(&converter_dir);
+      if !conv.join("app").join("cli.py").exists() {
+        return Err(format!(
+          "Excel converter sidecar failed: {}. Dev fallback also unavailable: Converter CLI not found at app/cli.py inside {}",
+          sidecar_err,
+          converter_dir
+        ));
+      }
+      find_and_run_conversion(&converter_dir, &input_path, &output_path, is_zip)
+        .map_err(|fallback_err| format!(
+          "Excel converter sidecar failed: {}. Dev fallback also failed: {}",
+          sidecar_err,
+          fallback_err
+        ))?
+    }
+  };
 
   // optionally read preview HTML for html mode
   let preview_html: Option<String> = if !is_zip {
