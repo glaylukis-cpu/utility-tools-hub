@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./App.css";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
@@ -473,6 +473,17 @@ interface ExcelConversionResult {
   cli_stdout: string;
 }
 
+type ToolJobStatus = "queued" | "running" | "succeeded" | "failed";
+
+interface ToolJob {
+  job_id: string;
+  tool_id: string;
+  status: ToolJobStatus;
+  created_at: number;
+  result?: ExcelConversionResult | null;
+  error?: string | null;
+}
+
 function ExcelConverter() {
   const [converterDir, setConverterDir] = useState<string | null>(null);
   const [_detecting, setDetecting] = useState(true); // kept for dev fallback diagnostics
@@ -482,6 +493,24 @@ function ExcelConverter() {
   const [result, setResult] = useState<ExcelConversionResult | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showUpgradeMessage, setShowUpgradeMessage] = useState(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runIdRef = useRef(0);
+  const isRunningRef = useRef(false);
+
+  const stopPolling = () => {
+    if (pollTimerRef.current !== null) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      runIdRef.current += 1;
+      isRunningRef.current = false;
+      stopPolling();
+    };
+  }, []);
 
   // On mount: load saved directory or auto-detect
   useEffect(() => {
@@ -523,24 +552,74 @@ function ExcelConverter() {
   };
 
   const convertAndPreview = async () => {
+    if (isRunningRef.current) return;
     if (!inputPath) {
       setStatus("error");
       setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: "Please select a file first." });
       return;
     }
+
+    stopPolling();
+    const runId = runIdRef.current + 1;
+    runIdRef.current = runId;
+    isRunningRef.current = true;
     setStatus("running");
+    setResult(null);
+
+    const finishWithError = (message: string) => {
+      if (runIdRef.current !== runId) return;
+      stopPolling();
+      isRunningRef.current = false;
+      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: message });
+      setStatus("error");
+    };
+
     try {
-      const res = await invokeTauri<ExcelConversionResult>("convert_excel_to_html_preview_dev", {
-        inputPath,
-        converterDir: converterDir ?? "",
-        zip: zipOutput,
+      const jobId = await invokeTauri<string>("execute_tool", {
+        request: {
+          tool_id: "excel_html_converter",
+          input: { input_path: inputPath },
+          options: {
+            zip: zipOutput,
+            converter_dir: converterDir ?? "",
+          },
+        },
       });
-      setResult(res);
-      setStatus(res.ok ? "success" : "error");
+
+      if (runIdRef.current !== runId) return;
+
+      const pollJob = async () => {
+        if (runIdRef.current !== runId) return;
+
+        try {
+          const job = await invokeTauri<ToolJob>("get_job_status", { jobId });
+          if (runIdRef.current !== runId) return;
+
+          if (job.status === "queued" || job.status === "running") {
+            pollTimerRef.current = setTimeout(() => { void pollJob(); }, 500);
+            return;
+          }
+
+          stopPolling();
+          isRunningRef.current = false;
+
+          if (job.status === "succeeded" && job.result) {
+            setResult(job.result);
+            setStatus(job.result.ok ? "success" : "error");
+            return;
+          }
+
+          finishWithError(job.error ?? "Tool execution failed without an error message.");
+        } catch (err: any) {
+          const message = typeof err === "string" ? err : JSON.stringify(err);
+          finishWithError(message);
+        }
+      };
+
+      pollTimerRef.current = setTimeout(() => { void pollJob(); }, 500);
     } catch (err: any) {
       const msg = typeof err === "string" ? err : JSON.stringify(err);
-      setResult({ ok: false, mode: "", input: "", output: "", cli_stdout: msg });
-      setStatus("error");
+      finishWithError(msg);
     }
   };
 
