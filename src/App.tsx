@@ -54,6 +54,7 @@ export default function App() {
 
       <main className="main-content">
         {selectedTool === "excel-html-converter" && <ExcelToolPage onBack={() => setSelectedTool(null)} />}
+        {selectedTool === "text-case-converter" && <TextCaseToolPage onBack={() => setSelectedTool(null)} />}
         {(selectedTool == "html-table-editor" || selectedTool == "batch-file-renamer") && (
           <PendingToolPage tool={selectedTool!} onBack={() => setSelectedTool(null)} />
         )}
@@ -139,8 +140,17 @@ function ToolCardMini({ name, desc, onClick }: { name: string; desc: string; onC
 
 const tools = [
   {
+    id: "excel-html-converter",
     name: "Excel → HTML Converter",
     desc: "Excel ファイルをHTMLテーブルに変換",
+    badge: "Free",
+    status: "Available",
+    locked: false,
+  },
+  {
+    id: "text-case-converter",
+    name: "Text Case Converter",
+    desc: "テキストを大文字・小文字・各種ケースへ変換",
     badge: "Free",
     status: "Available",
     locked: false,
@@ -200,10 +210,11 @@ function ToolsPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) {
 }
 
 function ToolCard({
-  tool: { name, desc, badge, status, locked },
+  tool: { id, name, desc, badge, status, locked },
   onOpenTool,
 }: {
   tool: {
+    id?: string;
     name: string;
     desc: string;
     badge: string;
@@ -232,7 +243,7 @@ function ToolCard({
             Open
           </button>
         ) : (
-          <button className="btn btn-primary" onClick={() => onOpenTool?.("excel-html-converter")}>
+          <button className="btn btn-primary" onClick={() => id && onOpenTool?.(id)}>
             Open
           </button>
         )}
@@ -415,6 +426,30 @@ function SettingsPage() {
 }
 
 
+/* ── Text Case Tool Detail Page ── */
+
+function TextCaseToolPage({ onBack }: { onBack: () => void }) {
+  return (
+    <div>
+      <button
+        className="btn btn-outline"
+        style={{ marginBottom: 20 }}
+        onClick={onBack}
+      >
+        ← Back to Tools
+      </button>
+
+      <div className="page-header">
+        <h1>Text Case Converter</h1>
+        <p>Convert text to uppercase, lowercase, title case, snake case, or kebab case.</p>
+      </div>
+
+      <TextCaseConverter />
+    </div>
+  );
+}
+
+
 /* ── Excel Tool Detail Page ── */
 
 function ExcelToolPage({ onBack }: { onBack: () => void }) {
@@ -475,13 +510,203 @@ interface ExcelConversionResult {
 
 type ToolJobStatus = "queued" | "running" | "succeeded" | "failed";
 
-interface ToolJob {
+interface ToolJob<T> {
   job_id: string;
   tool_id: string;
   status: ToolJobStatus;
   created_at: number;
-  result?: ExcelConversionResult | null;
+  result?: T | null;
   error?: string | null;
+}
+
+type TextCaseMode = "uppercase" | "lowercase" | "title_case" | "snake_case" | "kebab_case";
+type TextCaseConverterStatus = "idle" | "running" | "success" | "error";
+
+interface TextCaseConversionResult {
+  ok: boolean;
+  mode: TextCaseMode;
+  input_text: string;
+  output_text: string;
+}
+
+function TextCaseConverter() {
+  const [text, setText] = useState("");
+  const [mode, setMode] = useState<TextCaseMode>("uppercase");
+  const [status, setStatus] = useState<TextCaseConverterStatus>("idle");
+  const [result, setResult] = useState<TextCaseConversionResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runIdRef = useRef(0);
+  const isRunningRef = useRef(false);
+
+  const stopPolling = () => {
+    if (pollTimerRef.current !== null) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      runIdRef.current += 1;
+      isRunningRef.current = false;
+      stopPolling();
+    };
+  }, []);
+
+  const convertText = async () => {
+    if (isRunningRef.current) return;
+    if (!text.trim()) {
+      setResult(null);
+      setError("Please enter text to convert.");
+      setStatus("error");
+      return;
+    }
+
+    stopPolling();
+    const runId = runIdRef.current + 1;
+    runIdRef.current = runId;
+    isRunningRef.current = true;
+    setResult(null);
+    setError(null);
+    setStatus("running");
+
+    const finishWithError = (message: string) => {
+      if (runIdRef.current !== runId) return;
+      stopPolling();
+      isRunningRef.current = false;
+      setResult(null);
+      setError(message);
+      setStatus("error");
+    };
+
+    try {
+      const jobId = await invokeTauri<string>("execute_tool", {
+        request: {
+          tool_id: "text_case_converter",
+          input: { text },
+          options: { mode },
+        },
+      });
+
+      if (runIdRef.current !== runId) return;
+
+      const pollJob = async () => {
+        if (runIdRef.current !== runId) return;
+
+        try {
+          const job = await invokeTauri<ToolJob<TextCaseConversionResult>>(
+            "get_job_status",
+            { jobId },
+          );
+          if (runIdRef.current !== runId) return;
+
+          if (job.status === "queued" || job.status === "running") {
+            pollTimerRef.current = setTimeout(() => { void pollJob(); }, 500);
+            return;
+          }
+
+          stopPolling();
+          isRunningRef.current = false;
+
+          if (job.status === "succeeded" && job.result) {
+            setResult(job.result);
+            setError(null);
+            setStatus(job.result.ok ? "success" : "error");
+            return;
+          }
+
+          finishWithError(job.error ?? "Tool execution failed without an error message.");
+        } catch (err: any) {
+          const message = typeof err === "string" ? err : JSON.stringify(err);
+          finishWithError(message);
+        }
+      };
+
+      pollTimerRef.current = setTimeout(() => { void pollJob(); }, 500);
+    } catch (err: any) {
+      const message = typeof err === "string" ? err : JSON.stringify(err);
+      finishWithError(message);
+    }
+  };
+
+  return (
+    <div className="phase4-prototype">
+      <h3>Text Case Converter</h3>
+      <p style={{ fontSize: ".85rem", color: "#64748b" }}>
+        Enter text, choose an output mode, and convert it locally.
+      </p>
+
+      <div className="engine-status" style={{ marginBottom: 8 }}>
+        <span className="engine-ready">Built-in text converter ready</span>
+      </div>
+
+      <div className="form-fields">
+        <label className="form-label" htmlFor="text-case-input">Input text</label>
+        <textarea
+          id="text-case-input"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          disabled={status === "running"}
+          rows={8}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: 12,
+            border: "1px solid #cbd5e1",
+            borderRadius: 8,
+            resize: "vertical",
+            font: "inherit",
+          }}
+        />
+
+        <label className="form-label" htmlFor="text-case-mode">Mode</label>
+        <select
+          id="text-case-mode"
+          value={mode}
+          onChange={(event) => setMode(event.target.value as TextCaseMode)}
+          disabled={status === "running"}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: 10,
+            border: "1px solid #cbd5e1",
+            borderRadius: 8,
+            background: "#fff",
+          }}
+        >
+          <option value="uppercase">UPPERCASE</option>
+          <option value="lowercase">lowercase</option>
+          <option value="title_case">Title Case</option>
+          <option value="snake_case">snake_case</option>
+          <option value="kebab_case">kebab-case</option>
+        </select>
+
+        <button
+          className="btn btn-primary"
+          disabled={status === "running" || !text.trim()}
+          onClick={convertText}
+          style={{ marginTop: 12 }}
+        >
+          {status === "running" ? "Running..." : "Convert"}
+        </button>
+      </div>
+
+      {status === "error" && error && (
+        <div style={{ color: "#dc2626", marginTop: 12 }}>❌ {error}</div>
+      )}
+
+      {status === "success" && result && (
+        <div className="phase4-result">
+          <div className="success-summary" style={{ marginTop: 12, marginBottom: 4 }}>
+            ✅ Conversion successful.
+          </div>
+          <div style={{ fontSize: ".8rem", color: "#64748b" }}>Mode: {result.mode}</div>
+          <pre className="result-output">{result.output_text}</pre>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ExcelConverter() {
@@ -592,7 +817,7 @@ function ExcelConverter() {
         if (runIdRef.current !== runId) return;
 
         try {
-          const job = await invokeTauri<ToolJob>("get_job_status", { jobId });
+          const job = await invokeTauri<ToolJob<ExcelConversionResult>>("get_job_status", { jobId });
           if (runIdRef.current !== runId) return;
 
           if (job.status === "queued" || job.status === "running") {
