@@ -27,11 +27,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            convert_excel_to_html_dev,
             select_excel_file_dev,
             select_converter_directory_dev,
             detect_converter_directory_dev,
-            convert_excel_to_html_preview_dev,
             execute_tool,
             get_job_status,
         ])
@@ -307,35 +305,6 @@ fn get_job_status(
     manager.get(&job_id)
 }
 
-/* Phase 3: original dev bridge (unchanged) */
-
-#[tauri::command]
-fn convert_excel_to_html_dev(
-    input_path: String,
-    output_path: String,
-    converter_dir: String,
-    zip: Option<bool>,
-) -> Result<String, String> {
-    let conv = PathBuf::from(&converter_dir);
-    if !conv.join("app").join("cli.py").exists() {
-        return Err(format!(
-            "Converter CLI not found at app/cli.py inside {}",
-            converter_dir
-        ));
-    }
-    if !input_path.ends_with(".xlsx") {
-        return Err("input_path must end with .xlsx".into());
-    }
-    let is_zip = zip.unwrap_or(false);
-    if is_zip && !output_path.ends_with(".zip") {
-        return Err("zip mode requires output_path ending with .zip".into());
-    }
-    if !is_zip && !output_path.ends_with(".html") {
-        return Err("html mode requires output_path ending with .html".into());
-    }
-    find_and_run_conversion(&converter_dir, &input_path, &output_path, is_zip)
-}
-
 fn find_and_run_conversion(
     converter_dir: &str,
     input_path: &str,
@@ -542,16 +511,6 @@ async fn run_sidecar_conversion(
             }
         ))
     }
-}
-
-#[tauri::command]
-async fn convert_excel_to_html_preview_dev(
-    app: tauri::AppHandle,
-    input_path: String,
-    converter_dir: String,
-    zip: Option<bool>,
-) -> Result<ExcelConversionPreview, String> {
-    run_excel_conversion_preview(app, input_path, converter_dir, zip).await
 }
 
 async fn run_excel_conversion_preview(
