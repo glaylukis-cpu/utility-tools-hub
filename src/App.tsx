@@ -557,8 +557,9 @@ function TextCaseConverter() {
   const convertText = async () => {
     if (isRunningRef.current) return;
     if (!text.trim()) {
+      isRunningRef.current = false;
       setResult(null);
-      setError("Please enter text to convert.");
+      setError("Please enter text first.");
       setStatus("error");
       return;
     }
