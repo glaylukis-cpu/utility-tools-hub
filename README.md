@@ -31,7 +31,9 @@ A desktop hub for small, local-first productivity tools.
 
 ## Screenshots
 
-Screenshots will be added in a future documentation update.
+![Excel Converter Free Pro UI](Docs/images/excel-converter-free-pro.png)
+
+![GitHub Release v0.1.4](Docs/images/github-release-v014.png)
 
 ## Download
 
@@ -47,7 +49,7 @@ Download the latest Windows installer from [GitHub Releases](https://github.com/
 1. Download the latest `setup.exe` from [GitHub Releases](https://github.com/glaylukis-cpu/utility-tools-hub/releases)
 2. Run the installer
 3. Launch **Utility Tools Hub**
-4. Open **Tools → Excel to HTML Converter**
+4. Open **Tools -> Excel to HTML Converter**
 
 ## Usage
 
