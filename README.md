@@ -1,189 +1,92 @@
 # Utility Tools Hub
 
-
-Utility Tools Hub is a Tauri desktop app foundation for bundling multiple useful PC tools into one application.
-
-
-## Download
-
-
-Download the latest Windows installer from the GitHub Releases page.
-
-
-Release page:
-
-
-https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.1.0
-
-
-Recommended installer:
-
-
-- `Utility.Tools.Hub_0.1.0_x64-setup.exe`
-
-
-Alternative installer:
-
-
-- `Utility.Tools.Hub_0.1.0_x64_en-US.msi`
-
-
-For normal Windows installation, use the `setup.exe` installer.
-The `.msi` package is also available for installer-based distribution.
-
+A desktop hub for small, local-first productivity tools.
 
 ## Current Status
 
+- Latest release: v0.1.4
+- Windows desktop app
+- Excel to HTML Converter is available
+- Auth/payment is not implemented yet
+- Free / Pro UI is placeholder only
 
-- Tauri v2 desktop app shell
-- React + TypeScript + Vite UI
-- Dashboard UI
-- Tools UI
-- Account UI mock
-- Billing UI mock
-- Settings UI
-- Free / Pro / All Tools Pro plan display
-- Auth integration coming soon message
-- Billing integration coming soon message
-- Payment processing is not implemented yet
-- Authentication is not implemented yet
-- Actual tool integrations are not implemented yet
+## Features
 
+### Excel to HTML Converter
 
-## Repository
+- Built-in converter sidecar
+- No external converter folder required
+- Select `.xlsx` files
+- Drag and drop `.xlsx` files
+- Convert and preview generated HTML
+- Sheet tab switching in preview
+- Optional ZIP output for current single-file conversion
 
+### Free / Pro UI Placeholder
 
-glaylukis-cpu/utility-tools-hub
+- Free plan indicator
+- Pro feature cards
+- Upgrade placeholder message
+- No real login, payment, or server communication yet
 
+## Screenshots
 
-## Requirements
+Screenshots will be added in a future documentation update.
 
+## Download
 
-- Windows 11
-- Git
-- Node.js / npm
-- Rust / Cargo
-- Microsoft Visual Studio Build Tools 2022
-  - Desktop development with C++
-  - MSVC v143
-  - Windows 10 SDK or Windows 11 SDK
+Download the latest Windows installer from [GitHub Releases](https://github.com/glaylukis-cpu/utility-tools-hub/releases).
 
+- **For most Windows users**: download `Utility.Tools.Hub_0.1.4_x64-setup.exe`
+- MSI package is also available for Windows installer workflows
 
-## Setup
+## Install
 
+**Windows:**
 
-```powershell
-git clone https://github.com/glaylukis-cpu/utility-tools-hub.git
-cd utility-tools-hub
-npm.cmd install
-```
+1. Download the latest `setup.exe` from [GitHub Releases](https://github.com/glaylukis-cpu/utility-tools-hub/releases)
+2. Run the installer
+3. Launch **Utility Tools Hub**
+4. Open **Tools → Excel to HTML Converter**
 
+## Usage
 
-## Build Web UI
+**Excel Converter:**
 
+1. Open **Tools**
+2. Open **Excel to HTML Converter**
+3. Select or drag and drop an `.xlsx` file
+4. Click **Convert and Preview**
+5. Review the generated HTML preview
+6. Use sheet tabs inside the preview when available
 
-```powershell
-npm.cmd run build
-```
+## Release Notes
 
+### v0.1.4
 
-## Run Tauri Desktop App
+- Added auth/payment planning documentation
+- Added Free / Pro UI placeholders
+- Added Pro feature cards
+- Clarified Advanced ZIP export wording
 
+### v0.1.3
 
-```powershell
-npm.cmd run tauri:dev
-```
+- Bundled Excel Converter sidecar
+- Removed external converter folder requirement from normal user flow
+- Confirmed conversion preview and sheet tab switching
 
+### v0.1.2
 
-When startup succeeds, the `Utility Tools Hub` desktop window opens.
+- Added Excel Converter entry flow inside the hub
+- Improved file selection and drag/drop UX
 
+## Development Notes
 
-## Build Tauri Desktop App
+- Tauri + React desktop app
+- Python-based Excel converter bundled as a Tauri sidecar
+- Windows release builds generate `setup.exe` and MSI
+- Auth/payment is planned but not implemented
 
+## Documentation
 
-```powershell
-npm.cmd run tauri:build
-```
-
-
-## Implemented Screens
-
-
-### Dashboard
-
-
-* Current plan display
-* Monthly free usage count
-* Upgrade to Pro button
-* Recently used tools
-* Recommended tools
-
-
-### Tools
-
-
-* Excel to HTML Converter
-* HTML Table Editor
-* CSV Formatter
-* Image Compressor
-* Batch File Renamer
-* Coming Soon Tool
-
-
-### Account
-
-
-Authentication UI mock.
-
-
-* Not signed in
-* Sign in with Email
-* Sign in with Google
-* Auth integration coming soon
-
-
-### Billing
-
-
-Billing UI mock.
-
-
-* Current plan: Free
-* Free Plan: 0 JPY
-* Single Tool Pro: 500 JPY / month
-* All Tools Pro: 1,500 JPY / month
-* Billing integration coming soon
-
-
-### Settings
-
-
-* Theme
-* Language
-* Local processing
-* Data privacy
-* App version
-
-
-## Current Limitations
-
-
-* Supabase Auth or other real authentication is not implemented
-* Stripe Checkout / Billing or other real payment processing is not implemented
-* Excel HTML Converter processing is not integrated yet
-* HTML Table Editor is not implemented yet
-* CSV Formatter is not implemented yet
-* Image Compressor is not implemented yet
-* Batch File Renamer is not implemented yet
-
-
-## Roadmap
-
-
-* Integrate Excel HTML Converter
-* Add HTML Table Editor
-* Add authentication with Supabase Auth or similar
-* Add subscriptions with Stripe Checkout / Billing
-* Add local tool execution foundation
-* Create Windows installer
-* Create GitHub Release
+- [Auth Payment Plan](Docs/AuthPaymentPlan.md)
