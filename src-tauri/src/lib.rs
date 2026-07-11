@@ -38,6 +38,7 @@ pub fn run() {
 }
 
 const EXCEL_HTML_CONVERTER_TOOL_ID: &str = "excel_html_converter";
+const TEXT_CASE_CONVERTER_TOOL_ID: &str = "text_case_converter";
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -82,8 +83,58 @@ struct ExcelHtmlConverterRequest {
     converter_dir: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TextCaseConverterInput {
+    text: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TextCaseConverterOptions {
+    mode: String,
+}
+
+struct TextCaseConverterRequest {
+    text: String,
+    mode: TextCaseMode,
+}
+
+#[derive(Clone, Copy)]
+enum TextCaseMode {
+    Uppercase,
+    Lowercase,
+    TitleCase,
+    SnakeCase,
+    KebabCase,
+}
+
+impl TextCaseMode {
+    fn parse(mode: &str) -> Result<Self, String> {
+        match mode {
+            "uppercase" => Ok(Self::Uppercase),
+            "lowercase" => Ok(Self::Lowercase),
+            "title_case" => Ok(Self::TitleCase),
+            "snake_case" => Ok(Self::SnakeCase),
+            "kebab_case" => Ok(Self::KebabCase),
+            _ => Err(format!("Unknown text case mode: {}", mode)),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Uppercase => "uppercase",
+            Self::Lowercase => "lowercase",
+            Self::TitleCase => "title_case",
+            Self::SnakeCase => "snake_case",
+            Self::KebabCase => "kebab_case",
+        }
+    }
+}
+
 enum RegisteredTool {
     ExcelHtmlConverter,
+    TextCaseConverter,
 }
 
 struct ToolRegistry;
@@ -92,6 +143,7 @@ impl ToolRegistry {
     fn resolve(tool_id: &str) -> Result<RegisteredTool, String> {
         match tool_id {
             EXCEL_HTML_CONVERTER_TOOL_ID => Ok(RegisteredTool::ExcelHtmlConverter),
+            TEXT_CASE_CONVERTER_TOOL_ID => Ok(RegisteredTool::TextCaseConverter),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
         }
     }
@@ -122,18 +174,37 @@ impl RegisteredTool {
                     },
                 ))
             }
+            RegisteredTool::TextCaseConverter => {
+                let input: TextCaseConverterInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                let options: TextCaseConverterOptions = serde_json::from_value(request.options)
+                    .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?;
+
+                if input.text.trim().is_empty() {
+                    return Err("text must not be empty".into());
+                }
+
+                Ok(ValidatedToolRequest::TextCaseConverter(
+                    TextCaseConverterRequest {
+                        text: input.text,
+                        mode: TextCaseMode::parse(&options.mode)?,
+                    },
+                ))
+            }
         }
     }
 }
 
 enum ValidatedToolRequest {
     ExcelHtmlConverter(ExcelHtmlConverterRequest),
+    TextCaseConverter(TextCaseConverterRequest),
 }
 
 impl ValidatedToolRequest {
     fn tool_id(&self) -> &'static str {
         match self {
             ValidatedToolRequest::ExcelHtmlConverter(_) => EXCEL_HTML_CONVERTER_TOOL_ID,
+            ValidatedToolRequest::TextCaseConverter(_) => TEXT_CASE_CONVERTER_TOOL_ID,
         }
     }
 
@@ -141,6 +212,9 @@ impl ValidatedToolRequest {
         match self {
             ValidatedToolRequest::ExcelHtmlConverter(request) => {
                 ExcelHtmlConverterHandler.execute(app, request).await
+            }
+            ValidatedToolRequest::TextCaseConverter(request) => {
+                TextCaseConverterHandler.execute(app, request).await
             }
         }
     }
@@ -172,6 +246,75 @@ impl ToolHandler for ExcelHtmlConverterHandler {
                 .map_err(|e| format!("Failed to serialize tool result: {}", e))
         })
     }
+}
+
+struct TextCaseConverterHandler;
+
+impl ToolHandler for TextCaseConverterHandler {
+    type Request = TextCaseConverterRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result = convert_text_case(request)?;
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct TextCaseConversionResult {
+    ok: bool,
+    mode: String,
+    input_text: String,
+    output_text: String,
+}
+
+fn convert_text_case(
+    request: TextCaseConverterRequest,
+) -> Result<TextCaseConversionResult, String> {
+    if request.text.trim().is_empty() {
+        return Err("text must not be empty".into());
+    }
+
+    let output_text = match request.mode {
+        TextCaseMode::Uppercase => request.text.to_uppercase(),
+        TextCaseMode::Lowercase => request.text.to_lowercase(),
+        TextCaseMode::TitleCase => to_title_case(&request.text),
+        TextCaseMode::SnakeCase => join_ascii_words(&request.text, "_"),
+        TextCaseMode::KebabCase => join_ascii_words(&request.text, "-"),
+    };
+
+    Ok(TextCaseConversionResult {
+        ok: true,
+        mode: request.mode.as_str().to_string(),
+        input_text: request.text,
+        output_text,
+    })
+}
+
+fn to_title_case(text: &str) -> String {
+    text.split_whitespace()
+        .map(|word| {
+            let mut characters = word.chars();
+            match characters.next() {
+                Some(first) => first
+                    .to_uppercase()
+                    .chain(characters.flat_map(|character| character.to_lowercase()))
+                    .collect::<String>(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn join_ascii_words(text: &str, separator: &str) -> String {
+    text.split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect::<Vec<_>>()
+        .join(separator)
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -581,6 +724,94 @@ mod tests {
             ToolRegistry::resolve(EXCEL_HTML_CONVERTER_TOOL_ID),
             Ok(RegisteredTool::ExcelHtmlConverter)
         ));
+    }
+
+    #[test]
+    fn registry_resolves_text_case_converter_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(TEXT_CASE_CONVERTER_TOOL_ID),
+            Ok(RegisteredTool::TextCaseConverter)
+        ));
+    }
+
+    #[test]
+    fn text_case_converter_rejects_unknown_mode() {
+        let error = TextCaseMode::parse("unknown").err().unwrap();
+        assert!(error.contains("Unknown text case mode"));
+    }
+
+    #[test]
+    fn text_case_converter_converts_uppercase() {
+        let result =
+            convert_text_case(text_case_request("Hello World", TextCaseMode::Uppercase)).unwrap();
+        assert_eq!(result.output_text, "HELLO WORLD");
+    }
+
+    #[test]
+    fn text_case_converter_converts_lowercase() {
+        let result =
+            convert_text_case(text_case_request("Hello WORLD", TextCaseMode::Lowercase)).unwrap();
+        assert_eq!(result.output_text, "hello world");
+    }
+
+    #[test]
+    fn text_case_converter_converts_title_case() {
+        let result =
+            convert_text_case(text_case_request("hELLO wORLD", TextCaseMode::TitleCase)).unwrap();
+        assert_eq!(result.output_text, "Hello World");
+    }
+
+    #[test]
+    fn text_case_converter_converts_snake_case() {
+        let result = convert_text_case(text_case_request(
+            "  Hello--WORLD___again!! ",
+            TextCaseMode::SnakeCase,
+        ))
+        .unwrap();
+        assert_eq!(result.output_text, "hello_world_again");
+    }
+
+    #[test]
+    fn text_case_converter_converts_kebab_case() {
+        let result = convert_text_case(text_case_request(
+            "  Hello--WORLD___again!! ",
+            TextCaseMode::KebabCase,
+        ))
+        .unwrap();
+        assert_eq!(result.output_text, "hello-world-again");
+    }
+
+    #[test]
+    fn text_case_converter_rejects_empty_text() {
+        let error = convert_text_case(text_case_request("   ", TextCaseMode::Uppercase))
+            .err()
+            .unwrap();
+        assert_eq!(error, "text must not be empty");
+    }
+
+    #[test]
+    fn text_case_converter_rejects_non_string_text() {
+        let input = serde_json::json!({ "text": 123 });
+        assert!(serde_json::from_value::<TextCaseConverterInput>(input).is_err());
+    }
+
+    #[test]
+    fn text_case_converter_rejects_unknown_input_field() {
+        let input = serde_json::json!({ "text": "hello", "command": "ignored" });
+        assert!(serde_json::from_value::<TextCaseConverterInput>(input).is_err());
+    }
+
+    #[test]
+    fn text_case_converter_rejects_unknown_options_field() {
+        let options = serde_json::json!({ "mode": "uppercase", "sidecar": "ignored" });
+        assert!(serde_json::from_value::<TextCaseConverterOptions>(options).is_err());
+    }
+
+    fn text_case_request(text: &str, mode: TextCaseMode) -> TextCaseConverterRequest {
+        TextCaseConverterRequest {
+            text: text.to_string(),
+            mode,
+        }
     }
 
     #[test]
