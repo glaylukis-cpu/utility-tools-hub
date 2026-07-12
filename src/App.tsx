@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
+import HtmlEditorPage from "./HtmlEditor";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
 declare const __TAURI__:
@@ -55,7 +56,8 @@ export default function App() {
       <main className="main-content">
         {selectedTool === "excel-html-converter" && <ExcelToolPage onBack={() => setSelectedTool(null)} />}
         {selectedTool === "text-case-converter" && <TextCaseToolPage onBack={() => setSelectedTool(null)} />}
-        {(selectedTool == "html-table-editor" || selectedTool == "batch-file-renamer") && (
+        {selectedTool === "html-table-editor" && <HtmlEditorPage onBack={() => setSelectedTool(null)} />}
+        {selectedTool == "batch-file-renamer" && (
           <PendingToolPage tool={selectedTool!} onBack={() => setSelectedTool(null)} />
         )}
         {!selectedTool && page === "dashboard" && <DashboardPage onOpenTool={openTool} />}
@@ -112,8 +114,8 @@ function DashboardPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) 
       <div className="section-title">おすすめツール</div>
       <div className="card-grid">
         <ToolCardMini
-          name="HTML Table Editor"
-          desc="ブラウザでHTMLテーブルを編集・エクスポート"
+          name="HTML Editor"
+          desc="ブロックを組み合わせてHTMLを作成・プレビュー"
           onClick={() => onOpenTool?.("html-table-editor")}
         />
         <ToolCardMini
@@ -156,11 +158,12 @@ const tools = [
     locked: false,
   },
   {
-    name: "HTML Table Editor",
-    desc: "ブラウザでHTMLテーブルを編集・エクスポート",
+    id: "html-table-editor",
+    name: "HTML Editor",
+    desc: "ブロックを組み合わせてHTMLを作成・プレビュー",
     badge: "Pro",
-    status: "Locked",
-    locked: true,
+    status: "Available",
+    locked: false,
   },
   {
     name: "CSV Formatter",
