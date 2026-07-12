@@ -49,6 +49,23 @@
   margin-bottom: 8px;
 }
 
+.html-editor-template-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.html-editor-template-section h3 {
+  margin: 0 0 2px;
+  color: #475569;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .html-editor-library button,
 .html-editor-actions button {
   display: flex;
@@ -162,6 +179,25 @@
   font-family: monospace;
 }
 
+.html-editor-image-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 340px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.html-editor-image-placeholder {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  border: 1px dashed #94a3b8;
+  border-radius: 7px;
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 12px;
+}
+
 .html-editor-properties {
   display: flex;
   flex-direction: column;
@@ -217,6 +253,38 @@
   color: #1e40af;
   font-size: 11px;
   line-height: 1.5;
+}
+
+.html-editor-image-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.html-editor-image-settings input[type="file"] {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+}
+
+.html-editor-image-limit {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.html-editor-image-error {
+  padding: 8px;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .html-editor-actions {

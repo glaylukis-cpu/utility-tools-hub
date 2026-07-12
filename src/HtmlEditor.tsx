@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import "./HtmlEditor.css";
 
-type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "card";
+type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "card" | "image";
 type TextAlign = "left" | "center" | "right";
+type TemplateName = "landing" | "article" | "product";
 
 interface BlockStyle {
   align: TextAlign;
@@ -16,6 +17,7 @@ interface EditorBlock {
   type: BlockType;
   text: string;
   style: BlockStyle;
+  imageDataUrl?: string;
 }
 
 const blockLabels: Record<BlockType, string> = {
@@ -25,6 +27,7 @@ const blockLabels: Record<BlockType, string> = {
   divider: "Divider",
   table: "Table",
   card: "Card",
+  image: "Image",
 };
 
 const defaultText: Record<BlockType, string> = {
@@ -34,7 +37,43 @@ const defaultText: Record<BlockType, string> = {
   divider: "",
   table: "Name | Value\nExample | 100",
   card: "Card title",
+  image: "Image description",
 };
+
+const templateLabels: Record<TemplateName, string> = {
+  landing: "Landing Page",
+  article: "Simple Article",
+  product: "Product Card",
+};
+
+const templates: Record<TemplateName, Array<{ type: BlockType; text: string }>> = {
+  landing: [
+    { type: "heading", text: "Build something remarkable" },
+    { type: "paragraph", text: "Introduce your product with a clear, focused message." },
+    { type: "button", text: "Get started" },
+    { type: "card", text: "Why choose us" },
+  ],
+  article: [
+    { type: "heading", text: "Article title" },
+    { type: "paragraph", text: "Write an engaging introduction for your article." },
+    { type: "divider", text: "" },
+    { type: "paragraph", text: "Continue the story with supporting details." },
+  ],
+  product: [
+    { type: "image", text: "Product image" },
+    { type: "heading", text: "Product name" },
+    { type: "paragraph", text: "Describe the key benefit of this product." },
+    { type: "button", text: "View product" },
+  ],
+};
+
+const MAX_IMAGE_SIZE = 3 * 1024 * 1024;
+const EMPTY_IMAGE_DATA_URL = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+const allowedImageTypes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"]);
+
+function isSafeImageDataUrl(value: string | undefined): value is string {
+  return typeof value === "string" && /^data:image\/(?:png|jpeg|gif|webp|bmp);base64,[a-z0-9+/=]+$/i.test(value);
+}
 
 function createStyle(type: BlockType): BlockStyle {
   return {
@@ -98,6 +137,10 @@ function blockToHtml(block: EditorBlock): string {
       return tableHtml(block);
     case "card":
       return `<section style="${style};border:1px solid #e2e8f0;border-radius:10px"><h3 style="margin:0 0 8px">${text}</h3><p style="margin:0;opacity:.75">Card content</p></section>`;
+    case "image": {
+      const source = isSafeImageDataUrl(block.imageDataUrl) ? block.imageDataUrl : EMPTY_IMAGE_DATA_URL;
+      return `<div style="${style}"><img src="${source}" alt="${text}" style="display:block;max-width:100%;height:auto;margin:0 auto;background:#e2e8f0;min-height:120px"></div>`;
+    }
   }
 }
 
@@ -137,6 +180,14 @@ function CanvasBlock({ block }: { block: EditorBlock }) {
       return <div style={style} className="html-editor-table-preview">{block.text}</div>;
     case "card":
       return <section style={style} className="html-editor-card-preview"><h3>{block.text}</h3><p>Card content</p></section>;
+    case "image":
+      return (
+        <div style={style} className="html-editor-image-preview">
+          {isSafeImageDataUrl(block.imageDataUrl)
+            ? <img src={block.imageDataUrl} alt={block.text} />
+            : <div className="html-editor-image-placeholder">No image selected</div>}
+        </div>
+      );
   }
 }
 
@@ -149,6 +200,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const [selectedId, setSelectedId] = useState<number | null>(1);
   const [htmlSource, setHtmlSource] = useState(() => generateHtml(blocks));
   const [copied, setCopied] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const selectedBlock = blocks.find((block) => block.id === selectedId) ?? null;
 
@@ -157,15 +209,26 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
     setCopied(false);
   }, [blocks]);
 
-  const addBlock = (type: BlockType) => {
-    const block: EditorBlock = {
+  const createBlock = (type: BlockType, text = defaultText[type]): EditorBlock => ({
       id: nextId.current++,
       type,
-      text: defaultText[type],
+      text,
       style: createStyle(type),
-    };
+    });
+
+  const addBlock = (type: BlockType) => {
+    const block = createBlock(type);
     setBlocks((current) => [...current, block]);
     setSelectedId(block.id);
+    setImageError(null);
+  };
+
+  const applyTemplate = (template: TemplateName) => {
+    if (blocks.length > 0 && !window.confirm("Replace the current blocks with this template?")) return;
+    const nextBlocks = templates[template].map((block) => createBlock(block.type, block.text));
+    setBlocks(nextBlocks);
+    setSelectedId(nextBlocks[0]?.id ?? null);
+    setImageError(null);
   };
 
   const updateSelected = (update: Partial<Pick<EditorBlock, "text" | "style">>) => {
@@ -212,6 +275,37 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
     setSelectedId(duplicate.id);
   };
 
+  const selectBlock = (id: number) => {
+    setSelectedId(id);
+    setImageError(null);
+  };
+
+  const selectImage = (file: File | undefined) => {
+    if (!file || !selectedBlock || selectedBlock.type !== "image") return;
+    if (file.size > MAX_IMAGE_SIZE) {
+      setImageError("Image must be 3MB or smaller.");
+      return;
+    }
+    if (!allowedImageTypes.has(file.type)) {
+      setImageError("Please choose a PNG, JPEG, GIF, WebP, or BMP image.");
+      return;
+    }
+
+    const blockId = selectedBlock.id;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : undefined;
+      if (!isSafeImageDataUrl(result)) {
+        setImageError("The selected image could not be loaded safely.");
+        return;
+      }
+      setBlocks((current) => current.map((block) => block.id === blockId ? { ...block, imageDataUrl: result } : block));
+      setImageError(null);
+    };
+    reader.onerror = () => setImageError("The selected image could not be read.");
+    reader.readAsDataURL(file);
+  };
+
   const copyHtml = async () => {
     try {
       await navigator.clipboard.writeText(htmlSource);
@@ -243,6 +337,14 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
               <span>＋</span>{blockLabels[type]}
             </button>
           ))}
+          <div className="html-editor-template-section">
+            <h3>Templates</h3>
+            {(Object.keys(templateLabels) as TemplateName[]).map((template) => (
+              <button key={template} type="button" onClick={() => applyTemplate(template)}>
+                {templateLabels[template]}
+              </button>
+            ))}
+          </div>
         </aside>
 
         <section className="html-editor-panel html-editor-canvas-panel">
@@ -257,7 +359,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                 key={block.id}
                 type="button"
                 className={`html-editor-canvas-block ${selectedId === block.id ? "selected" : ""}`}
-                onClick={() => setSelectedId(block.id)}
+                onClick={() => selectBlock(block.id)}
                 title={block.type === "button" ? "Click to select this button block" : `Click to select ${blockLabels[block.type]}`}
               >
                 <span className="html-editor-block-label">{blockLabels[block.type]}</span>
@@ -281,9 +383,26 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
               )}
               {selectedBlock.type !== "divider" && (
                 <label>
-                  Text
+                  {selectedBlock.type === "image" ? "Alt text" : "Text"}
                   <textarea value={selectedBlock.text} onChange={(event) => updateSelected({ text: event.target.value })} rows={4} />
                 </label>
+              )}
+              {selectedBlock.type === "image" && (
+                <div className="html-editor-image-settings">
+                  <label>
+                    Image file
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => {
+                        selectImage(event.target.files?.[0]);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                  <div className="html-editor-image-limit">PNG, JPEG, GIF, WebP, or BMP. Maximum 3MB.</div>
+                  {imageError && <div className="html-editor-image-error">{imageError}</div>}
+                </div>
               )}
               <label>
                 Align
