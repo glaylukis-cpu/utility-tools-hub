@@ -14,7 +14,7 @@
 
 .html-editor-workspace {
   display: grid;
-  grid-template-columns: 220px minmax(620px, 1fr) 300px;
+  grid-template-columns: 190px minmax(620px, 1fr) 280px;
   gap: 16px;
   align-items: start;
 }
@@ -42,6 +42,10 @@
 .html-editor-library,
 .html-editor-properties {
   padding: 14px;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 
 .html-editor-library h2,
@@ -98,12 +102,71 @@
   color: #64748b;
 }
 
-.html-editor-canvas {
-  min-height: 520px;
-  padding: 14px;
-  border: 1px dashed #cbd5e1;
-  border-radius: 10px;
+.html-editor-canvas-panel {
+  padding: 12px;
   background: #f8fafc;
+}
+
+.html-editor-canvas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.html-editor-canvas-toolbar .html-editor-panel-title {
+  margin-bottom: 0;
+}
+
+.html-editor-viewport-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #dbe3ee;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.html-editor-viewport-switch button {
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.html-editor-viewport-switch button:hover {
+  color: #2563eb;
+}
+
+.html-editor-viewport-switch button.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+}
+
+.html-editor-canvas {
+  min-height: 640px;
+  padding: 28px 24px;
+  overflow-x: auto;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #e9eef5;
+}
+
+.html-editor-page-frame {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 580px;
+  margin: 0 auto;
+  padding: 28px;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  transition: max-width 180ms ease;
 }
 
 .html-editor-canvas-block {
@@ -121,8 +184,14 @@
   cursor: pointer;
 }
 
+.html-editor-canvas-block:hover {
+  border-color: #bfdbfe;
+}
+
 .html-editor-canvas-block.selected {
   border-color: #3b82f6;
+  outline: 2px solid rgba(59, 130, 246, 0.2);
+  outline-offset: 1px;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
 }
 
@@ -316,23 +385,55 @@
   font-size: 13px;
 }
 
-.html-editor-output-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+.html-editor-canvas-empty {
+  display: flex;
+  min-height: 520px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
-.html-editor-output-grid iframe,
-.html-editor-output-grid textarea {
+.html-editor-canvas-empty strong {
+  color: #64748b;
+  font-size: 15px;
+}
+
+.html-editor-source-section {
+  padding: 0;
+  overflow: hidden;
+}
+
+.html-editor-source-section summary {
+  padding: 12px 16px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.html-editor-source-section[open] summary {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.html-editor-source-content {
+  padding: 12px 16px 16px;
+}
+
+.html-editor-source-content p {
+  margin: 0 0 8px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.html-editor-source-content textarea {
   box-sizing: border-box;
   width: 100%;
-  height: 330px;
+  height: 220px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
-}
-
-.html-editor-output-grid textarea {
   padding: 12px;
   resize: vertical;
   color: #334155;
@@ -343,23 +444,44 @@
 
 @media (max-width: 1050px) {
   .html-editor-workspace {
-    grid-template-columns: 180px 1fr;
+    grid-template-columns: 170px minmax(0, 1fr);
   }
 
   .html-editor-properties {
     grid-column: 1 / -1;
+    position: static;
+    max-height: none;
   }
 }
 
 @media (max-width: 760px) {
   .html-editor-header,
-  .html-editor-workspace,
-  .html-editor-output-grid {
+  .html-editor-workspace {
     grid-template-columns: 1fr;
   }
 
   .html-editor-header {
     display: flex;
     flex-direction: column;
+  }
+
+  .html-editor-library {
+    position: static;
+    max-height: none;
+  }
+
+  .html-editor-canvas-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .html-editor-canvas {
+    min-height: 520px;
+    padding: 16px;
+  }
+
+  .html-editor-page-frame {
+    min-height: 480px;
+    padding: 18px;
   }
 }

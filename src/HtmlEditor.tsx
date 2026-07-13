@@ -4,6 +4,13 @@ import "./HtmlEditor.css";
 type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "card" | "image";
 type TextAlign = "left" | "center" | "right";
 type TemplateName = "landing" | "article" | "product";
+type CanvasViewport = "desktop" | "tablet" | "mobile";
+
+const canvasViewportWidths: Record<CanvasViewport, number> = {
+  desktop: 1280,
+  tablet: 768,
+  mobile: 390,
+};
 
 interface BlockStyle {
   align: TextAlign;
@@ -201,6 +208,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const [htmlSource, setHtmlSource] = useState(() => generateHtml(blocks));
   const [copied, setCopied] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [canvasViewport, setCanvasViewport] = useState<CanvasViewport>("desktop");
 
   const selectedBlock = blocks.find((block) => block.id === selectedId) ?? null;
 
@@ -348,25 +356,50 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
         </aside>
 
         <section className="html-editor-panel html-editor-canvas-panel">
-          <div className="html-editor-panel-title">
-            <h2>Editor Canvas</h2>
-            <span>{blocks.length} blocks</span>
+          <div className="html-editor-canvas-toolbar">
+            <div className="html-editor-panel-title">
+              <h2>Live Page Canvas</h2>
+              <span>{blocks.length} blocks</span>
+            </div>
+            <div className="html-editor-viewport-switch" role="group" aria-label="Page width">
+              {(Object.keys(canvasViewportWidths) as CanvasViewport[]).map((viewport) => (
+                <button
+                  key={viewport}
+                  type="button"
+                  className={canvasViewport === viewport ? "active" : ""}
+                  aria-pressed={canvasViewport === viewport}
+                  onClick={() => setCanvasViewport(viewport)}
+                >
+                  {viewport[0].toUpperCase() + viewport.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="html-editor-canvas">
-            {blocks.length === 0 && <div className="html-editor-empty">Add a block from the library.</div>}
-            {blocks.map((block) => (
-              <button
-                key={block.id}
-                type="button"
+            <div
+              className="html-editor-page-frame"
+              style={{ maxWidth: canvasViewportWidths[canvasViewport] }}
+            >
+              {blocks.length === 0 && (
+                <div className="html-editor-empty html-editor-canvas-empty">
+                  <strong>Start by adding a block or applying a template.</strong>
+                  <span>Use Block Library or Templates to build this page.</span>
+                </div>
+              )}
+              {blocks.map((block) => (
+                <button
+                  key={block.id}
+                  type="button"
                 className={`html-editor-canvas-block ${selectedId === block.id ? "selected" : ""}`}
                 onClick={() => selectBlock(block.id)}
                 title={block.type === "button" ? "Click to select this button block" : `Click to select ${blockLabels[block.type]}`}
               >
-                <span className="html-editor-block-label">{blockLabels[block.type]}</span>
-                <CanvasBlock block={block} />
-                {block.type === "button" && <span className="html-editor-selection-hint">Click to select block</span>}
-              </button>
-            ))}
+                  {selectedId === block.id && <span className="html-editor-block-label">{blockLabels[block.type]}</span>}
+                  <CanvasBlock block={block} />
+                  {block.type === "button" && <span className="html-editor-selection-hint">Click to select block</span>}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -435,16 +468,13 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
         </aside>
       </div>
 
-      <section className="html-editor-output-grid">
-        <div className="html-editor-panel">
-          <div className="html-editor-panel-title"><h2>HTML Preview</h2></div>
-          <iframe title="HTML Editor Preview" srcDoc={htmlSource} sandbox="" />
-        </div>
-        <div className="html-editor-panel">
-          <div className="html-editor-panel-title"><h2>HTML Source</h2></div>
+      <details className="html-editor-panel html-editor-source-section">
+        <summary>HTML Source</summary>
+        <div className="html-editor-source-content">
+          <p>Generated HTML for the current page.</p>
           <textarea value={htmlSource} readOnly spellCheck={false} />
         </div>
-      </section>
+      </details>
     </div>
   );
 }
