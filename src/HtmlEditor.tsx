@@ -182,9 +182,27 @@ function CanvasBlock({ block }: { block: EditorBlock }) {
     case "button":
       return <div style={style}><span className="html-editor-button-preview">{block.text}</span></div>;
     case "divider":
-      return <div style={style}><hr /></div>;
-    case "table":
-      return <div style={style} className="html-editor-table-preview">{block.text}</div>;
+      return <div style={style}><hr className="html-editor-divider-preview" /></div>;
+    case "table": {
+      const rows = block.text
+        .split(/\r?\n/)
+        .filter((row) => row.trim())
+        .map((row) => row.split("|").map((cell) => cell.trim()));
+
+      return (
+        <table style={{ ...style, width: "100%", borderCollapse: "collapse" }} className="html-editor-table-preview">
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={`${block.id}-row-${rowIndex}`}>
+                {row.map((cell, cellIndex) => rowIndex === 0
+                  ? <th key={`${block.id}-cell-${rowIndex}-${cellIndex}`}>{cell}</th>
+                  : <td key={`${block.id}-cell-${rowIndex}-${cellIndex}`}>{cell}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      );
+    }
     case "card":
       return <section style={style} className="html-editor-card-preview"><h3>{block.text}</h3><p>Card content</p></section>;
     case "image":
@@ -387,17 +405,24 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                 </div>
               )}
               {blocks.map((block) => (
-                <button
+                <div
                   key={block.id}
-                  type="button"
-                className={`html-editor-canvas-block ${selectedId === block.id ? "selected" : ""}`}
-                onClick={() => selectBlock(block.id)}
-                title={block.type === "button" ? "Click to select this button block" : `Click to select ${blockLabels[block.type]}`}
-              >
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Select ${blockLabels[block.type]} block`}
+                  className={`html-editor-canvas-block ${selectedId === block.id ? "selected" : ""}`}
+                  onClick={() => selectBlock(block.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      selectBlock(block.id);
+                    }
+                  }}
+                  title={block.type === "button" ? "Click to select this button block" : `Click to select ${blockLabels[block.type]}`}
+                >
                   {selectedId === block.id && <span className="html-editor-block-label">{blockLabels[block.type]}</span>}
                   <CanvasBlock block={block} />
-                  {block.type === "button" && <span className="html-editor-selection-hint">Click to select block</span>}
-                </button>
+                </div>
               ))}
             </div>
           </div>
