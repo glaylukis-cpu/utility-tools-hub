@@ -1,20 +1,10 @@
+import { getCurrentPlan, getFeaturesForBillingComparison, proPlanned } from "./planFeatures";
 import "./BillingPanel.css";
 
-const freePreviewFeatures = [
-  "Excel HTML Converter",
-  "Text Case Converter",
-  "HTML Editor single-page tools",
-  "Save/Open Project",
-];
-
-const proPlannedFeatures = [
-  "Multipage ZIP export",
-  "Local site search",
-  "More batch tools",
-  "Future account/cloud features",
-];
-
 export default function BillingPanel() {
+  const plan = getCurrentPlan();
+  const billingFeatures = getFeaturesForBillingComparison();
+
   return (
     <section className="billing-panel" aria-labelledby="billing-panel-title">
       <div className="page-header">
@@ -27,7 +17,7 @@ export default function BillingPanel() {
         <dl className="billing-status-list">
           <div>
             <dt>Current plan</dt>
-            <dd>Free Preview</dd>
+            <dd>{plan.label}</dd>
           </div>
           <div>
             <dt>Billing status</dt>
@@ -57,14 +47,14 @@ export default function BillingPanel() {
           <div className="billing-plan-heading">
             <div>
               <span className="billing-plan-eyebrow">Current plan</span>
-              <h2>Free Preview</h2>
+              <h2>{plan.label}</h2>
             </div>
             <span className="billing-plan-badge billing-plan-badge-current">Available now</span>
           </div>
           <p>Use the currently available local desktop tools without a paid account.</p>
           <ul className="billing-feature-list">
-            {freePreviewFeatures.map((feature) => (
-              <li key={feature}>{feature}</li>
+            {billingFeatures.freePreview.map((feature) => (
+              <li key={feature.id}>{feature.label}</li>
             ))}
           </ul>
           <button type="button" className="btn btn-disabled" disabled>
@@ -76,14 +66,14 @@ export default function BillingPanel() {
           <div className="billing-plan-heading">
             <div>
               <span className="billing-plan-eyebrow">Future option</span>
-              <h2>Pro Planned</h2>
+              <h2>{proPlanned.label}</h2>
             </div>
             <span className="billing-plan-badge">Price: TBD</span>
           </div>
           <p>Pro is not available for purchase yet. Features and pricing may change.</p>
           <ul className="billing-feature-list">
-            {proPlannedFeatures.map((feature) => (
-              <li key={feature}>{feature}</li>
+            {billingFeatures.proPlanned.map((feature) => (
+              <li key={feature.id}>{feature.label}</li>
             ))}
           </ul>
           <button type="button" className="btn btn-disabled" disabled>

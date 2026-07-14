@@ -5,6 +5,7 @@ import UpdaterPanel from "./UpdaterPanel";
 import AccountPanel from "./AccountPanel";
 import BillingPanel from "./BillingPanel";
 import SettingsPanel from "./SettingsPanel";
+import { getFeatureById, type FeatureId } from "./planFeatures";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
 declare const __TAURI__:
@@ -148,6 +149,7 @@ function ToolCardMini({ name, desc, onClick }: { name: string; desc: string; onC
 const tools = [
   {
     id: "excel-html-converter",
+    featureId: "excel_html_converter" as FeatureId,
     name: "Excel → HTML Converter",
     desc: "Excel ファイルをHTMLテーブルに変換",
     badge: "Free",
@@ -156,6 +158,7 @@ const tools = [
   },
   {
     id: "text-case-converter",
+    featureId: "text_case_converter" as FeatureId,
     name: "Text Case Converter",
     desc: "テキストを大文字・小文字・各種ケースへ変換",
     badge: "Free",
@@ -164,6 +167,7 @@ const tools = [
   },
   {
     id: "html-table-editor",
+    featureId: "html_editor_single_page" as FeatureId,
     name: "HTML Editor",
     desc: "ブロックを組み合わせてHTMLを作成・プレビュー",
     badge: "Pro",
@@ -218,11 +222,12 @@ function ToolsPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) {
 }
 
 function ToolCard({
-  tool: { id, name, desc, badge, status, locked },
+  tool: { id, featureId, name, desc, badge, status, locked },
   onOpenTool,
 }: {
   tool: {
     id?: string;
+    featureId?: FeatureId;
     name: string;
     desc: string;
     badge: string;
@@ -231,6 +236,8 @@ function ToolCard({
   };
   onOpenTool?: (tool: string) => void;
 }) {
+  const feature = featureId ? getFeatureById(featureId) : undefined;
+  const displayStatus = feature?.status === "available" ? "Available" : status;
   const badgeClass =
     badge === "Free"
       ? "badge-free"
@@ -257,10 +264,10 @@ function ToolCard({
         )}
         <span
           className={`status-text ${
-            status === "Available" ? "status-available" : "status-locked"
+            displayStatus === "Available" ? "status-available" : "status-locked"
           }`}
         >
-          {status}
+          {displayStatus}
         </span>
       </div>
     </div>

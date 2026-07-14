@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentPlan, getProPlannedFeatures } from "./planFeatures";
 import "./AccountPanel.css";
 
 const FALLBACK_VERSION = "0.2.1";
 
 export default function AccountPanel() {
+  const plan = getCurrentPlan();
+  const proPlannedFeatures = getProPlannedFeatures();
   const [appVersion, setAppVersion] = useState(FALLBACK_VERSION);
   const [licenseKey, setLicenseKey] = useState("");
   const [licenseMessage, setLicenseMessage] = useState<string | null>(null);
@@ -36,7 +39,7 @@ export default function AccountPanel() {
     <section className="account-panel" aria-labelledby="account-panel-title">
       <div className="page-header">
         <h1 id="account-panel-title">Account</h1>
-        <p>Account and license controls are planned. The app currently runs as Free Preview.</p>
+        <p>Account and license controls are planned. The app currently runs as {plan.label}.</p>
       </div>
 
       <div className="account-summary-grid">
@@ -45,7 +48,7 @@ export default function AccountPanel() {
           <dl className="account-status-list">
             <div>
               <dt>Current plan</dt>
-              <dd>Free Preview</dd>
+              <dd>{plan.label}</dd>
             </div>
             <div>
               <dt>License status</dt>
@@ -127,12 +130,11 @@ export default function AccountPanel() {
         <div className="card account-detail-card">
           <h2>Pro features planned</h2>
           <ul className="account-feature-list">
-            <li>Multipage ZIP export</li>
-            <li>Local site search</li>
-            <li>More batch tools</li>
-            <li>Future cloud/account features</li>
+            {proPlannedFeatures.map((feature) => (
+              <li key={feature.id}>{feature.label}</li>
+            ))}
           </ul>
-          <p className="account-muted-copy">You can continue using the currently available Free Preview features.</p>
+          <p className="account-muted-copy">You can continue using the currently available {plan.label} features.</p>
         </div>
       </div>
     </section>
