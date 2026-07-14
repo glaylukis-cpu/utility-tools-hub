@@ -142,6 +142,68 @@
   opacity: 0.45;
 }
 
+.html-editor-import-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 12px 0;
+  padding: 12px 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.html-editor-import-section h3 {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.html-editor-import-section p {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.html-editor-import-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.html-editor-import-control input[type="file"] {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 10px;
+}
+
+.html-editor-import-message {
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.html-editor-import-message.is-success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.html-editor-import-message.is-error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
 .html-editor-template-section {
   display: flex;
   flex-direction: column;

@@ -424,6 +424,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const [selectedId, setSelectedId] = useState<number | null>(1);
   const [copied, setCopied] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [importFeedback, setImportFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [canvasViewport, setCanvasViewport] = useState<CanvasViewport>("desktop");
 
   const currentPage = pages.find((page) => page.id === currentPageId) ?? pages[0];
@@ -458,6 +459,186 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
       navigationGap: type === "navigation" ? 16 : undefined,
       link: createLink(),
     });
+
+  const importedText = (element: Element): string => {
+    const clone = element.cloneNode(true) as Element;
+    clone.querySelectorAll("script, style, noscript").forEach((ignored) => ignored.remove());
+    clone.querySelectorAll("br").forEach((lineBreak) => lineBreak.replaceWith("\n"));
+    return (clone.textContent ?? "")
+      .replace(/\r/g, "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line, index, lines) => line || (index > 0 && index < lines.length - 1))
+      .join("\n")
+      .trim();
+  };
+
+  const importedColor = (value: string, fallback: string): string => {
+    const color = value.trim().toLowerCase();
+    if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+    if (/^#[0-9a-f]{3}$/i.test(color)) {
+      return `#${color.slice(1).split("").map((part) => `${part}${part}`).join("")}`;
+    }
+    const rgb = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (!rgb) return fallback;
+    return `#${rgb.slice(1, 4).map((part) => Math.min(255, Number(part)).toString(16).padStart(2, "0")).join("")}`;
+  };
+
+  const importedBlockWidth = (element: HTMLElement): BlockWidth => {
+    const widthValue = `${element.style.width} ${element.style.flexBasis}`.toLowerCase();
+    const percentage = widthValue.match(/(\d+(?:\.\d+)?)%/);
+    if (percentage) {
+      const width = Number(percentage[1]);
+      if (width <= 36) return "third";
+      if (width <= 55) return "half";
+    }
+    if (/third|33\.3|calc\([^)]*\/\s*3/.test(widthValue)) return "third";
+    if (/half|50|calc\([^)]*\/\s*2/.test(widthValue)) return "half";
+    return "full";
+  };
+
+  const applyImportedStyle = (block: EditorBlock, element: Element): EditorBlock => {
+    if (!(element instanceof HTMLElement)) return block;
+    const importedStyle = element.style;
+    const align = importedStyle.textAlign === "center" || importedStyle.textAlign === "right"
+      ? importedStyle.textAlign
+      : "left";
+    const padding = Number.parseFloat(importedStyle.padding || importedStyle.paddingTop);
+    const fontSize = Number.parseFloat(importedStyle.fontSize);
+    const numericWeight = Number.parseInt(importedStyle.fontWeight, 10);
+    const fontWeight: FontWeight = !importedStyle.fontWeight
+      ? block.style.fontWeight
+      : importedStyle.fontWeight === "bold" || numericWeight >= 600
+        ? "700"
+        : numericWeight >= 500
+          ? "500"
+          : "normal";
+
+    return {
+      ...block,
+      style: {
+        ...block.style,
+        align,
+        backgroundColor: importedColor(importedStyle.backgroundColor, block.style.backgroundColor),
+        textColor: importedColor(importedStyle.color, block.style.textColor),
+        padding: Number.isFinite(padding) ? Math.min(64, Math.max(0, padding)) : block.style.padding,
+        width: importedBlockWidth(element),
+        fontSize: Number.isFinite(fontSize) ? Math.min(72, Math.max(12, fontSize)) : block.style.fontSize,
+        fontWeight,
+        underline: importedStyle.textDecoration.includes("underline"),
+      },
+    };
+  };
+
+  const importedLink = (href: string | null): EditorBlock["link"] => {
+    const value = href?.trim() ?? "";
+    if (!value) return createLink();
+    const pagePath = value.match(/^(?:\.\/|\/)?([a-z0-9_-]+)\.html?(?:[?#].*)?$/i);
+    if (pagePath) {
+      const page = pages.find((candidate) => candidate.slug.toLowerCase() === pagePath[1].toLowerCase());
+      if (page) return { type: "page", pageId: page.id, customUrl: "" };
+    }
+    return { type: "custom", pageId: null, customUrl: safeCustomUrl(value) };
+  };
+
+  const importHtmlBlocks = (html: string): EditorBlock[] => {
+    const document = new DOMParser().parseFromString(html, "text/html");
+    document.querySelectorAll("script, style, noscript").forEach((ignored) => ignored.remove());
+
+    const imageBlock = (image: HTMLImageElement, caption = ""): EditorBlock => {
+      let block = applyImportedStyle(createBlock("image", image.getAttribute("alt")?.trim() || defaultText.image), image);
+      const source = image.getAttribute("src") ?? "";
+      if (isSafeImageDataUrl(source)) block = { ...block, imageDataUrl: source };
+      const imageWidth = image.style.width;
+      const maxWidth = Number.parseFloat(image.style.maxWidth);
+      const borderRadius = Number.parseFloat(image.style.borderRadius);
+      const allowedWidths: ImageWidth[] = ["auto", "25%", "50%", "75%", "100%"];
+      return {
+        ...block,
+        imageWidth: allowedWidths.includes(imageWidth as ImageWidth) ? imageWidth as ImageWidth : block.imageWidth,
+        imageMaxWidth: Number.isFinite(maxWidth) ? Math.min(2000, Math.max(1, maxWidth)) : block.imageMaxWidth,
+        imageBorderRadius: Number.isFinite(borderRadius) ? Math.min(100, Math.max(0, borderRadius)) : block.imageBorderRadius,
+        imageObjectFit: image.style.objectFit === "cover" ? "cover" : "contain",
+        imageCaption: caption,
+      };
+    };
+
+    const convertElement = (element: Element): EditorBlock[] => {
+      const tag = element.tagName.toLowerCase();
+      if (tag === "script" || tag === "style" || tag === "noscript") return [];
+
+      if (tag === "h1" || tag === "h2" || tag === "h3") {
+        return [applyImportedStyle(createBlock("heading", importedText(element) || defaultText.heading), element)];
+      }
+      if (tag === "p") {
+        return [applyImportedStyle(createBlock("paragraph", importedText(element) || defaultText.paragraph), element)];
+      }
+      if (tag === "a" || tag === "button") {
+        const block = applyImportedStyle(createBlock("button", importedText(element) || defaultText.button), element);
+        return [{ ...block, link: tag === "a" ? importedLink(element.getAttribute("href")) : createLink() }];
+      }
+      if (tag === "hr") return [applyImportedStyle(createBlock("divider", ""), element)];
+      if (tag === "table") {
+        const rows = Array.from(element.querySelectorAll("tr"))
+          .map((row) => Array.from(row.children)
+            .filter((cell) => cell.tagName === "TH" || cell.tagName === "TD")
+            .map((cell) => importedText(cell).replace(/\|/g, " "))
+            .join(" | "))
+          .filter((row) => row.trim());
+        return rows.length > 0 ? [applyImportedStyle(createBlock("table", rows.join("\n")), element)] : [];
+      }
+      if (tag === "figure") {
+        const image = element.querySelector("img");
+        if (!(image instanceof HTMLImageElement)) return [];
+        return [imageBlock(image, importedText(element.querySelector("figcaption") ?? document.createElement("span")))];
+      }
+      if (tag === "img" && element instanceof HTMLImageElement) return [imageBlock(element)];
+      if (tag === "form" && (element.getAttribute("role")?.toLowerCase() === "search" || element.querySelector('input[type="search"]'))) {
+        const input = element.querySelector('input[type="search"]');
+        const submit = element.querySelector('button, input[type="submit"]');
+        const block = applyImportedStyle(createBlock("search", input?.getAttribute("placeholder") || defaultText.search), element);
+        const buttonText = submit?.tagName === "INPUT" ? submit.getAttribute("value") : submit ? importedText(submit) : "Search";
+        return [{ ...block, searchButtonText: buttonText || "Search" }];
+      }
+      if (tag === "div" || tag === "section" || tag === "article") {
+        const childBlocks = Array.from(element.children).flatMap(convertElement);
+        if (childBlocks.length > 0) return childBlocks;
+        const text = importedText(element);
+        return text ? [applyImportedStyle(createBlock("card", text), element)] : [];
+      }
+
+      return Array.from(element.children).flatMap(convertElement);
+    };
+
+    return Array.from(document.body.children).flatMap(convertElement);
+  };
+
+  const importHtmlFile = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    if (blocks.length > 0 && !window.confirm("Replace the current blocks with imported HTML?")) {
+      input.value = "";
+      return;
+    }
+
+    setImportFeedback(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        if (typeof reader.result !== "string") throw new Error("The HTML file could not be read.");
+        const importedBlocks = importHtmlBlocks(reader.result);
+        if (importedBlocks.length === 0) throw new Error("No supported HTML elements were found.");
+        updateCurrentBlocks(() => importedBlocks);
+        setSelectedId(importedBlocks[0].id);
+        setImageError(null);
+        setImportFeedback({ type: "success", message: `Imported ${importedBlocks.length} blocks.` });
+      } catch (error) {
+        setImportFeedback({ type: "error", message: error instanceof Error ? error.message : "The HTML file could not be imported." });
+      }
+    };
+    reader.onerror = () => setImportFeedback({ type: "error", message: "The HTML file could not be read." });
+    reader.readAsText(file);
+    input.value = "";
+  };
 
   const addBlock = (type: BlockType) => {
     const block = createBlock(type);
@@ -669,6 +850,23 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
               <button type="button" onClick={duplicatePage}>Duplicate Page</button>
               <button type="button" onClick={deletePage} disabled={pages.length <= 1}>Delete Page</button>
             </div>
+          </div>
+          <div className="html-editor-import-section">
+            <h3>Import HTML</h3>
+            <label className="html-editor-import-control">
+              Import HTML
+              <input
+                type="file"
+                accept=".html,.htm,text/html"
+                onChange={(event) => importHtmlFile(event.target.files?.[0], event.currentTarget)}
+              />
+            </label>
+            <p>Supported HTML is converted into editable blocks on the current page.</p>
+            {importFeedback && (
+              <div className={`html-editor-import-message is-${importFeedback.type}`} role="status">
+                {importFeedback.message}
+              </div>
+            )}
           </div>
           <h2>Block Library</h2>
           {(Object.keys(blockLabels) as BlockType[]).map((type) => (
