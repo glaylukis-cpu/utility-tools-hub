@@ -1,9 +1,10 @@
-import { getCurrentPlan, getFeaturesForBillingComparison, proPlanned } from "./planFeatures";
+import { getCurrentPlan, getFeaturesForBillingComparison, getPricingModelDraft, proPlanned } from "./planFeatures";
 import "./BillingPanel.css";
 
 export default function BillingPanel() {
   const plan = getCurrentPlan();
   const billingFeatures = getFeaturesForBillingComparison();
+  const pricingPlans = getPricingModelDraft();
 
   return (
     <section className="billing-panel" aria-labelledby="billing-panel-title">
@@ -81,6 +82,40 @@ export default function BillingPanel() {
           </button>
         </article>
       </div>
+
+      <section className="card billing-pricing-draft" aria-labelledby="billing-pricing-title">
+        <div className="billing-pricing-heading">
+          <div>
+            <span className="billing-plan-eyebrow">Planned pricing</span>
+            <h2 id="billing-pricing-title">Pricing model draft</h2>
+            <p>Current plan remains {plan.label}. Paid plans are planned but not available yet.</p>
+          </div>
+          <span className="billing-plan-badge">Draft</span>
+        </div>
+
+        <div className="billing-pricing-grid">
+          {pricingPlans.map((pricingPlan) => (
+            <article
+              key={pricingPlan.id}
+              className={`billing-pricing-card${pricingPlan.availableNow ? " billing-pricing-card-current" : ""}`}
+            >
+              <div className="billing-pricing-card-heading">
+                <h3>{pricingPlan.label}</h3>
+                <span className={`billing-plan-badge${pricingPlan.availableNow ? " billing-plan-badge-current" : ""}`}>
+                  {pricingPlan.status}
+                </span>
+              </div>
+              <strong className="billing-price-label">{pricingPlan.priceLabel}</strong>
+              <p>{pricingPlan.description}</p>
+              <span className="billing-availability-label">
+                {pricingPlan.availableNow ? "Available now" : "Not available yet"}
+              </span>
+            </article>
+          ))}
+        </div>
+
+        <p className="billing-pricing-note">Price and plan details may change before launch.</p>
+      </section>
 
       <div className="card billing-management-card">
         <div>

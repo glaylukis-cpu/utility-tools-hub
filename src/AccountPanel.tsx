@@ -5,6 +5,13 @@ import "./AccountPanel.css";
 
 const FALLBACK_VERSION = "0.2.1";
 
+const licenseFlowSteps = [
+  "Purchase plan",
+  "Receive license key",
+  "Activate license in this app",
+  "Refresh plan status",
+];
+
 export default function AccountPanel() {
   const plan = getCurrentPlan();
   const proPlannedFeatures = getProPlannedFeatures();
@@ -117,6 +124,26 @@ export default function AccountPanel() {
           </div>
         )}
       </div>
+
+      <section className="card account-license-flow-card" aria-labelledby="account-license-flow-title">
+        <div className="account-card-heading">
+          <div>
+            <h2 id="account-license-flow-title">License flow design</h2>
+            <p>Current license activation is not available yet.</p>
+          </div>
+          <span className="account-status-pill">Planned</span>
+        </div>
+
+        <ol className="account-license-flow-list">
+          {licenseFlowSteps.map((step, index) => (
+            <li key={step}>
+              <span className="account-license-step-number">Step {index + 1}</span>
+              <strong>{step}</strong>
+              <span className="account-planned-badge">Planned</span>
+            </li>
+          ))}
+        </ol>
+      </section>
 
       <div className="account-detail-grid">
         <div className="card account-detail-card">

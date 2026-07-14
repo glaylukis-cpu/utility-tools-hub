@@ -11,6 +11,7 @@
 
 .account-status-card h2,
 .account-license-card h2,
+.account-license-flow-card h2,
 .account-detail-card h2 {
   margin: 0 0 14px;
   color: #212529;
@@ -60,6 +61,10 @@
 }
 
 .account-license-card {
+  margin-top: 4px;
+}
+
+.account-license-flow-card {
   margin-top: 4px;
 }
 
@@ -148,9 +153,44 @@
   line-height: 1.8;
 }
 
+.account-license-flow-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-license-flow-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 12px;
+  align-items: center;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  padding: 14px;
+  background: #f8f9fa;
+}
+
+.account-license-flow-list strong {
+  color: #343a40;
+  font-size: 13px;
+}
+
+.account-license-step-number {
+  grid-column: 1 / -1;
+  color: #868e96;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 760px) {
   .account-summary-grid,
-  .account-detail-grid {
+  .account-detail-grid,
+  .account-license-flow-list {
     grid-template-columns: 1fr;
   }
 

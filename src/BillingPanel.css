@@ -4,6 +4,7 @@
 
 .billing-status-card h2,
 .billing-plan-card h2,
+.billing-pricing-draft h2,
 .billing-management-card h2 {
   margin: 0;
   color: #212529;
@@ -114,6 +115,70 @@
   gap: 24px;
 }
 
+.billing-pricing-heading,
+.billing-pricing-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.billing-pricing-heading {
+  margin-bottom: 18px;
+}
+
+.billing-pricing-heading p,
+.billing-pricing-card p,
+.billing-pricing-note {
+  margin: 6px 0 0;
+  color: #868e96;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.billing-pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.billing-pricing-card {
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  padding: 16px;
+  background: #fff;
+}
+
+.billing-pricing-card-current {
+  border-color: #74c0fc;
+  background: #f8fbff;
+}
+
+.billing-pricing-card h3 {
+  margin: 0;
+  color: #212529;
+  font-size: 15px;
+}
+
+.billing-price-label {
+  display: block;
+  margin-top: 12px;
+  color: #1a73e8;
+  font-size: 16px;
+}
+
+.billing-availability-label {
+  display: block;
+  margin-top: 14px;
+  color: #6c757d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.billing-pricing-note {
+  margin-top: 16px;
+}
+
 .billing-management-card h2 {
   margin-bottom: 6px;
 }
@@ -124,7 +189,8 @@
 
 @media (max-width: 760px) {
   .billing-status-list,
-  .billing-plan-grid {
+  .billing-plan-grid,
+  .billing-pricing-grid {
     grid-template-columns: 1fr;
   }
 
@@ -134,6 +200,10 @@
 
   .billing-management-card {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .billing-pricing-heading {
     flex-direction: column;
   }
 }

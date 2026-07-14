@@ -15,6 +15,10 @@ export type FeatureId =
 
 export type FeatureStatus = "available" | "planned" | "pro_planned";
 
+export type PricingPlanId = "free_preview" | "single_tool_pro" | "all_tools_pro" | "future_expanded_pro";
+
+export type PricingDraftStatus = "Current" | "Planned" | "Future candidate";
+
 export type PlanDefinition = {
   id: PlanId;
   label: string;
@@ -28,6 +32,15 @@ export type FeatureDefinition = {
   planLabel: string;
   visibleInToolsList: boolean;
   billingComparison: "free_preview" | "pro_planned" | null;
+};
+
+export type PricingPlanDraft = {
+  id: PricingPlanId;
+  label: string;
+  priceLabel: string;
+  status: PricingDraftStatus;
+  description: string;
+  availableNow: boolean;
 };
 
 export const currentPlan: PlanDefinition = {
@@ -142,6 +155,41 @@ const featureDefinitions: readonly FeatureDefinition[] = [
   },
 ];
 
+const pricingModelDraft: readonly PricingPlanDraft[] = [
+  {
+    id: "free_preview",
+    label: "Free Preview",
+    priceLabel: "Free",
+    status: "Current",
+    description: "Try the current local tools during the preview period.",
+    availableNow: true,
+  },
+  {
+    id: "single_tool_pro",
+    label: "Single Tool Pro",
+    priceLabel: "¥500 / month",
+    status: "Planned",
+    description: "Unlock one selected Pro tool when paid plans are introduced.",
+    availableNow: false,
+  },
+  {
+    id: "all_tools_pro",
+    label: "All Tools Pro",
+    priceLabel: "¥1,500 / month",
+    status: "Planned",
+    description: "Unlock all Pro tools up to the initial 10-tool bundle when paid plans are introduced.",
+    availableNow: false,
+  },
+  {
+    id: "future_expanded_pro",
+    label: "Future Expanded Pro",
+    priceLabel: "¥2,000 / month candidate",
+    status: "Future candidate",
+    description: "Possible future price after the tool library expands beyond the initial bundle.",
+    availableNow: false,
+  },
+];
+
 export function getCurrentPlan(): PlanDefinition {
   return currentPlan;
 }
@@ -166,4 +214,8 @@ export function getFeaturesForBillingComparison(): {
     freePreview: featureDefinitions.filter((feature) => feature.billingComparison === "free_preview"),
     proPlanned: featureDefinitions.filter((feature) => feature.billingComparison === "pro_planned"),
   };
+}
+
+export function getPricingModelDraft(): PricingPlanDraft[] {
+  return [...pricingModelDraft];
 }
