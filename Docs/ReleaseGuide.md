@@ -76,3 +76,11 @@ git push origin vX.Y.Z
 - v0.2.2 is a foundation release for account, billing, and app language settings.
 - No real login, payment, license activation, or external communication is included.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.2.3 Release Note
+
+- v0.2.3 is a foundation release for plan and feature definitions.
+- The current plan remains Free Preview. Pro remains Planned and cannot be purchased or activated yet.
+- Account, Billing, and Tools displays can reference shared feature definitions.
+- No real login, payment, license activation, Pro unlock, localStorage plan cache, or external communication is included.
+- Updater verification will be done after the signed build and GitHub Release are created.
