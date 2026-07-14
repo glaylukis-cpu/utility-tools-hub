@@ -1,42 +1,61 @@
-# Tauri Updater Foundation
+# Tauri Updater Production Setup
 
-## Included in this foundation
+## Release policy
 
-- Tauri v2 updater dependencies for the desktop application.
-- Desktop-only updater plugin registration.
-- The minimum updater capability used by the update check command.
-- An App updates panel that displays the packaged application version.
-- A manual Check for Updates action that reports results without downloading or installing anything.
-- Safe browser and configuration-error fallback messages.
-- An intentionally empty updater configuration (`endpoints` is empty and `pubkey` is blank) so the plugin can initialize without enabling production updates.
+- v0.2.0 is the first manually distributed release that contains the production updater configuration.
+- v0.1.9 does not contain that configuration, so an automatic update from v0.1.9 to v0.2.0 is not expected.
+- The first end-to-end update test is performed after installing v0.2.0 and publishing v0.2.1.
+- Update checks are user initiated. Checking does not download or install an update.
+- Download and installation begin only after the user selects **Download and Install**.
+- Automatic relaunch is not included. After installation, the UI asks the user to restart the application.
 
-## Not implemented yet
+## Production configuration
 
-- Production update endpoints.
-- A production signing public key.
-- Update artifact signing or publishing.
-- Automatic download, installation, restart, or background checks.
-- GitHub Release API integration.
+The desktop application uses the Tauri v2 updater plugin with:
 
-## Production configuration requirements
+- updater artifact generation enabled for release builds;
+- the production public signing key in application configuration;
+- the HTTPS `latest.json` endpoint hosted by GitHub Releases;
+- passive Windows installer mode;
+- explicit check and download-and-install permissions for the main window.
 
-Before enabling update delivery, configure and validate all of the following together:
+An unavailable endpoint, missing `latest.json`, invalid metadata, or signature failure must be shown as a safe updater error and must not crash the application.
 
-- `plugins.updater.pubkey` with the production signing public key.
-- `plugins.updater.endpoints` with the approved update metadata endpoint.
-- `bundle.createUpdaterArtifacts` so release builds generate updater artifacts.
-- A release process that signs updater artifacts and publishes `latest.json`, the platform artifacts, and their `.sig` files to GitHub Releases.
+## v0.2.0 release preparation
 
-Do not add placeholder updater values to the production configuration if they make builds or checks invalid. Until the production values exist, the application must treat update-check errors as an unavailable feature rather than a fatal error.
+1. Keep the updater signing private key outside the repository. Never commit it, copy it into project files, include it in documentation, or print it in logs.
+2. At build time, set `TAURI_SIGNING_PRIVATE_KEY` to the private key file path using the approved local or CI secret-management process.
+3. Build the Windows release so Tauri generates the updater artifact and its `.sig` file.
+4. Attach the updater artifact, its `.sig` file, and `latest.json` to the v0.2.0 GitHub Release.
+5. Copy the complete contents of the artifact's `.sig` file into the matching `latest.json` platform entry as `signature`.
 
-## Signing key safety
+The signature value is the content of the `.sig` file. It is not a URL, filename, or filesystem path. Do not place signing secrets or authentication values in `latest.json`.
 
-The updater signing private key must never be committed to this repository, written to project files, placed in documentation, printed in logs, or included in release artifacts. Store and use it only through an approved secret-management process when production signing is introduced.
+## Windows x64 latest.json template
 
-## Candidates for v0.2.0 and later
+Replace `ARTIFACT_FILENAME` with the updater artifact filename and replace `PLACEHOLDER` with the complete `.sig` file contents before publishing:
 
-- Define the GitHub Release update endpoint and production public key.
-- Enable updater artifact generation in the release build.
-- Add a protected CI release-signing workflow.
-- Verify `latest.json`, signatures, platform targeting, and rollback behavior in a staging release.
-- Add explicit user approval for download, installation, and application restart.
+```json
+{
+  "version": "0.2.0",
+  "notes": "Utility Tools Hub v0.2.0",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "PLACEHOLDER",
+      "url": "https://github.com/glaylukis-cpu/utility-tools-hub/releases/download/v0.2.0/ARTIFACT_FILENAME"
+    }
+  }
+}
+```
+
+Publish this file as `latest.json` on the same release. The application endpoint resolves the `latest/download/latest.json` asset from the latest GitHub Release.
+
+## v0.2.1 update verification
+
+1. Install the manually distributed v0.2.0 release.
+2. Build and sign the v0.2.1 updater artifact using the protected signing process.
+3. Publish the v0.2.1 artifact, `.sig`, and completed `latest.json` on the v0.2.1 GitHub Release.
+4. Start v0.2.0 and select **Check for Updates**.
+5. Confirm that v0.2.1 and its notes appear without starting a download.
+6. Select **Download and Install**, confirm progress is displayed, and restart the application when instructed.
+7. Confirm that the restarted application reports v0.2.1.

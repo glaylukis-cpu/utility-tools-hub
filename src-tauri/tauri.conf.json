@@ -26,13 +26,19 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": [],
-      "pubkey": ""
+      "endpoints": [
+        "https://github.com/glaylukis-cpu/utility-tools-hub/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMzQkVFRDFERUM3RDJDREQKUldUZExIM3NIZTIrdzdTc291cFFkWXpsaGRrbzBiczNzQUd4UTh1VjdGbEZTdHpKTEZXZ1J3VncK",
+      "windows": {
+        "installMode": "passive"
+      }
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "externalBin": [
       "binaries/excel-html-converter"
     ],

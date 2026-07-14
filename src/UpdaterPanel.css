@@ -40,6 +40,79 @@
   opacity: 0.65;
 }
 
+.updater-panel-update {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #d8e2f2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.updater-panel-update-label {
+  color: #6c757d;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.updater-panel-update-version {
+  margin-top: 2px;
+  color: #212529;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.updater-panel-notes {
+  max-height: 96px;
+  overflow-y: auto;
+  margin: 7px 0 0;
+  color: #495057;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.updater-panel .updater-panel-install {
+  border-color: #1a73e8;
+  background: #1a73e8;
+  color: #ffffff;
+}
+
+.updater-panel .updater-panel-install:hover:not(:disabled) {
+  background: #155fc0;
+}
+
+.updater-panel-progress {
+  margin-top: 10px;
+}
+
+.updater-panel-progress-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe6ee;
+}
+
+.updater-panel-progress-fill {
+  width: 0;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: #1a73e8;
+  transition: width 0.15s ease;
+}
+
+.updater-panel-progress-fill-unknown {
+  width: 40%;
+}
+
+.updater-panel-progress-text {
+  margin-top: 5px;
+  color: #6c757d;
+  font-size: 10px;
+}
+
 .updater-panel-message {
   margin: 9px 0 0;
   font-size: 11px;
