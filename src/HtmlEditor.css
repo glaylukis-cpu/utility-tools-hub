@@ -382,6 +382,30 @@
   font: inherit;
 }
 
+.html-editor-navigation-preview {
+  display: flex;
+  flex-wrap: wrap;
+  line-height: 1.5;
+}
+
+.html-editor-navigation-preview.is-horizontal {
+  flex-direction: row;
+}
+
+.html-editor-navigation-preview.is-vertical {
+  flex-direction: column;
+}
+
+.html-editor-navigation-preview span {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+.html-editor-navigation-preview span.is-current {
+  border-bottom: 2px solid currentColor;
+  font-weight: 700;
+}
+
 .html-editor-divider-preview {
   margin: 0;
   border: 0;
@@ -421,10 +445,8 @@
 
 .html-editor-image-preview img {
   display: block;
-  max-width: 100%;
   max-height: 340px;
   margin: 0 auto;
-  object-fit: contain;
 }
 
 .html-editor-image-placeholder {
@@ -436,6 +458,15 @@
   background: #e2e8f0;
   color: #64748b;
   font-size: 12px;
+  margin: 0 auto;
+}
+
+.html-editor-image-preview figcaption {
+  margin-top: 8px;
+  color: inherit;
+  font-size: 0.875em;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .html-editor-properties {
@@ -521,7 +552,8 @@
   line-height: 1.5;
 }
 
-.html-editor-image-settings {
+.html-editor-image-settings,
+.html-editor-navigation-settings {
   display: flex;
   flex-direction: column;
   gap: 7px;

@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import "./HtmlEditor.css";
 
-type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "card" | "image" | "search";
+type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "card" | "image" | "search" | "navigation";
 type TextAlign = "left" | "center" | "right";
 type TemplateName = "landing" | "article" | "product";
 type CanvasViewport = "desktop" | "tablet" | "mobile";
 type BlockWidth = "full" | "half" | "third";
 type FontWeight = "normal" | "500" | "700";
 type LinkType = "none" | "page" | "custom";
+type NavigationLayout = "horizontal" | "vertical";
+type ImageWidth = "auto" | "25%" | "50%" | "75%" | "100%";
+type ImageObjectFit = "contain" | "cover";
 
 const canvasViewportWidths: Record<CanvasViewport, number> = {
   desktop: 1280,
@@ -32,7 +35,16 @@ interface EditorBlock {
   text: string;
   style: BlockStyle;
   imageDataUrl?: string;
+  imageWidth?: ImageWidth;
+  imageMaxWidth?: number;
+  imageBorderRadius?: number;
+  imageObjectFit?: ImageObjectFit;
+  imageCaption?: string;
+  imageCaptionAlign?: TextAlign;
   searchButtonText?: string;
+  navigationLayout?: NavigationLayout;
+  navigationShowCurrent?: boolean;
+  navigationGap?: number;
   link: {
     type: LinkType;
     pageId: number | null;
@@ -56,6 +68,7 @@ const blockLabels: Record<BlockType, string> = {
   card: "Card",
   image: "Image",
   search: "Search bar",
+  navigation: "Navigation",
 };
 
 const defaultText: Record<BlockType, string> = {
@@ -67,6 +80,7 @@ const defaultText: Record<BlockType, string> = {
   card: "Card title",
   image: "Image description",
   search: "Search this site",
+  navigation: "",
 };
 
 const templateLabels: Record<TemplateName, string> = {
@@ -77,18 +91,21 @@ const templateLabels: Record<TemplateName, string> = {
 
 const templates: Record<TemplateName, Array<{ type: BlockType; text: string; width?: BlockWidth }>> = {
   landing: [
+    { type: "navigation", text: "" },
     { type: "heading", text: "Build something remarkable" },
     { type: "paragraph", text: "Introduce your product with a clear, focused message." },
     { type: "button", text: "Get started" },
     { type: "card", text: "Why choose us" },
   ],
   article: [
+    { type: "navigation", text: "" },
     { type: "heading", text: "Article title" },
     { type: "paragraph", text: "Write an engaging introduction for your article." },
     { type: "divider", text: "" },
     { type: "paragraph", text: "Continue the story with supporting details." },
   ],
   product: [
+    { type: "navigation", text: "" },
     { type: "heading", text: "Product name" },
     { type: "paragraph", text: "Describe the key benefit of this product." },
     { type: "image", text: "Product image", width: "half" },
@@ -208,7 +225,7 @@ function tableHtml(block: EditorBlock): string {
   return `<table style="${styleToHtml(block.style)};width:100%;border-collapse:collapse"><tbody>${rows}</tbody></table>`;
 }
 
-function blockToHtml(block: EditorBlock, pages: EditorPage[]): string {
+function blockToHtml(block: EditorBlock, pages: EditorPage[], currentPageId: number): string {
   const style = styleToHtml(block.style);
   const text = escapeHtml(block.text);
   const href = resolveLinkHref(block, pages);
@@ -235,12 +252,34 @@ function blockToHtml(block: EditorBlock, pages: EditorPage[]): string {
       break;
     case "image": {
       const source = isSafeImageDataUrl(block.imageDataUrl) ? block.imageDataUrl : EMPTY_IMAGE_DATA_URL;
-      content = `<div style="${style}"><img src="${source}" alt="${text}" style="display:block;max-width:100%;height:auto;margin:0 auto;background:#e2e8f0;min-height:120px"></div>`;
+      const imageWidth = block.imageWidth ?? "100%";
+      const imageMaxWidth = Math.max(1, block.imageMaxWidth ?? 640);
+      const imageBorderRadius = Math.max(0, block.imageBorderRadius ?? 8);
+      const imageObjectFit = block.imageObjectFit ?? "contain";
+      const caption = block.imageCaption?.trim()
+        ? `<figcaption style="margin-top:8px;text-align:${block.imageCaptionAlign ?? "center"}">${escapeHtml(block.imageCaption)}</figcaption>`
+        : "";
+      content = `<figure style="${style};margin:0"><img src="${source}" alt="${text}" style="display:block;width:${imageWidth};max-width:min(100%, ${imageMaxWidth}px);height:auto;margin:0 auto;background:#e2e8f0;min-height:120px;border-radius:${imageBorderRadius}px;object-fit:${imageObjectFit}">${caption}</figure>`;
       break;
     }
     case "search":
       content = `<form action="#" method="get" role="search" style="${style};display:flex;gap:8px"><input type="search" name="q" placeholder="${text}" style="box-sizing:border-box;min-width:0;flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:6px"><button type="submit" style="padding:10px 16px;border:0;border-radius:6px;background:#2563eb;color:#ffffff">${escapeHtml(block.searchButtonText ?? "Search")}</button></form>`;
       break;
+    case "navigation": {
+      const layout = block.navigationLayout ?? "horizontal";
+      const gap = Math.max(0, block.navigationGap ?? 16);
+      const flexAlign = block.style.align === "center" ? "center" : block.style.align === "right" ? "flex-end" : "flex-start";
+      const layoutStyle = layout === "horizontal"
+        ? `flex-direction:row;justify-content:${flexAlign};align-items:center`
+        : `flex-direction:column;align-items:${flexAlign}`;
+      const links = pages.map((page) => {
+        const isCurrent = block.navigationShowCurrent !== false && page.id === currentPageId;
+        const emphasis = isCurrent ? "font-weight:700;border-bottom:2px solid currentColor" : "";
+        return `<a href="${escapeHtml(`${page.slug}.html`)}" style="color:inherit;text-decoration:${block.style.underline ? "underline" : "none"};${emphasis}">${escapeHtml(page.title || "Untitled Page")}</a>`;
+      }).join("");
+      content = `<nav aria-label="Page navigation" style="${style};display:flex;flex-wrap:wrap;gap:${gap}px;${layoutStyle}">${links}</nav>`;
+      break;
+    }
   }
 
   if (href && block.type !== "button" && linkableBlockTypes.has(block.type)) {
@@ -249,9 +288,9 @@ function blockToHtml(block: EditorBlock, pages: EditorPage[]): string {
   return content;
 }
 
-function generateHtml(blocks: EditorBlock[], pages: EditorPage[], pageTitle: string): string {
+function generateHtml(blocks: EditorBlock[], pages: EditorPage[], pageTitle: string, currentPageId: number): string {
   const content = blocks
-    .map((block) => `<div data-block-width="${block.style.width}" style="${blockWidthToHtml(block.style.width)}">${blockToHtml(block, pages)}</div>`)
+    .map((block) => `<div data-block-width="${block.style.width}" style="${blockWidthToHtml(block.style.width)}">${blockToHtml(block, pages, currentPageId)}</div>`)
     .join("\n");
   return `<!doctype html>
 <html lang="en">
@@ -273,7 +312,7 @@ ${content}
 </html>`;
 }
 
-function CanvasBlock({ block }: { block: EditorBlock }) {
+function CanvasBlock({ block, pages, currentPageId }: { block: EditorBlock; pages: EditorPage[]; currentPageId: number }) {
   const style = {
     textAlign: block.style.align,
     backgroundColor: block.style.backgroundColor,
@@ -316,14 +355,22 @@ function CanvasBlock({ block }: { block: EditorBlock }) {
     }
     case "card":
       return <section style={style} className="html-editor-card-preview"><h3>{block.text}</h3><p>Card content</p></section>;
-    case "image":
+    case "image": {
+      const imageStyle = {
+        width: block.imageWidth ?? "100%",
+        maxWidth: `min(100%, ${Math.max(1, block.imageMaxWidth ?? 640)}px)`,
+        borderRadius: Math.max(0, block.imageBorderRadius ?? 8),
+        objectFit: block.imageObjectFit ?? "contain",
+      } as const;
       return (
-        <div style={style} className="html-editor-image-preview">
+        <figure style={{ ...style, margin: 0 }} className="html-editor-image-preview">
           {isSafeImageDataUrl(block.imageDataUrl)
-            ? <img src={block.imageDataUrl} alt={block.text} />
-            : <div className="html-editor-image-placeholder">No image selected</div>}
-        </div>
+            ? <img src={block.imageDataUrl} alt={block.text} style={imageStyle} />
+            : <div className="html-editor-image-placeholder" style={imageStyle}>No image selected</div>}
+          {block.imageCaption && <figcaption style={{ textAlign: block.imageCaptionAlign ?? "center" }}>{block.imageCaption}</figcaption>}
+        </figure>
       );
+    }
     case "search":
       return (
         <form style={style} className="html-editor-search-preview" onSubmit={(event) => event.preventDefault()}>
@@ -331,6 +378,31 @@ function CanvasBlock({ block }: { block: EditorBlock }) {
           <button type="button" tabIndex={-1}>{block.searchButtonText ?? "Search"}</button>
         </form>
       );
+    case "navigation": {
+      const layout = block.navigationLayout ?? "horizontal";
+      const flexAlign = block.style.align === "center" ? "center" : block.style.align === "right" ? "flex-end" : "flex-start";
+      return (
+        <nav
+          aria-label="Page navigation preview"
+          className={`html-editor-navigation-preview is-${layout}`}
+          style={{
+            ...style,
+            gap: Math.max(0, block.navigationGap ?? 16),
+            justifyContent: layout === "horizontal" ? flexAlign : undefined,
+            alignItems: layout === "vertical" ? flexAlign : "center",
+          }}
+        >
+          {pages.map((page) => (
+            <span
+              key={page.id}
+              className={block.navigationShowCurrent !== false && page.id === currentPageId ? "is-current" : ""}
+            >
+              {page.title || "Untitled Page"}
+            </span>
+          ))}
+        </nav>
+      );
+    }
   }
 }
 
@@ -357,7 +429,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const currentPage = pages.find((page) => page.id === currentPageId) ?? pages[0];
   const blocks = currentPage?.blocks ?? [];
   const selectedBlock = blocks.find((block) => block.id === selectedId) ?? null;
-  const htmlSource = generateHtml(blocks, pages, currentPage?.title ?? "Untitled Page");
+  const htmlSource = generateHtml(blocks, pages, currentPage?.title ?? "Untitled Page", currentPageId);
 
   useEffect(() => {
     setCopied(false);
@@ -374,7 +446,16 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
       type,
       text,
       style: { ...createStyle(type), width },
+      imageWidth: type === "image" ? "100%" : undefined,
+      imageMaxWidth: type === "image" ? 640 : undefined,
+      imageBorderRadius: type === "image" ? 8 : undefined,
+      imageObjectFit: type === "image" ? "contain" : undefined,
+      imageCaption: type === "image" ? "" : undefined,
+      imageCaptionAlign: type === "image" ? "center" : undefined,
       searchButtonText: type === "search" ? "Search" : undefined,
+      navigationLayout: type === "navigation" ? "horizontal" : undefined,
+      navigationShowCurrent: type === "navigation" ? true : undefined,
+      navigationGap: type === "navigation" ? 16 : undefined,
       link: createLink(),
     });
 
@@ -393,7 +474,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
     setImageError(null);
   };
 
-  const updateSelected = (update: Partial<Pick<EditorBlock, "text" | "style" | "searchButtonText" | "link">>) => {
+  const updateSelected = (update: Partial<Pick<EditorBlock, "text" | "style" | "imageWidth" | "imageMaxWidth" | "imageBorderRadius" | "imageObjectFit" | "imageCaption" | "imageCaptionAlign" | "searchButtonText" | "navigationLayout" | "navigationShowCurrent" | "navigationGap" | "link">>) => {
     if (selectedId === null) return;
     updateCurrentBlocks((current) => current.map((block) => block.id === selectedId ? { ...block, ...update } : block));
   };
@@ -659,7 +740,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                   title={block.type === "button" ? "Click to select this button block" : `Click to select ${blockLabels[block.type]}`}
                 >
                   {selectedId === block.id && <span className="html-editor-block-label">{blockLabels[block.type]}</span>}
-                  <CanvasBlock block={block} />
+                  <CanvasBlock block={block} pages={pages} currentPageId={currentPageId} />
                 </div>
               ))}
             </div>
@@ -677,6 +758,11 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                   Button action is preview-only in this MVP. Generated HTML uses the selected link or href=&quot;#&quot;.
                 </p>
               )}
+              {selectedBlock.type === "search" && (
+                <p className="html-editor-help">
+                  Search bar is visual-only in this MVP. Generated HTML submits to &quot;#&quot; and does not search pages yet.
+                </p>
+              )}
               {selectedBlock.type === "search" ? (
                 <>
                   <label>
@@ -688,7 +774,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                     <input type="text" value={selectedBlock.searchButtonText ?? "Search"} onChange={(event) => updateSelected({ searchButtonText: event.target.value })} />
                   </label>
                 </>
-              ) : selectedBlock.type !== "divider" && (
+              ) : selectedBlock.type !== "divider" && selectedBlock.type !== "navigation" && (
                 <label>
                   {selectedBlock.type === "image" ? "Alt text" : "Text"}
                   <textarea
@@ -713,6 +799,63 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                   </label>
                   <div className="html-editor-image-limit">PNG, JPEG, GIF, WebP, or BMP. Maximum 3MB.</div>
                   {imageError && <div className="html-editor-image-error">{imageError}</div>}
+                  <label>
+                    Image width
+                    <select value={selectedBlock.imageWidth ?? "100%"} onChange={(event) => updateSelected({ imageWidth: event.target.value as ImageWidth })}>
+                      <option value="auto">Auto</option>
+                      <option value="25%">25%</option>
+                      <option value="50%">50%</option>
+                      <option value="75%">75%</option>
+                      <option value="100%">100%</option>
+                    </select>
+                  </label>
+                  <label>
+                    Max width
+                    <input type="number" min="1" max="2000" value={selectedBlock.imageMaxWidth ?? 640} onChange={(event) => updateSelected({ imageMaxWidth: Math.min(2000, Math.max(1, Number(event.target.value) || 1)) })} />
+                  </label>
+                  <label>
+                    Border radius
+                    <input type="number" min="0" max="100" value={selectedBlock.imageBorderRadius ?? 8} onChange={(event) => updateSelected({ imageBorderRadius: Math.min(100, Math.max(0, Number(event.target.value) || 0)) })} />
+                  </label>
+                  <label>
+                    Object fit
+                    <select value={selectedBlock.imageObjectFit ?? "contain"} onChange={(event) => updateSelected({ imageObjectFit: event.target.value as ImageObjectFit })}>
+                      <option value="contain">Contain</option>
+                      <option value="cover">Cover</option>
+                    </select>
+                  </label>
+                  <label>
+                    Caption
+                    <textarea rows={3} value={selectedBlock.imageCaption ?? ""} onChange={(event) => updateSelected({ imageCaption: event.target.value })} />
+                  </label>
+                  <label>
+                    Caption align
+                    <select value={selectedBlock.imageCaptionAlign ?? "center"} onChange={(event) => updateSelected({ imageCaptionAlign: event.target.value as TextAlign })}>
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+              {selectedBlock.type === "navigation" && (
+                <div className="html-editor-navigation-settings">
+                  <p className="html-editor-help">Navigation links update automatically from the Pages list.</p>
+                  <label>
+                    Layout
+                    <select value={selectedBlock.navigationLayout ?? "horizontal"} onChange={(event) => updateSelected({ navigationLayout: event.target.value as NavigationLayout })}>
+                      <option value="horizontal">Horizontal</option>
+                      <option value="vertical">Vertical</option>
+                    </select>
+                  </label>
+                  <label className="html-editor-checkbox-row">
+                    <input type="checkbox" checked={selectedBlock.navigationShowCurrent !== false} onChange={(event) => updateSelected({ navigationShowCurrent: event.target.checked })} />
+                    Show current page emphasis
+                  </label>
+                  <label>
+                    Link gap
+                    <input type="number" min="0" max="64" value={selectedBlock.navigationGap ?? 16} onChange={(event) => updateSelected({ navigationGap: Math.min(64, Math.max(0, Number(event.target.value) || 0)) })} />
+                  </label>
                 </div>
               )}
               {linkableBlockTypes.has(selectedBlock.type) && (
