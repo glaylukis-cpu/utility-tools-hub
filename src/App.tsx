@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import HtmlEditorPage from "./HtmlEditor";
+import UpdaterPanel from "./UpdaterPanel";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
 declare const __TAURI__:
@@ -51,6 +52,7 @@ export default function App() {
             </li>
           ))}
         </ul>
+        <UpdaterPanel />
       </aside>
 
       <main className="main-content">
