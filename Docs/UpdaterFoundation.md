@@ -52,6 +52,8 @@ Publish this file as `latest.json` on the same release. The application endpoint
 
 ## v0.2.1 update verification
 
+v0.2.1 is an updater verification release for confirming that v0.2.0 detects the update and performs **Download and Install** only after the user requests it. This verification does not mean that automatic updates are fully operational in production.
+
 1. Install the manually distributed v0.2.0 release.
 2. Build and sign the v0.2.1 updater artifact using the protected signing process.
 3. Publish the v0.2.1 artifact, `.sig`, and completed `latest.json` on the v0.2.1 GitHub Release.
