@@ -70,3 +70,9 @@ git push origin vX.Y.Z
 - Windows 配布物の最終 build は Windows 環境で行う
 - OpenHands では `npm run build` までを主な検証対象にする
 - cargo が無い環境では SKIP_CARGO_NOT_FOUND と表示する
+
+## v0.2.2 Release Note
+
+- v0.2.2 is a foundation release for account, billing, and app language settings.
+- No real login, payment, license activation, or external communication is included.
+- Updater verification will be done after the signed build and GitHub Release are created.
