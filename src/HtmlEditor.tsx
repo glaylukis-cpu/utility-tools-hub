@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import "./HtmlEditor.css";
 
-type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "card" | "image";
+type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "card" | "image" | "search";
 type TextAlign = "left" | "center" | "right";
 type TemplateName = "landing" | "article" | "product";
 type CanvasViewport = "desktop" | "tablet" | "mobile";
 type BlockWidth = "full" | "half" | "third";
 type FontWeight = "normal" | "500" | "700";
+type LinkType = "none" | "page" | "custom";
 
 const canvasViewportWidths: Record<CanvasViewport, number> = {
   desktop: 1280,
@@ -31,6 +32,19 @@ interface EditorBlock {
   text: string;
   style: BlockStyle;
   imageDataUrl?: string;
+  searchButtonText?: string;
+  link: {
+    type: LinkType;
+    pageId: number | null;
+    customUrl: string;
+  };
+}
+
+interface EditorPage {
+  id: number;
+  title: string;
+  slug: string;
+  blocks: EditorBlock[];
 }
 
 const blockLabels: Record<BlockType, string> = {
@@ -41,6 +55,7 @@ const blockLabels: Record<BlockType, string> = {
   table: "Table",
   card: "Card",
   image: "Image",
+  search: "Search bar",
 };
 
 const defaultText: Record<BlockType, string> = {
@@ -51,6 +66,7 @@ const defaultText: Record<BlockType, string> = {
   table: "Name | Value\nExample | 100",
   card: "Card title",
   image: "Image description",
+  search: "Search this site",
 };
 
 const templateLabels: Record<TemplateName, string> = {
@@ -86,6 +102,48 @@ const allowedImageTypes = new Set(["image/png", "image/jpeg", "image/gif", "imag
 
 function isSafeImageDataUrl(value: string | undefined): value is string {
   return typeof value === "string" && /^data:image\/(?:png|jpeg|gif|webp|bmp);base64,[a-z0-9+/=]+$/i.test(value);
+}
+
+const linkableBlockTypes = new Set<BlockType>(["heading", "paragraph", "button", "card", "image"]);
+
+function createLink(): EditorBlock["link"] {
+  return { type: "none", pageId: null, customUrl: "" };
+}
+
+function slugFromTitle(title: string, fallbackId: number): string {
+  const slug = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+  return slug || `page-${fallbackId}`;
+}
+
+function uniqueSlug(title: string, pages: EditorPage[], fallbackId: number, excludePageId?: number): string {
+  const base = slugFromTitle(title, fallbackId);
+  let candidate = base;
+  let suffix = 2;
+  while (pages.some((page) => page.id !== excludePageId && page.slug === candidate)) {
+    candidate = `${base}-${suffix++}`;
+  }
+  return candidate;
+}
+
+function safeCustomUrl(value: string): string {
+  const url = value.trim();
+  if (/^https?:\/\//i.test(url) || /^mailto:/i.test(url) || url.startsWith("#")) return url;
+  if (url.startsWith("/") && !url.startsWith("//")) return url;
+  return "#";
+}
+
+function resolveLinkHref(block: EditorBlock, pages: EditorPage[]): string | null {
+  if (block.link.type === "page") {
+    const target = pages.find((page) => page.id === block.link.pageId);
+    return target ? `${target.slug}.html` : "#";
+  }
+  if (block.link.type === "custom") return safeCustomUrl(block.link.customUrl);
+  return null;
 }
 
 function createStyle(type: BlockType): BlockStyle {
@@ -150,40 +208,57 @@ function tableHtml(block: EditorBlock): string {
   return `<table style="${styleToHtml(block.style)};width:100%;border-collapse:collapse"><tbody>${rows}</tbody></table>`;
 }
 
-function blockToHtml(block: EditorBlock): string {
+function blockToHtml(block: EditorBlock, pages: EditorPage[]): string {
   const style = styleToHtml(block.style);
   const text = escapeHtml(block.text);
+  const href = resolveLinkHref(block, pages);
+  let content: string;
 
   switch (block.type) {
     case "heading":
-      return `<h2 style="${style};margin:0">${text}</h2>`;
+      content = `<h2 style="${style};margin:0">${text}</h2>`;
+      break;
     case "paragraph":
-      return `<p style="${style};margin:0;line-height:1.6">${text}</p>`;
+      content = `<p style="${style};margin:0;line-height:1.6">${text}</p>`;
+      break;
     case "button":
-      return `<div style="${style}"><a href="#" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#2563eb;color:#ffffff;text-decoration:${block.style.underline ? "underline" : "none"}">${text}</a></div>`;
+      content = `<div style="${style}"><a href="${escapeHtml(href ?? "#")}" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#2563eb;color:#ffffff;text-decoration:${block.style.underline ? "underline" : "none"}">${text}</a></div>`;
+      break;
     case "divider":
-      return `<div style="${style}"><hr style="border:0;border-top:1px solid #cbd5e1;margin:0"></div>`;
+      content = `<div style="${style}"><hr style="border:0;border-top:1px solid #cbd5e1;margin:0"></div>`;
+      break;
     case "table":
-      return tableHtml(block);
+      content = tableHtml(block);
+      break;
     case "card":
-      return `<section style="${style};border:1px solid #e2e8f0;border-radius:10px"><h3 style="margin:0 0 8px">${text}</h3><p style="margin:0;opacity:.75">Card content</p></section>`;
+      content = `<section style="${style};border:1px solid #e2e8f0;border-radius:10px"><h3 style="margin:0 0 8px">${text}</h3><p style="margin:0;opacity:.75">Card content</p></section>`;
+      break;
     case "image": {
       const source = isSafeImageDataUrl(block.imageDataUrl) ? block.imageDataUrl : EMPTY_IMAGE_DATA_URL;
-      return `<div style="${style}"><img src="${source}" alt="${text}" style="display:block;max-width:100%;height:auto;margin:0 auto;background:#e2e8f0;min-height:120px"></div>`;
+      content = `<div style="${style}"><img src="${source}" alt="${text}" style="display:block;max-width:100%;height:auto;margin:0 auto;background:#e2e8f0;min-height:120px"></div>`;
+      break;
     }
+    case "search":
+      content = `<form action="#" method="get" role="search" style="${style};display:flex;gap:8px"><input type="search" name="q" placeholder="${text}" style="box-sizing:border-box;min-width:0;flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:6px"><button type="submit" style="padding:10px 16px;border:0;border-radius:6px;background:#2563eb;color:#ffffff">${escapeHtml(block.searchButtonText ?? "Search")}</button></form>`;
+      break;
   }
+
+  if (href && block.type !== "button" && linkableBlockTypes.has(block.type)) {
+    return `<a href="${escapeHtml(href)}" style="display:block;color:inherit;text-decoration:inherit">${content}</a>`;
+  }
+  return content;
 }
 
-function generateHtml(blocks: EditorBlock[]): string {
+function generateHtml(blocks: EditorBlock[], pages: EditorPage[], pageTitle: string): string {
   const content = blocks
-    .map((block) => `<div data-block-width="${block.style.width}" style="${blockWidthToHtml(block.style.width)}">${blockToHtml(block)}</div>`)
+    .map((block) => `<div data-block-width="${block.style.width}" style="${blockWidthToHtml(block.style.width)}">${blockToHtml(block, pages)}</div>`)
     .join("\n");
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HTML Editor Preview</title>
+  <title>${escapeHtml(pageTitle)}</title>
   <style>
     @media (max-width: 480px) {
       [data-block-width] { flex-basis: 100% !important; max-width: 100% !important; }
@@ -249,38 +324,63 @@ function CanvasBlock({ block }: { block: EditorBlock }) {
             : <div className="html-editor-image-placeholder">No image selected</div>}
         </div>
       );
+    case "search":
+      return (
+        <form style={style} className="html-editor-search-preview" onSubmit={(event) => event.preventDefault()}>
+          <input type="search" placeholder={block.text} readOnly tabIndex={-1} />
+          <button type="button" tabIndex={-1}>{block.searchButtonText ?? "Search"}</button>
+        </form>
+      );
   }
 }
 
 export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const nextId = useRef(3);
-  const [blocks, setBlocks] = useState<EditorBlock[]>([
-    { id: 1, type: "heading", text: "Welcome", style: createStyle("heading") },
-    { id: 2, type: "paragraph", text: "Start building your HTML page with blocks.", style: createStyle("paragraph") },
+  const nextPageId = useRef(2);
+  const [pages, setPages] = useState<EditorPage[]>([
+    {
+      id: 1,
+      title: "Home",
+      slug: "index",
+      blocks: [
+        { id: 1, type: "heading", text: "Welcome", style: createStyle("heading"), link: createLink() },
+        { id: 2, type: "paragraph", text: "Start building your HTML page with blocks.", style: createStyle("paragraph"), link: createLink() },
+      ],
+    },
   ]);
+  const [currentPageId, setCurrentPageId] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(1);
-  const [htmlSource, setHtmlSource] = useState(() => generateHtml(blocks));
   const [copied, setCopied] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [canvasViewport, setCanvasViewport] = useState<CanvasViewport>("desktop");
 
+  const currentPage = pages.find((page) => page.id === currentPageId) ?? pages[0];
+  const blocks = currentPage?.blocks ?? [];
   const selectedBlock = blocks.find((block) => block.id === selectedId) ?? null;
+  const htmlSource = generateHtml(blocks, pages, currentPage?.title ?? "Untitled Page");
 
   useEffect(() => {
-    setHtmlSource(generateHtml(blocks));
     setCopied(false);
-  }, [blocks]);
+  }, [pages, currentPageId]);
+
+  const updateCurrentBlocks = (update: (current: EditorBlock[]) => EditorBlock[]) => {
+    setPages((current) => current.map((page) => page.id === currentPageId
+      ? { ...page, blocks: update(page.blocks) }
+      : page));
+  };
 
   const createBlock = (type: BlockType, text = defaultText[type], width: BlockWidth = "full"): EditorBlock => ({
       id: nextId.current++,
       type,
       text,
       style: { ...createStyle(type), width },
+      searchButtonText: type === "search" ? "Search" : undefined,
+      link: createLink(),
     });
 
   const addBlock = (type: BlockType) => {
     const block = createBlock(type);
-    setBlocks((current) => [...current, block]);
+    updateCurrentBlocks((current) => [...current, block]);
     setSelectedId(block.id);
     setImageError(null);
   };
@@ -288,14 +388,14 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const applyTemplate = (template: TemplateName) => {
     if (blocks.length > 0 && !window.confirm("Replace the current blocks with this template?")) return;
     const nextBlocks = templates[template].map((block) => createBlock(block.type, block.text, block.width));
-    setBlocks(nextBlocks);
+    updateCurrentBlocks(() => nextBlocks);
     setSelectedId(nextBlocks[0]?.id ?? null);
     setImageError(null);
   };
 
-  const updateSelected = (update: Partial<Pick<EditorBlock, "text" | "style">>) => {
+  const updateSelected = (update: Partial<Pick<EditorBlock, "text" | "style" | "searchButtonText" | "link">>) => {
     if (selectedId === null) return;
-    setBlocks((current) => current.map((block) => block.id === selectedId ? { ...block, ...update } : block));
+    updateCurrentBlocks((current) => current.map((block) => block.id === selectedId ? { ...block, ...update } : block));
   };
 
   const updateStyle = <K extends keyof BlockStyle>(key: K, value: BlockStyle[K]) => {
@@ -305,13 +405,13 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
 
   const deleteSelected = () => {
     if (selectedId === null) return;
-    setBlocks((current) => current.filter((block) => block.id !== selectedId));
+    updateCurrentBlocks((current) => current.filter((block) => block.id !== selectedId));
     setSelectedId(null);
   };
 
   const moveSelected = (direction: -1 | 1) => {
     if (selectedId === null) return;
-    setBlocks((current) => {
+    updateCurrentBlocks((current) => {
       const index = current.findIndex((block) => block.id === selectedId);
       const target = index + direction;
       if (index < 0 || target < 0 || target >= current.length) return current;
@@ -328,13 +428,81 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
       id: nextId.current++,
       style: { ...selectedBlock.style },
     };
-    setBlocks((current) => {
+    updateCurrentBlocks((current) => {
       const index = current.findIndex((block) => block.id === selectedBlock.id);
       const next = [...current];
       next.splice(index + 1, 0, duplicate);
       return next;
     });
     setSelectedId(duplicate.id);
+  };
+
+  const updateLink = (update: Partial<EditorBlock["link"]>) => {
+    if (!selectedBlock) return;
+    updateSelected({ link: { ...selectedBlock.link, ...update } });
+  };
+
+  const switchPage = (page: EditorPage) => {
+    setCurrentPageId(page.id);
+    setSelectedId(page.blocks[0]?.id ?? null);
+    setImageError(null);
+  };
+
+  const addPage = () => {
+    const id = nextPageId.current++;
+    const title = `Page ${id}`;
+    const page: EditorPage = { id, title, slug: uniqueSlug(title, pages, id), blocks: [] };
+    setPages((current) => [...current, page]);
+    switchPage(page);
+  };
+
+  const renameCurrentPage = (title: string) => {
+    setPages((current) => current.map((page) => page.id === currentPageId
+      ? {
+          ...page,
+          title,
+          slug: page.id === 1 && title.trim().toLowerCase() === "home"
+            ? "index"
+            : uniqueSlug(title, current, page.id, page.id),
+        }
+      : page));
+  };
+
+  const duplicatePage = () => {
+    if (!currentPage) return;
+    const id = nextPageId.current++;
+    const title = `${currentPage.title || "Page"} Copy`;
+    const duplicateBlocks = currentPage.blocks.map((block) => ({
+      ...block,
+      id: nextId.current++,
+      style: { ...block.style },
+      link: { ...block.link },
+    }));
+    const page: EditorPage = {
+      id,
+      title,
+      slug: uniqueSlug(title, pages, id),
+      blocks: duplicateBlocks,
+    };
+    setPages((current) => [...current, page]);
+    switchPage(page);
+  };
+
+  const deletePage = () => {
+    if (!currentPage || pages.length <= 1) return;
+    const remaining = pages
+      .filter((page) => page.id !== currentPage.id)
+      .map((page) => ({
+        ...page,
+        blocks: page.blocks.map((block) => block.link.type === "page" && block.link.pageId === currentPage.id
+          ? { ...block, link: createLink() }
+          : block),
+      }));
+    const nextPage = remaining[0];
+    setPages(remaining);
+    setCurrentPageId(nextPage.id);
+    setSelectedId(nextPage.blocks[0]?.id ?? null);
+    setImageError(null);
   };
 
   const selectBlock = (id: number) => {
@@ -361,7 +529,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
         setImageError("The selected image could not be loaded safely.");
         return;
       }
-      setBlocks((current) => current.map((block) => block.id === blockId ? { ...block, imageDataUrl: result } : block));
+      updateCurrentBlocks((current) => current.map((block) => block.id === blockId ? { ...block, imageDataUrl: result } : block));
       setImageError(null);
     };
     reader.onerror = () => setImageError("The selected image could not be read.");
@@ -393,6 +561,34 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
 
       <div className="html-editor-workspace">
         <aside className="html-editor-panel html-editor-library">
+          <div className="html-editor-pages-section">
+            <div className="html-editor-pages-heading">
+              <h2>Pages</h2>
+              <span>{pages.length}</span>
+            </div>
+            <div className="html-editor-page-list">
+              {pages.map((page) => (
+                <button
+                  key={page.id}
+                  type="button"
+                  className={page.id === currentPageId ? "active" : ""}
+                  onClick={() => switchPage(page)}
+                >
+                  <span>{page.title || "Untitled Page"}</span>
+                  <code>{page.slug}.html</code>
+                </button>
+              ))}
+            </div>
+            <label className="html-editor-page-title-field">
+              Rename Page
+              <input type="text" value={currentPage?.title ?? ""} onChange={(event) => renameCurrentPage(event.target.value)} />
+            </label>
+            <div className="html-editor-page-actions">
+              <button type="button" onClick={addPage}>Add Page</button>
+              <button type="button" onClick={duplicatePage}>Duplicate Page</button>
+              <button type="button" onClick={deletePage} disabled={pages.length <= 1}>Delete Page</button>
+            </div>
+          </div>
           <h2>Block Library</h2>
           {(Object.keys(blockLabels) as BlockType[]).map((type) => (
             <button key={type} type="button" onClick={() => addBlock(type)}>
@@ -411,9 +607,15 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
 
         <section className="html-editor-panel html-editor-canvas-panel">
           <div className="html-editor-canvas-toolbar">
-            <div className="html-editor-panel-title">
-              <h2>Live Page Canvas</h2>
-              <span>{blocks.length} blocks</span>
+            <div className="html-editor-canvas-heading">
+              <div className="html-editor-panel-title">
+                <h2>Live Page Canvas</h2>
+                <span>{blocks.length} blocks</span>
+              </div>
+              <div className="html-editor-current-output">
+                <span>{currentPage?.title || "Untitled Page"}</span>
+                <code>{currentPage?.slug ?? "page"}.html</code>
+              </div>
             </div>
             <div className="html-editor-viewport-switch" role="group" aria-label="Page width">
               {(Object.keys(canvasViewportWidths) as CanvasViewport[]).map((viewport) => (
@@ -472,10 +674,21 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
               <div className="html-editor-selected-type">{blockLabels[selectedBlock.type]}</div>
               {selectedBlock.type === "button" && (
                 <p className="html-editor-help">
-                  Button action is preview-only in this MVP. Generated HTML uses href=&quot;#&quot;.
+                  Button action is preview-only in this MVP. Generated HTML uses the selected link or href=&quot;#&quot;.
                 </p>
               )}
-              {selectedBlock.type !== "divider" && (
+              {selectedBlock.type === "search" ? (
+                <>
+                  <label>
+                    Placeholder
+                    <input type="text" value={selectedBlock.text} onChange={(event) => updateSelected({ text: event.target.value })} />
+                  </label>
+                  <label>
+                    Button text
+                    <input type="text" value={selectedBlock.searchButtonText ?? "Search"} onChange={(event) => updateSelected({ searchButtonText: event.target.value })} />
+                  </label>
+                </>
+              ) : selectedBlock.type !== "divider" && (
                 <label>
                   {selectedBlock.type === "image" ? "Alt text" : "Text"}
                   <textarea
@@ -500,6 +713,46 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                   </label>
                   <div className="html-editor-image-limit">PNG, JPEG, GIF, WebP, or BMP. Maximum 3MB.</div>
                   {imageError && <div className="html-editor-image-error">{imageError}</div>}
+                </div>
+              )}
+              {linkableBlockTypes.has(selectedBlock.type) && (
+                <div className="html-editor-link-settings">
+                  <label>
+                    Link type
+                    <select
+                      value={selectedBlock.link.type}
+                      onChange={(event) => {
+                        const type = event.target.value as LinkType;
+                        updateLink({
+                          type,
+                          pageId: type === "page" ? selectedBlock.link.pageId ?? pages[0]?.id ?? null : selectedBlock.link.pageId,
+                        });
+                      }}
+                    >
+                      <option value="none">None</option>
+                      <option value="page">Page</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </label>
+                  {selectedBlock.link.type === "page" && (
+                    <label>
+                      Link page
+                      <select value={selectedBlock.link.pageId ?? ""} onChange={(event) => updateLink({ pageId: Number(event.target.value) })}>
+                        {pages.map((page) => <option key={page.id} value={page.id}>{page.title || "Untitled Page"} ({page.slug}.html)</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {selectedBlock.link.type === "custom" && (
+                    <>
+                      <label>
+                        Custom URL
+                        <input type="url" value={selectedBlock.link.customUrl} onChange={(event) => updateLink({ customUrl: event.target.value })} placeholder="https://example.com" />
+                      </label>
+                      {selectedBlock.link.customUrl && safeCustomUrl(selectedBlock.link.customUrl) === "#" && selectedBlock.link.customUrl.trim() !== "#" && (
+                        <p className="html-editor-help">Unsafe URLs are output as href=&quot;#&quot;.</p>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
               <label>
