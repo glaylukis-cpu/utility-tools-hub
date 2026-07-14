@@ -12,6 +12,78 @@
   margin-bottom: 0;
 }
 
+.html-editor-plan-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.html-editor-plan-copy {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.html-editor-plan-badge,
+.html-editor-pro-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.html-editor-plan-badge {
+  padding: 5px 8px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+}
+
+.html-editor-pro-badge {
+  margin-left: auto;
+  padding: 3px 6px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 9px;
+}
+
+.html-editor-planned-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.html-editor-planned-actions button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px dashed #c4b5fd;
+  border-radius: 7px;
+  background: #faf5ff;
+  color: #5b21b6;
+  cursor: help;
+  font-size: 10px;
+}
+
+.html-editor-plan-message {
+  flex-basis: 100%;
+  margin: 0;
+  color: #5b21b6;
+  font-size: 11px;
+}
+
 .html-editor-workspace {
   display: grid;
   grid-template-columns: 190px minmax(620px, 1fr) 280px;
@@ -75,6 +147,13 @@
 .html-editor-pages-heading span {
   color: #64748b;
   font-size: 11px;
+}
+
+.html-editor-free-page-note {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .html-editor-page-list {
@@ -238,6 +317,21 @@
 .html-editor-actions button:hover:not(:disabled) {
   border-color: #93c5fd;
   background: #eff6ff;
+}
+
+.html-editor-library button.is-pro-locked,
+.html-editor-page-actions button.is-pro-locked {
+  border-style: dashed;
+  border-color: #c4b5fd;
+  background: #faf5ff;
+  color: #5b21b6;
+  cursor: help;
+}
+
+.html-editor-library button.is-pro-locked:hover,
+.html-editor-page-actions button.is-pro-locked:hover {
+  border-color: #8b5cf6;
+  background: #f5f3ff;
 }
 
 .html-editor-panel-title {
@@ -614,6 +708,13 @@
   line-height: 1.5;
 }
 
+.html-editor-pro-inline-note {
+  margin: 0;
+  color: #6d28d9;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 .html-editor-image-settings,
 .html-editor-navigation-settings {
   display: flex;
@@ -755,6 +856,16 @@
   .html-editor-header {
     display: flex;
     flex-direction: column;
+  }
+
+  .html-editor-plan-summary,
+  .html-editor-plan-copy {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .html-editor-planned-actions {
+    flex-wrap: wrap;
   }
 
   .html-editor-library {

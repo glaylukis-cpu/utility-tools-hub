@@ -11,6 +11,12 @@ type LinkType = "none" | "page" | "custom";
 type NavigationLayout = "horizontal" | "vertical";
 type ImageWidth = "auto" | "25%" | "50%" | "75%" | "100%";
 type ImageObjectFit = "contain" | "cover";
+type HtmlEditorPlan = "free" | "pro";
+
+const htmlEditorPlan = "free" as HtmlEditorPlan;
+const isHtmlEditorPro = htmlEditorPlan === "pro";
+const proOnlyBlockTypes = new Set<BlockType>(["search", "navigation"]);
+const proLockedMessage = "Multiple pages, navigation, search, and ZIP export are planned for Pro.";
 
 const canvasViewportWidths: Record<CanvasViewport, number> = {
   desktop: 1280,
@@ -425,9 +431,11 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const [copied, setCopied] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [importFeedback, setImportFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [canvasViewport, setCanvasViewport] = useState<CanvasViewport>("desktop");
 
   const currentPage = pages.find((page) => page.id === currentPageId) ?? pages[0];
+  const visiblePages = isHtmlEditorPro ? pages : pages.slice(0, 1);
   const blocks = currentPage?.blocks ?? [];
   const selectedBlock = blocks.find((block) => block.id === selectedId) ?? null;
   const htmlSource = generateHtml(blocks, pages, currentPage?.title ?? "Untitled Page", currentPageId);
@@ -435,6 +443,15 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     setCopied(false);
   }, [pages, currentPageId]);
+
+  useEffect(() => {
+    const homePage = pages[0];
+    if (!isHtmlEditorPro && homePage && currentPageId !== homePage.id) {
+      setCurrentPageId(homePage.id);
+      setSelectedId(homePage.blocks[0]?.id ?? null);
+      setImageError(null);
+    }
+  }, [currentPageId, pages]);
 
   const updateCurrentBlocks = (update: (current: EditorBlock[]) => EditorBlock[]) => {
     setPages((current) => current.map((page) => page.id === currentPageId
@@ -625,7 +642,12 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
     reader.onload = () => {
       try {
         if (typeof reader.result !== "string") throw new Error("The HTML file could not be read.");
-        const importedBlocks = importHtmlBlocks(reader.result);
+        const parsedBlocks = importHtmlBlocks(reader.result);
+        const importedBlocks = isHtmlEditorPro
+          ? parsedBlocks
+          : parsedBlocks
+            .filter((block) => !proOnlyBlockTypes.has(block.type))
+            .map((block) => block.link.type === "page" ? { ...block, link: createLink() } : block);
         if (importedBlocks.length === 0) throw new Error("No supported HTML elements were found.");
         updateCurrentBlocks(() => importedBlocks);
         setSelectedId(importedBlocks[0].id);
@@ -640,7 +662,13 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
     input.value = "";
   };
 
+  const showProLocked = () => setPlanMessage(proLockedMessage);
+
   const addBlock = (type: BlockType) => {
+    if (!isHtmlEditorPro && proOnlyBlockTypes.has(type)) {
+      showProLocked();
+      return;
+    }
     const block = createBlock(type);
     updateCurrentBlocks((current) => [...current, block]);
     setSelectedId(block.id);
@@ -649,7 +677,10 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
 
   const applyTemplate = (template: TemplateName) => {
     if (blocks.length > 0 && !window.confirm("Replace the current blocks with this template?")) return;
-    const nextBlocks = templates[template].map((block) => createBlock(block.type, block.text, block.width));
+    const availableTemplateBlocks = isHtmlEditorPro
+      ? templates[template]
+      : templates[template].filter((block) => !proOnlyBlockTypes.has(block.type));
+    const nextBlocks = availableTemplateBlocks.map((block) => createBlock(block.type, block.text, block.width));
     updateCurrentBlocks(() => nextBlocks);
     setSelectedId(nextBlocks[0]?.id ?? null);
     setImageError(null);
@@ -705,12 +736,20 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   };
 
   const switchPage = (page: EditorPage) => {
+    if (!isHtmlEditorPro && page.id !== pages[0]?.id) {
+      showProLocked();
+      return;
+    }
     setCurrentPageId(page.id);
     setSelectedId(page.blocks[0]?.id ?? null);
     setImageError(null);
   };
 
   const addPage = () => {
+    if (!isHtmlEditorPro) {
+      showProLocked();
+      return;
+    }
     const id = nextPageId.current++;
     const title = `Page ${id}`;
     const page: EditorPage = { id, title, slug: uniqueSlug(title, pages, id), blocks: [] };
@@ -723,7 +762,9 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
       ? {
           ...page,
           title,
-          slug: page.id === 1 && title.trim().toLowerCase() === "home"
+          slug: !isHtmlEditorPro && page.id === pages[0]?.id
+            ? "index"
+            : page.id === 1 && title.trim().toLowerCase() === "home"
             ? "index"
             : uniqueSlug(title, current, page.id, page.id),
         }
@@ -731,6 +772,10 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   };
 
   const duplicatePage = () => {
+    if (!isHtmlEditorPro) {
+      showProLocked();
+      return;
+    }
     if (!currentPage) return;
     const id = nextPageId.current++;
     const title = `${currentPage.title || "Page"} Copy`;
@@ -751,6 +796,10 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   };
 
   const deletePage = () => {
+    if (!isHtmlEditorPro) {
+      showProLocked();
+      return;
+    }
     if (!currentPage || pages.length <= 1) return;
     const remaining = pages
       .filter((page) => page.id !== currentPage.id)
@@ -821,15 +870,33 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
         <button className="btn btn-primary" onClick={copyHtml}>{copied ? "Copied" : "Copy HTML"}</button>
       </div>
 
+      <section className="html-editor-plan-summary" aria-label="HTML Editor plan">
+        <div className="html-editor-plan-copy">
+          <span className="html-editor-plan-badge">{isHtmlEditorPro ? "Pro plan" : "Free plan"}</span>
+          <span>Free: single-page HTML copy.</span>
+          <span>Pro: multipage ZIP export with index.html, docs/, and js/.</span>
+        </div>
+        <div className="html-editor-planned-actions">
+          <button type="button" onClick={showProLocked}>
+            ZIP export <span className="html-editor-pro-badge">Pro</span>
+          </button>
+          <button type="button" onClick={showProLocked}>
+            Site search <span className="html-editor-pro-badge">Pro</span>
+          </button>
+        </div>
+        {planMessage && <p className="html-editor-plan-message" role="status">{planMessage}</p>}
+      </section>
+
       <div className="html-editor-workspace">
         <aside className="html-editor-panel html-editor-library">
           <div className="html-editor-pages-section">
             <div className="html-editor-pages-heading">
               <h2>Pages</h2>
-              <span>{pages.length}</span>
+              <span>{visiblePages.length}</span>
             </div>
+            {!isHtmlEditorPro && <p className="html-editor-free-page-note">Free plan includes one Home page with index.html output.</p>}
             <div className="html-editor-page-list">
-              {pages.map((page) => (
+              {visiblePages.map((page) => (
                 <button
                   key={page.id}
                   type="button"
@@ -846,9 +913,20 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
               <input type="text" value={currentPage?.title ?? ""} onChange={(event) => renameCurrentPage(event.target.value)} />
             </label>
             <div className="html-editor-page-actions">
-              <button type="button" onClick={addPage}>Add Page</button>
-              <button type="button" onClick={duplicatePage}>Duplicate Page</button>
-              <button type="button" onClick={deletePage} disabled={pages.length <= 1}>Delete Page</button>
+              <button type="button" className={!isHtmlEditorPro ? "is-pro-locked" : ""} onClick={addPage}>
+                Add Page {!isHtmlEditorPro && <span className="html-editor-pro-badge">Pro</span>}
+              </button>
+              <button type="button" className={!isHtmlEditorPro ? "is-pro-locked" : ""} onClick={duplicatePage}>
+                Duplicate Page {!isHtmlEditorPro && <span className="html-editor-pro-badge">Pro</span>}
+              </button>
+              <button
+                type="button"
+                className={!isHtmlEditorPro ? "is-pro-locked" : ""}
+                onClick={deletePage}
+                disabled={isHtmlEditorPro && pages.length <= 1}
+              >
+                Delete Page {!isHtmlEditorPro && <span className="html-editor-pro-badge">Pro</span>}
+              </button>
             </div>
           </div>
           <div className="html-editor-import-section">
@@ -869,11 +947,20 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
             )}
           </div>
           <h2>Block Library</h2>
-          {(Object.keys(blockLabels) as BlockType[]).map((type) => (
-            <button key={type} type="button" onClick={() => addBlock(type)}>
-              <span>＋</span>{blockLabels[type]}
-            </button>
-          ))}
+          {(Object.keys(blockLabels) as BlockType[]).map((type) => {
+            const isLocked = !isHtmlEditorPro && proOnlyBlockTypes.has(type);
+            return (
+              <button
+                key={type}
+                type="button"
+                className={isLocked ? "is-pro-locked" : ""}
+                onClick={() => addBlock(type)}
+              >
+                <span>＋</span>{blockLabels[type]}
+                {isLocked && <span className="html-editor-pro-badge">Pro</span>}
+              </button>
+            );
+          })}
           <div className="html-editor-template-section">
             <h3>Templates</h3>
             {(Object.keys(templateLabels) as TemplateName[]).map((template) => (
@@ -1064,6 +1151,10 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                       value={selectedBlock.link.type}
                       onChange={(event) => {
                         const type = event.target.value as LinkType;
+                        if (type === "page" && !isHtmlEditorPro) {
+                          showProLocked();
+                          return;
+                        }
                         updateLink({
                           type,
                           pageId: type === "page" ? selectedBlock.link.pageId ?? pages[0]?.id ?? null : selectedBlock.link.pageId,
@@ -1071,10 +1162,11 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                       }}
                     >
                       <option value="none">None</option>
-                      <option value="page">Page</option>
+                      <option value="page" disabled={!isHtmlEditorPro}>Page{!isHtmlEditorPro ? " (Pro)" : ""}</option>
                       <option value="custom">Custom</option>
                     </select>
                   </label>
+                  {!isHtmlEditorPro && <p className="html-editor-pro-inline-note">Page links require Pro. Custom URLs remain available.</p>}
                   {selectedBlock.link.type === "page" && (
                     <label>
                       Link page
