@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
+import JSZip from "jszip";
 import "./HtmlEditor.css";
 
 type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "card" | "image" | "search" | "navigation";
@@ -29,8 +30,25 @@ function projectFileName(date = new Date()): string {
   return `utility-tools-hub-html-project-${timestamp}.uth-html-editor.json`;
 }
 
+function siteZipFileName(date = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const timestamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+  return `utility-tools-hub-site-${timestamp}.zip`;
+}
+
 function fileNameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() || "project file";
+}
+
+function downloadBlobFile(blob: Blob, fileName: string): void {
+  const downloadUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = downloadUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
 }
 
 const canvasViewportWidths: Record<CanvasViewport, number> = {
@@ -97,6 +115,20 @@ interface NormalizedProject {
   hasProFeatures: boolean;
   nextPageId: number;
   nextBlockId: number;
+}
+
+interface ZipPageEntry {
+  page: EditorPage;
+  slug: string;
+  path: string;
+  url: string;
+  rootPrefix: "" | "../";
+}
+
+interface HtmlGenerationOptions {
+  pageHref?: (targetPage: EditorPage, currentPageId: number) => string;
+  zipSearch?: boolean;
+  rootPrefix?: "" | "../";
 }
 
 const blockLabels: Record<BlockType, string> = {
@@ -194,13 +226,55 @@ function safeCustomUrl(value: string): string {
   return "#";
 }
 
-function resolveLinkHref(block: EditorBlock, pages: EditorPage[]): string | null {
+function resolveLinkHref(
+  block: EditorBlock,
+  pages: EditorPage[],
+  currentPageId?: number,
+  pageHref?: HtmlGenerationOptions["pageHref"],
+): string | null {
   if (block.link.type === "page") {
     const target = pages.find((page) => page.id === block.link.pageId);
-    return target ? `${target.slug}.html` : "#";
+    return target ? pageHref?.(target, currentPageId ?? target.id) ?? `${target.slug}.html` : "#";
   }
   if (block.link.type === "custom") return safeCustomUrl(block.link.customUrl);
   return null;
+}
+
+function createZipPageEntries(pages: EditorPage[]): ZipPageEntry[] {
+  const usedSlugs = new Set<string>();
+  return pages.map((page, index) => {
+    let baseSlug = index === 0
+      ? "index"
+      : page.slug
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 64);
+    if (!baseSlug) baseSlug = `page-${index + 1}`;
+
+    let slug = baseSlug;
+    let suffix = 2;
+    while (usedSlugs.has(slug)) slug = `${baseSlug}-${suffix++}`;
+    usedSlugs.add(slug);
+
+    const path = index === 0 ? "index.html" : `docs/${slug}.html`;
+    return {
+      page,
+      slug,
+      path,
+      url: path,
+      rootPrefix: index === 0 ? "" : "../",
+    };
+  });
+}
+
+function zipPageHref(entries: ZipPageEntry[], targetPage: EditorPage, currentPageId: number): string {
+  const target = entries.find((entry) => entry.page.id === targetPage.id);
+  const current = entries.find((entry) => entry.page.id === currentPageId);
+  if (!target || !current) return "#";
+  if (current.rootPrefix === "") return target.url;
+  return target.rootPrefix === "" ? "../index.html" : `${target.slug}.html`;
 }
 
 function createStyle(type: BlockType): BlockStyle {
@@ -409,10 +483,15 @@ function tableHtml(block: EditorBlock): string {
   return `<table style="${styleToHtml(block.style)};width:100%;border-collapse:collapse"><tbody>${rows}</tbody></table>`;
 }
 
-function blockToHtml(block: EditorBlock, pages: EditorPage[], currentPageId: number): string {
+function blockToHtml(
+  block: EditorBlock,
+  pages: EditorPage[],
+  currentPageId: number,
+  options: HtmlGenerationOptions = {},
+): string {
   const style = styleToHtml(block.style);
   const text = escapeHtml(block.text);
-  const href = resolveLinkHref(block, pages);
+  const href = resolveLinkHref(block, pages, currentPageId, options.pageHref);
   let content: string;
 
   switch (block.type) {
@@ -447,7 +526,9 @@ function blockToHtml(block: EditorBlock, pages: EditorPage[], currentPageId: num
       break;
     }
     case "search":
-      content = `<form action="#" method="get" role="search" style="${style};display:flex;gap:8px"><input type="search" name="q" placeholder="${text}" style="box-sizing:border-box;min-width:0;flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:6px"><button type="submit" style="padding:10px 16px;border:0;border-radius:6px;background:#2563eb;color:#ffffff">${escapeHtml(block.searchButtonText ?? "Search")}</button></form>`;
+      content = options.zipSearch
+        ? `<div style="${style}"><form action="#" method="get" role="search" data-uth-search-form style="display:flex;gap:8px"><input type="search" name="q" placeholder="${text}" style="box-sizing:border-box;min-width:0;flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:6px"><button type="submit" style="padding:10px 16px;border:0;border-radius:6px;background:#2563eb;color:#ffffff">${escapeHtml(block.searchButtonText ?? "Search")}</button></form><div data-uth-search-results aria-live="polite" style="margin-top:10px"></div></div>`
+        : `<form action="#" method="get" role="search" style="${style};display:flex;gap:8px"><input type="search" name="q" placeholder="${text}" style="box-sizing:border-box;min-width:0;flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:6px"><button type="submit" style="padding:10px 16px;border:0;border-radius:6px;background:#2563eb;color:#ffffff">${escapeHtml(block.searchButtonText ?? "Search")}</button></form>`;
       break;
     case "navigation": {
       const layout = block.navigationLayout ?? "horizontal";
@@ -459,7 +540,8 @@ function blockToHtml(block: EditorBlock, pages: EditorPage[], currentPageId: num
       const links = pages.map((page) => {
         const isCurrent = block.navigationShowCurrent !== false && page.id === currentPageId;
         const emphasis = isCurrent ? "font-weight:700;border-bottom:2px solid currentColor" : "";
-        return `<a href="${escapeHtml(`${page.slug}.html`)}" style="color:inherit;text-decoration:${block.style.underline ? "underline" : "none"};${emphasis}">${escapeHtml(page.title || "Untitled Page")}</a>`;
+        const navigationHref = options.pageHref?.(page, currentPageId) ?? `${page.slug}.html`;
+        return `<a href="${escapeHtml(navigationHref)}" style="color:inherit;text-decoration:${block.style.underline ? "underline" : "none"};${emphasis}">${escapeHtml(page.title || "Untitled Page")}</a>`;
       }).join("");
       content = `<nav aria-label="Page navigation" style="${style};display:flex;flex-wrap:wrap;gap:${gap}px;${layoutStyle}">${links}</nav>`;
       break;
@@ -472,12 +554,22 @@ function blockToHtml(block: EditorBlock, pages: EditorPage[], currentPageId: num
   return content;
 }
 
-function generateHtml(blocks: EditorBlock[], pages: EditorPage[], pageTitle: string, currentPageId: number): string {
+function generateHtml(
+  blocks: EditorBlock[],
+  pages: EditorPage[],
+  pageTitle: string,
+  currentPageId: number,
+  options: HtmlGenerationOptions = {},
+): string {
   const content = blocks
-    .map((block) => `<div data-block-width="${block.style.width}" style="${blockWidthToHtml(block.style.width)}">${blockToHtml(block, pages, currentPageId)}</div>`)
+    .map((block) => `<div data-block-width="${block.style.width}" style="${blockWidthToHtml(block.style.width)}">${blockToHtml(block, pages, currentPageId, options)}</div>`)
     .join("\n");
+  const rootPrefix = options.rootPrefix ?? "";
+  const searchScripts = options.zipSearch
+    ? `\n<script src="${rootPrefix}js/search-data.js" defer></script>\n<script src="${rootPrefix}js/site-search.js" defer></script>`
+    : "";
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${options.zipSearch ? ` data-uth-root="${rootPrefix}"` : ""}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -492,8 +584,106 @@ function generateHtml(blocks: EditorBlock[], pages: EditorPage[], pageTitle: str
 <main style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
 ${content}
 </main>
+${searchScripts}
 </body>
 </html>`;
+}
+
+function pageSearchText(page: EditorPage): string {
+  return page.blocks
+    .flatMap((block) => [block.text, block.imageCaption ?? "", block.searchButtonText ?? ""])
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function searchDataScript(entries: ZipPageEntry[]): string {
+  const searchIndex = entries.map((entry) => ({
+    title: entry.page.title || "Untitled Page",
+    slug: entry.slug,
+    url: entry.url,
+    text: pageSearchText(entry.page),
+  }));
+  const serialized = JSON.stringify(searchIndex)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+  return `window.UTH_SEARCH_INDEX = ${serialized};\n`;
+}
+
+const SITE_SEARCH_SCRIPT = `(function () {
+  "use strict";
+  var index = Array.isArray(window.UTH_SEARCH_INDEX) ? window.UTH_SEARCH_INDEX : [];
+  var rootPrefix = document.documentElement.getAttribute("data-uth-root") || "";
+
+  document.querySelectorAll("[data-uth-search-form]").forEach(function (form) {
+    var input = form.querySelector('input[type="search"]');
+    var results = form.parentElement && form.parentElement.querySelector("[data-uth-search-results]");
+    if (!input || !results) return;
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var query = String(input.value || "").trim().toLowerCase();
+      results.replaceChildren();
+
+      if (!query) {
+        var emptyMessage = document.createElement("p");
+        emptyMessage.textContent = "Enter a search term.";
+        results.appendChild(emptyMessage);
+        return;
+      }
+
+      var matches = index.filter(function (item) {
+        return String(item.title + " " + item.slug + " " + item.text).toLowerCase().includes(query);
+      }).slice(0, 20);
+
+      if (matches.length === 0) {
+        var noResults = document.createElement("p");
+        noResults.textContent = "No matching pages found.";
+        results.appendChild(noResults);
+        return;
+      }
+
+      var list = document.createElement("ul");
+      matches.forEach(function (item) {
+        var listItem = document.createElement("li");
+        var link = document.createElement("a");
+        link.href = rootPrefix + item.url;
+        link.textContent = item.title;
+        listItem.appendChild(link);
+        list.appendChild(listItem);
+      });
+      results.appendChild(list);
+    });
+  });
+})();
+`;
+
+async function generateSiteZip(pages: EditorPage[]): Promise<Blob> {
+  const zip = new JSZip();
+  const entries = createZipPageEntries(pages);
+  const pageHref = (targetPage: EditorPage, currentPageId: number) => zipPageHref(entries, targetPage, currentPageId);
+
+  entries.forEach((entry) => {
+    zip.file(entry.path, generateHtml(
+      entry.page.blocks,
+      pages,
+      entry.page.title || "Untitled Page",
+      entry.page.id,
+      { pageHref, zipSearch: true, rootPrefix: entry.rootPrefix },
+    ));
+  });
+  zip.file("js/search-data.js", searchDataScript(entries));
+  zip.file("js/site-search.js", SITE_SEARCH_SCRIPT);
+  zip.folder("assets/images");
+
+  return zip.generateAsync({
+    type: "blob",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 },
+  });
 }
 
 function CanvasBlock({ block, pages, currentPageId }: { block: EditorBlock; pages: EditorPage[]; currentPageId: number }) {
@@ -613,6 +803,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const [projectFeedback, setProjectFeedback] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [canvasViewport, setCanvasViewport] = useState<CanvasViewport>("desktop");
+  const [isExportingZip, setIsExportingZip] = useState(false);
 
   const currentPage = pages.find((page) => page.id === currentPageId) ?? pages[0];
   const visiblePages = isHtmlEditorPro ? pages : pages.slice(0, 1);
@@ -857,14 +1048,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
 
   const downloadProjectFile = (projectJson: string, fileName: string) => {
     const blob = new Blob([projectJson], { type: "application/json" });
-    const downloadUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = fileName;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+    downloadBlobFile(blob, fileName);
   };
 
   const applyProjectJson = (projectJson: string, sourceName: string): boolean => {
@@ -1141,6 +1325,28 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
     reader.readAsDataURL(file);
   };
 
+  const exportSiteZip = async () => {
+    if (!isHtmlEditorPro) {
+      showProLocked();
+      return;
+    }
+    if (isExportingZip) return;
+
+    setIsExportingZip(true);
+    setPlanMessage(null);
+    setProjectFeedback(null);
+    try {
+      const fileName = siteZipFileName();
+      const zipBlob = await generateSiteZip(pages);
+      downloadBlobFile(zipBlob, fileName);
+      setProjectFeedback({ type: "success", message: `Exported ${fileName}.` });
+    } catch {
+      setProjectFeedback({ type: "error", message: "The site ZIP could not be generated." });
+    } finally {
+      setIsExportingZip(false);
+    }
+  };
+
   const copyHtml = async () => {
     try {
       await navigator.clipboard.writeText(htmlSource);
@@ -1171,9 +1377,6 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
           <span>Pro: multipage ZIP export with index.html, docs/, and js/.</span>
         </div>
         <div className="html-editor-planned-actions">
-          <button type="button" onClick={showProLocked}>
-            ZIP export <span className="html-editor-pro-badge">Pro</span>
-          </button>
           <button type="button" onClick={showProLocked}>
             Site search <span className="html-editor-pro-badge">Pro</span>
           </button>
@@ -1228,6 +1431,14 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
             <div className="html-editor-project-actions">
               <button type="button" onClick={() => void saveProject()}>Save Project As...</button>
               <button type="button" onClick={() => void openProject()}>Open Project...</button>
+              <button
+                type="button"
+                onClick={() => void exportSiteZip()}
+                disabled={isHtmlEditorPro && isExportingZip}
+              >
+                {isExportingZip ? "Exporting..." : "Export ZIP"}
+                {!isHtmlEditorPro && <span className="html-editor-pro-badge">Pro</span>}
+              </button>
               <input
                 ref={projectFileInputRef}
                 className="html-editor-project-file-input"
