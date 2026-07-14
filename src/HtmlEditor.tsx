@@ -5,6 +5,8 @@ type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "car
 type TextAlign = "left" | "center" | "right";
 type TemplateName = "landing" | "article" | "product";
 type CanvasViewport = "desktop" | "tablet" | "mobile";
+type BlockWidth = "full" | "half" | "third";
+type FontWeight = "normal" | "500" | "700";
 
 const canvasViewportWidths: Record<CanvasViewport, number> = {
   desktop: 1280,
@@ -17,6 +19,10 @@ interface BlockStyle {
   backgroundColor: string;
   textColor: string;
   padding: number;
+  width: BlockWidth;
+  fontSize: number;
+  fontWeight: FontWeight;
+  underline: boolean;
 }
 
 interface EditorBlock {
@@ -53,7 +59,7 @@ const templateLabels: Record<TemplateName, string> = {
   product: "Product Card",
 };
 
-const templates: Record<TemplateName, Array<{ type: BlockType; text: string }>> = {
+const templates: Record<TemplateName, Array<{ type: BlockType; text: string; width?: BlockWidth }>> = {
   landing: [
     { type: "heading", text: "Build something remarkable" },
     { type: "paragraph", text: "Introduce your product with a clear, focused message." },
@@ -67,10 +73,10 @@ const templates: Record<TemplateName, Array<{ type: BlockType; text: string }>> 
     { type: "paragraph", text: "Continue the story with supporting details." },
   ],
   product: [
-    { type: "image", text: "Product image" },
     { type: "heading", text: "Product name" },
     { type: "paragraph", text: "Describe the key benefit of this product." },
-    { type: "button", text: "View product" },
+    { type: "image", text: "Product image", width: "half" },
+    { type: "button", text: "View product", width: "half" },
   ],
 };
 
@@ -88,6 +94,10 @@ function createStyle(type: BlockType): BlockStyle {
     backgroundColor: type === "card" ? "#f8fafc" : "#ffffff",
     textColor: "#1e293b",
     padding: type === "divider" ? 8 : 16,
+    width: "full",
+    fontSize: type === "heading" ? 24 : 16,
+    fontWeight: type === "heading" ? "700" : "normal",
+    underline: false,
   };
 }
 
@@ -106,8 +116,21 @@ function styleToHtml(style: BlockStyle): string {
     `background-color:${style.backgroundColor}`,
     `color:${style.textColor}`,
     `padding:${style.padding}px`,
+    `font-size:${style.fontSize}px`,
+    `font-weight:${style.fontWeight}`,
+    `text-decoration:${style.underline ? "underline" : "none"}`,
+    "white-space:pre-wrap",
     "box-sizing:border-box",
   ].join(";");
+}
+
+function blockWidthToHtml(width: BlockWidth): string {
+  const basis = width === "half"
+    ? "calc((100% - 16px) / 2)"
+    : width === "third"
+      ? "calc((100% - 32px) / 3)"
+      : "100%";
+  return `flex:0 0 ${basis};max-width:${basis};min-width:0;box-sizing:border-box`;
 }
 
 function tableHtml(block: EditorBlock): string {
@@ -137,7 +160,7 @@ function blockToHtml(block: EditorBlock): string {
     case "paragraph":
       return `<p style="${style};margin:0;line-height:1.6">${text}</p>`;
     case "button":
-      return `<div style="${style}"><a href="#" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#2563eb;color:#ffffff;text-decoration:none">${text}</a></div>`;
+      return `<div style="${style}"><a href="#" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#2563eb;color:#ffffff;text-decoration:${block.style.underline ? "underline" : "none"}">${text}</a></div>`;
     case "divider":
       return `<div style="${style}"><hr style="border:0;border-top:1px solid #cbd5e1;margin:0"></div>`;
     case "table":
@@ -152,16 +175,25 @@ function blockToHtml(block: EditorBlock): string {
 }
 
 function generateHtml(blocks: EditorBlock[]): string {
-  const content = blocks.map(blockToHtml).join("\n");
+  const content = blocks
+    .map((block) => `<div data-block-width="${block.style.width}" style="${blockWidthToHtml(block.style.width)}">${blockToHtml(block)}</div>`)
+    .join("\n");
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HTML Editor Preview</title>
+  <style>
+    @media (max-width: 480px) {
+      [data-block-width] { flex-basis: 100% !important; max-width: 100% !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:24px;font-family:Arial,sans-serif;background:#ffffff">
+<main style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
 ${content}
+</main>
 </body>
 </html>`;
 }
@@ -172,6 +204,10 @@ function CanvasBlock({ block }: { block: EditorBlock }) {
     backgroundColor: block.style.backgroundColor,
     color: block.style.textColor,
     padding: block.style.padding,
+    fontSize: block.style.fontSize,
+    fontWeight: block.style.fontWeight,
+    textDecoration: block.style.underline ? "underline" : "none",
+    whiteSpace: "pre-wrap",
   } as const;
 
   switch (block.type) {
@@ -235,11 +271,11 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
     setCopied(false);
   }, [blocks]);
 
-  const createBlock = (type: BlockType, text = defaultText[type]): EditorBlock => ({
+  const createBlock = (type: BlockType, text = defaultText[type], width: BlockWidth = "full"): EditorBlock => ({
       id: nextId.current++,
       type,
       text,
-      style: createStyle(type),
+      style: { ...createStyle(type), width },
     });
 
   const addBlock = (type: BlockType) => {
@@ -251,7 +287,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
 
   const applyTemplate = (template: TemplateName) => {
     if (blocks.length > 0 && !window.confirm("Replace the current blocks with this template?")) return;
-    const nextBlocks = templates[template].map((block) => createBlock(block.type, block.text));
+    const nextBlocks = templates[template].map((block) => createBlock(block.type, block.text, block.width));
     setBlocks(nextBlocks);
     setSelectedId(nextBlocks[0]?.id ?? null);
     setImageError(null);
@@ -395,7 +431,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
           </div>
           <div className="html-editor-canvas">
             <div
-              className="html-editor-page-frame"
+              className={`html-editor-page-frame ${canvasViewport === "mobile" ? "is-mobile" : ""}`}
               style={{ maxWidth: canvasViewportWidths[canvasViewport] }}
             >
               {blocks.length === 0 && (
@@ -410,7 +446,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                   role="button"
                   tabIndex={0}
                   aria-label={`Select ${blockLabels[block.type]} block`}
-                  className={`html-editor-canvas-block ${selectedId === block.id ? "selected" : ""}`}
+                  className={`html-editor-canvas-block html-editor-block-width-${block.style.width} ${selectedId === block.id ? "selected" : ""}`}
                   onClick={() => selectBlock(block.id)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
@@ -442,7 +478,11 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
               {selectedBlock.type !== "divider" && (
                 <label>
                   {selectedBlock.type === "image" ? "Alt text" : "Text"}
-                  <textarea value={selectedBlock.text} onChange={(event) => updateSelected({ text: event.target.value })} rows={4} />
+                  <textarea
+                    value={selectedBlock.text}
+                    onChange={(event) => updateSelected({ text: event.target.value })}
+                    rows={selectedBlock.type === "paragraph" || selectedBlock.type === "card" ? 6 : 4}
+                  />
                 </label>
               )}
               {selectedBlock.type === "image" && (
@@ -463,6 +503,14 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
                 </div>
               )}
               <label>
+                Block width
+                <select value={selectedBlock.style.width} onChange={(event) => updateStyle("width", event.target.value as BlockWidth)}>
+                  <option value="full">Full</option>
+                  <option value="half">Half</option>
+                  <option value="third">Third</option>
+                </select>
+              </label>
+              <label>
                 Align
                 <select value={selectedBlock.style.align} onChange={(event) => updateStyle("align", event.target.value as TextAlign)}>
                   <option value="left">Left</option>
@@ -477,6 +525,28 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
               <label>
                 Text color
                 <input type="color" value={selectedBlock.style.textColor} onChange={(event) => updateStyle("textColor", event.target.value)} />
+              </label>
+              <label>
+                Font size
+                <input
+                  type="number"
+                  min="12"
+                  max="72"
+                  value={selectedBlock.style.fontSize}
+                  onChange={(event) => updateStyle("fontSize", Math.min(72, Math.max(12, Number(event.target.value) || 12)))}
+                />
+              </label>
+              <label>
+                Font weight
+                <select value={selectedBlock.style.fontWeight} onChange={(event) => updateStyle("fontWeight", event.target.value as FontWeight)}>
+                  <option value="normal">Normal</option>
+                  <option value="500">Medium</option>
+                  <option value="700">Bold</option>
+                </select>
+              </label>
+              <label className="html-editor-checkbox-row">
+                <input type="checkbox" checked={selectedBlock.style.underline} onChange={(event) => updateStyle("underline", event.target.checked)} />
+                Underline
               </label>
               <label>
                 Padding

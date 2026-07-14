@@ -158,10 +158,15 @@
 
 .html-editor-page-frame {
   box-sizing: border-box;
+  display: flex;
   width: 100%;
   min-height: 580px;
   margin: 0 auto;
   padding: 24px;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: flex-start;
+  gap: 16px;
   border: 1px solid #dbe3ee;
   border-radius: 12px;
   background: #ffffff;
@@ -173,8 +178,10 @@
 
 .html-editor-canvas-block {
   position: relative;
+  box-sizing: border-box;
   display: block;
-  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
@@ -185,6 +192,23 @@
   text-align: inherit;
   cursor: pointer;
   transition: background-color 120ms ease, outline-color 120ms ease;
+}
+
+.html-editor-block-width-full {
+  flex: 0 0 100%;
+}
+
+.html-editor-block-width-half {
+  flex: 0 0 calc((100% - 16px) / 2);
+}
+
+.html-editor-block-width-third {
+  flex: 0 0 calc((100% - 32px) / 3);
+}
+
+.html-editor-page-frame.is-mobile .html-editor-canvas-block {
+  flex-basis: 100%;
+  max-width: 100%;
 }
 
 .html-editor-canvas-block:hover {
@@ -314,6 +338,20 @@
   background: #ffffff;
 }
 
+.html-editor-properties .html-editor-checkbox-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.html-editor-checkbox-row input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
 .html-editor-selected-type {
   padding: 7px 9px;
   border-radius: 7px;
@@ -397,6 +435,7 @@
 
 .html-editor-canvas-empty {
   display: flex;
+  flex: 1 0 100%;
   min-height: 520px;
   flex-direction: column;
   align-items: center;
@@ -493,5 +532,10 @@
   .html-editor-page-frame {
     min-height: 480px;
     padding: 18px;
+  }
+
+  .html-editor-canvas-block {
+    flex-basis: 100%;
+    max-width: 100%;
   }
 }
