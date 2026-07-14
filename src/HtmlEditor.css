@@ -256,7 +256,6 @@
   justify-content: center;
 }
 
-.html-editor-project-file-control,
 .html-editor-import-control {
   display: flex;
   flex-direction: column;
@@ -275,7 +274,6 @@
   border-top: 1px solid #e2e8f0;
 }
 
-.html-editor-project-file-control input[type="file"],
 .html-editor-import-control input[type="file"] {
   box-sizing: border-box;
   width: 100%;
@@ -285,6 +283,10 @@
   background: #ffffff;
   color: #475569;
   font-size: 10px;
+}
+
+.html-editor-project-file-input {
+  display: none;
 }
 
 .html-editor-project-message,

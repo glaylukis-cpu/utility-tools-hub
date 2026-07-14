@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isTauri } from "@tauri-apps/api/core";
 import "./HtmlEditor.css";
 
 type BlockType = "heading" | "paragraph" | "button" | "divider" | "table" | "card" | "image" | "search" | "navigation";
@@ -17,6 +18,20 @@ const htmlEditorPlan = "free" as HtmlEditorPlan;
 const isHtmlEditorPro = htmlEditorPlan === "pro";
 const proOnlyBlockTypes = new Set<BlockType>(["search", "navigation"]);
 const proLockedMessage = "Multiple pages, navigation, search, and ZIP export are planned for Pro.";
+const projectFileFilters = [{
+  name: "Utility Tools Hub HTML Project",
+  extensions: ["uth-html-editor.json", "json"],
+}];
+
+function projectFileName(date = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const timestamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+  return `utility-tools-hub-html-project-${timestamp}.uth-html-editor.json`;
+}
+
+function fileNameFromPath(path: string): string {
+  return path.split(/[\\/]/).pop() || "project file";
+}
 
 const canvasViewportWidths: Record<CanvasViewport, number> = {
   desktop: 1280,
@@ -578,6 +593,7 @@ function CanvasBlock({ block, pages, currentPageId }: { block: EditorBlock; page
 export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const nextId = useRef(3);
   const nextPageId = useRef(2);
+  const projectFileInputRef = useRef<HTMLInputElement>(null);
   const [pages, setPages] = useState<EditorPage[]>([
     {
       id: 1,
@@ -826,7 +842,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
     input.value = "";
   };
 
-  const saveProject = () => {
+  const serializeProject = () => {
     const project: HtmlEditorProjectFile = {
       projectVersion: 1,
       toolName: "Utility Tools Hub HTML Editor",
@@ -836,19 +852,92 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
       selectedBlockId: selectedId,
       canvasViewport,
     };
-    const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
+    return JSON.stringify(project, null, 2);
+  };
+
+  const downloadProjectFile = (projectJson: string, fileName: string) => {
+    const blob = new Blob([projectJson], { type: "application/json" });
     const downloadUrl = URL.createObjectURL(blob);
-    const now = new Date();
-    const pad = (value: number) => String(value).padStart(2, "0");
-    const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     const anchor = document.createElement("a");
     anchor.href = downloadUrl;
-    anchor.download = `utility-tools-hub-html-project-${timestamp}.uth-html-editor.json`;
+    anchor.download = fileName;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
-    setProjectFeedback({ type: "success", message: "Project saved as JSON." });
+  };
+
+  const applyProjectJson = (projectJson: string, sourceName: string): boolean => {
+    try {
+      const normalized = normalizeProjectFile(JSON.parse(projectJson) as unknown);
+      if (pages.length > 0 && !window.confirm("Replace the current HTML Editor project?")) return false;
+      const loadedPage = normalized.pages.find((page) => page.id === normalized.currentPageId) ?? normalized.pages[0];
+      setPages(normalized.pages);
+      setCurrentPageId(loadedPage.id);
+      setSelectedId(loadedPage.blocks[0]?.id ?? null);
+      setCanvasViewport(normalized.canvasViewport);
+      setImageError(null);
+      setImportFeedback(null);
+      nextPageId.current = normalized.nextPageId;
+      nextId.current = normalized.nextBlockId;
+      setProjectFeedback(normalized.hasProFeatures && !isHtmlEditorPro
+        ? { type: "warning", message: `${sourceName} loaded. Pro features were loaded but are locked on Free plan.` }
+        : { type: "success", message: `Loaded ${sourceName} (${normalized.pages.length} page${normalized.pages.length === 1 ? "" : "s"}).` });
+      return true;
+    } catch (error) {
+      setProjectFeedback({ type: "error", message: error instanceof Error ? error.message : "The project file is invalid." });
+      return false;
+    }
+  };
+
+  const saveProject = async () => {
+    setProjectFeedback(null);
+    const fileName = projectFileName();
+    const projectJson = serializeProject();
+
+    if (!isTauri()) {
+      downloadProjectFile(projectJson, fileName);
+      setProjectFeedback({ type: "success", message: `Saved ${fileName} in browser.` });
+      return;
+    }
+
+    try {
+      const [{ save }, { writeTextFile }] = await Promise.all([
+        import("@tauri-apps/plugin-dialog"),
+        import("@tauri-apps/plugin-fs"),
+      ]);
+      const selectedPath = await save({ defaultPath: fileName, filters: projectFileFilters });
+      if (!selectedPath) return;
+      await writeTextFile(selectedPath, projectJson);
+      setProjectFeedback({ type: "success", message: `Saved ${fileNameFromPath(selectedPath)}.` });
+    } catch {
+      setProjectFeedback({ type: "error", message: "The project file could not be saved." });
+    }
+  };
+
+  const openProject = async () => {
+    setProjectFeedback(null);
+    if (!isTauri()) {
+      projectFileInputRef.current?.click();
+      return;
+    }
+
+    try {
+      const [{ open }, { readTextFile }] = await Promise.all([
+        import("@tauri-apps/plugin-dialog"),
+        import("@tauri-apps/plugin-fs"),
+      ]);
+      const selectedPath = await open({
+        multiple: false,
+        directory: false,
+        filters: projectFileFilters,
+      });
+      if (typeof selectedPath !== "string") return;
+      const projectJson = await readTextFile(selectedPath);
+      applyProjectJson(projectJson, fileNameFromPath(selectedPath));
+    } catch {
+      setProjectFeedback({ type: "error", message: "The project file could not be opened." });
+    }
   };
 
   const loadProjectFile = (file: File | undefined, input: HTMLInputElement) => {
@@ -856,25 +945,11 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
     setProjectFeedback(null);
     const reader = new FileReader();
     reader.onload = () => {
-      try {
-        if (typeof reader.result !== "string") throw new Error("The project file could not be read.");
-        const normalized = normalizeProjectFile(JSON.parse(reader.result) as unknown);
-        if (pages.length > 0 && !window.confirm("Replace the current HTML Editor project?")) return;
-        const loadedPage = normalized.pages.find((page) => page.id === normalized.currentPageId) ?? normalized.pages[0];
-        setPages(normalized.pages);
-        setCurrentPageId(loadedPage.id);
-        setSelectedId(loadedPage.blocks[0]?.id ?? null);
-        setCanvasViewport(normalized.canvasViewport);
-        setImageError(null);
-        setImportFeedback(null);
-        nextPageId.current = normalized.nextPageId;
-        nextId.current = normalized.nextBlockId;
-        setProjectFeedback(normalized.hasProFeatures && !isHtmlEditorPro
-          ? { type: "warning", message: "Pro features were loaded but are locked on Free plan." }
-          : { type: "success", message: `Loaded ${normalized.pages.length} page${normalized.pages.length === 1 ? "" : "s"}.` });
-      } catch (error) {
-        setProjectFeedback({ type: "error", message: error instanceof Error ? error.message : "The project file is invalid." });
+      if (typeof reader.result !== "string") {
+        setProjectFeedback({ type: "error", message: "The project file could not be read." });
+        return;
       }
+      applyProjectJson(reader.result, file.name);
     };
     reader.onerror = () => setProjectFeedback({ type: "error", message: "The project file could not be read." });
     reader.readAsText(file);
@@ -1151,15 +1226,16 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
           <div className="html-editor-project-section">
             <h3>Project</h3>
             <div className="html-editor-project-actions">
-              <button type="button" onClick={saveProject}>Save Project</button>
-              <label className="html-editor-project-file-control">
-                Load Project
-                <input
-                  type="file"
-                  accept=".json,.uth-html-editor.json,application/json"
-                  onChange={(event) => loadProjectFile(event.target.files?.[0], event.currentTarget)}
-                />
-              </label>
+              <button type="button" onClick={() => void saveProject()}>Save Project As...</button>
+              <button type="button" onClick={() => void openProject()}>Open Project...</button>
+              <input
+                ref={projectFileInputRef}
+                className="html-editor-project-file-input"
+                type="file"
+                accept=".json,.uth-html-editor.json,application/json"
+                aria-label="Open project file"
+                onChange={(event) => loadProjectFile(event.target.files?.[0], event.currentTarget)}
+              />
             </div>
             {projectFeedback && (
               <div className={`html-editor-project-message is-${projectFeedback.type}`} role="status">
