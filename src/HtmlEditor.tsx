@@ -65,6 +65,25 @@ interface EditorPage {
   blocks: EditorBlock[];
 }
 
+interface HtmlEditorProjectFile {
+  projectVersion: 1;
+  toolName: "Utility Tools Hub HTML Editor";
+  savedAt: string;
+  pages: EditorPage[];
+  currentPageId: number;
+  selectedBlockId: number | null;
+  canvasViewport: CanvasViewport;
+}
+
+interface NormalizedProject {
+  pages: EditorPage[];
+  currentPageId: number;
+  canvasViewport: CanvasViewport;
+  hasProFeatures: boolean;
+  nextPageId: number;
+  nextBlockId: number;
+}
+
 const blockLabels: Record<BlockType, string> = {
   heading: "Heading",
   paragraph: "Paragraph",
@@ -179,6 +198,150 @@ function createStyle(type: BlockType): BlockStyle {
     fontSize: type === "heading" ? 24 : 16,
     fontWeight: type === "heading" ? "700" : "normal",
     underline: false,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizedProjectNumber(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, value))
+    : fallback;
+}
+
+function normalizedProjectColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : fallback;
+}
+
+function normalizeProjectStyle(value: unknown, type: BlockType): BlockStyle {
+  const fallback = createStyle(type);
+  if (!isRecord(value)) return fallback;
+  const align = value.align === "center" || value.align === "right" ? value.align : "left";
+  const width = value.width === "half" || value.width === "third" ? value.width : "full";
+  const fontWeight = value.fontWeight === "500" || value.fontWeight === "700" ? value.fontWeight : "normal";
+  return {
+    align,
+    backgroundColor: normalizedProjectColor(value.backgroundColor, fallback.backgroundColor),
+    textColor: normalizedProjectColor(value.textColor, fallback.textColor),
+    padding: normalizedProjectNumber(value.padding, fallback.padding, 0, 64),
+    width,
+    fontSize: normalizedProjectNumber(value.fontSize, fallback.fontSize, 12, 72),
+    fontWeight,
+    underline: typeof value.underline === "boolean" ? value.underline : false,
+  };
+}
+
+function normalizeProjectLink(value: unknown): EditorBlock["link"] {
+  if (!isRecord(value)) return createLink();
+  if (value.type === "custom") {
+    return {
+      type: "custom",
+      pageId: null,
+      customUrl: safeCustomUrl(typeof value.customUrl === "string" ? value.customUrl : "#"),
+    };
+  }
+  if (value.type === "page" && typeof value.pageId === "number" && Number.isInteger(value.pageId)) {
+    return { type: "page", pageId: value.pageId, customUrl: "" };
+  }
+  return createLink();
+}
+
+function normalizeProjectFile(value: unknown): NormalizedProject {
+  if (!isRecord(value) || value.projectVersion !== 1) {
+    throw new Error("Unsupported or missing projectVersion.");
+  }
+  if (!Array.isArray(value.pages) || value.pages.length === 0) {
+    throw new Error("Project pages must be a non-empty array.");
+  }
+
+  const validBlockTypes = new Set<BlockType>(Object.keys(blockLabels) as BlockType[]);
+  const usedPageIds = new Set<number>();
+  const usedBlockIds = new Set<number>();
+  const usedSlugs = new Set<string>();
+  let generatedPageId = 1;
+  let generatedBlockId = 1;
+
+  const claimId = (candidate: unknown, usedIds: Set<number>, nextId: () => number): number => {
+    if (typeof candidate === "number" && Number.isInteger(candidate) && candidate > 0 && !usedIds.has(candidate)) {
+      usedIds.add(candidate);
+      return candidate;
+    }
+    let id = nextId();
+    while (usedIds.has(id)) id = nextId();
+    usedIds.add(id);
+    return id;
+  };
+
+  const pages: EditorPage[] = [];
+  for (const rawPage of value.pages) {
+    if (!isRecord(rawPage)) continue;
+    const pageId = claimId(rawPage.id, usedPageIds, () => generatedPageId++);
+    const title = typeof rawPage.title === "string" ? rawPage.title : `Page ${pageId}`;
+    const requestedSlug = typeof rawPage.slug === "string" ? rawPage.slug : title;
+    const baseSlug = !isHtmlEditorPro && pages.length === 0 ? "index" : slugFromTitle(requestedSlug, pageId);
+    let slug = baseSlug;
+    let slugSuffix = 2;
+    while (usedSlugs.has(slug)) slug = `${baseSlug}-${slugSuffix++}`;
+    usedSlugs.add(slug);
+
+    const rawBlocks = Array.isArray(rawPage.blocks) ? rawPage.blocks : [];
+    const blocks: EditorBlock[] = [];
+    for (const rawBlock of rawBlocks) {
+      if (!isRecord(rawBlock) || typeof rawBlock.type !== "string" || !validBlockTypes.has(rawBlock.type as BlockType)) continue;
+      const type = rawBlock.type as BlockType;
+      const id = claimId(rawBlock.id, usedBlockIds, () => generatedBlockId++);
+      const imageDataUrl = typeof rawBlock.imageDataUrl === "string" && isSafeImageDataUrl(rawBlock.imageDataUrl)
+        ? rawBlock.imageDataUrl
+        : undefined;
+      const imageWidth = rawBlock.imageWidth === "auto" || rawBlock.imageWidth === "25%" || rawBlock.imageWidth === "50%" || rawBlock.imageWidth === "75%" || rawBlock.imageWidth === "100%"
+        ? rawBlock.imageWidth
+        : undefined;
+
+      blocks.push({
+        id,
+        type,
+        text: typeof rawBlock.text === "string" ? rawBlock.text : defaultText[type],
+        style: normalizeProjectStyle(rawBlock.style, type),
+        imageDataUrl,
+        imageWidth,
+        imageMaxWidth: typeof rawBlock.imageMaxWidth === "number" ? normalizedProjectNumber(rawBlock.imageMaxWidth, 640, 1, 2000) : undefined,
+        imageBorderRadius: typeof rawBlock.imageBorderRadius === "number" ? normalizedProjectNumber(rawBlock.imageBorderRadius, 8, 0, 100) : undefined,
+        imageObjectFit: rawBlock.imageObjectFit === "cover" ? "cover" : rawBlock.imageObjectFit === "contain" ? "contain" : undefined,
+        imageCaption: typeof rawBlock.imageCaption === "string" ? rawBlock.imageCaption : undefined,
+        imageCaptionAlign: rawBlock.imageCaptionAlign === "left" || rawBlock.imageCaptionAlign === "right" || rawBlock.imageCaptionAlign === "center" ? rawBlock.imageCaptionAlign : undefined,
+        searchButtonText: typeof rawBlock.searchButtonText === "string" ? rawBlock.searchButtonText : undefined,
+        navigationLayout: rawBlock.navigationLayout === "vertical" ? "vertical" : rawBlock.navigationLayout === "horizontal" ? "horizontal" : undefined,
+        navigationShowCurrent: typeof rawBlock.navigationShowCurrent === "boolean" ? rawBlock.navigationShowCurrent : undefined,
+        navigationGap: typeof rawBlock.navigationGap === "number" ? normalizedProjectNumber(rawBlock.navigationGap, 16, 0, 64) : undefined,
+        link: normalizeProjectLink(rawBlock.link),
+      });
+    }
+    pages.push({ id: pageId, title, slug, blocks });
+  }
+
+  if (pages.length === 0) throw new Error("Project does not contain a valid page.");
+  const validPageIds = new Set(pages.map((page) => page.id));
+  const validatedPages = pages.map((page) => ({
+    ...page,
+    blocks: page.blocks.map((block) => block.link.type === "page" && !validPageIds.has(block.link.pageId ?? -1)
+      ? { ...block, link: createLink() }
+      : block),
+  }));
+  const requestedCurrentPageId = typeof value.currentPageId === "number" && validPageIds.has(value.currentPageId)
+    ? value.currentPageId
+    : validatedPages[0].id;
+  const canvasViewport = value.canvasViewport === "tablet" || value.canvasViewport === "mobile" ? value.canvasViewport : "desktop";
+  const hasProFeatures = validatedPages.length > 1 || validatedPages.some((page) => page.blocks.some((block) => proOnlyBlockTypes.has(block.type) || block.link.type === "page"));
+
+  return {
+    pages: validatedPages,
+    currentPageId: isHtmlEditorPro ? requestedCurrentPageId : validatedPages[0].id,
+    canvasViewport,
+    hasProFeatures,
+    nextPageId: Math.max(...validatedPages.map((page) => page.id)) + 1,
+    nextBlockId: Math.max(0, ...validatedPages.flatMap((page) => page.blocks.map((block) => block.id))) + 1,
   };
 }
 
@@ -431,6 +594,7 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
   const [copied, setCopied] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [importFeedback, setImportFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [projectFeedback, setProjectFeedback] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [canvasViewport, setCanvasViewport] = useState<CanvasViewport>("desktop");
 
@@ -658,6 +822,61 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
       }
     };
     reader.onerror = () => setImportFeedback({ type: "error", message: "The HTML file could not be read." });
+    reader.readAsText(file);
+    input.value = "";
+  };
+
+  const saveProject = () => {
+    const project: HtmlEditorProjectFile = {
+      projectVersion: 1,
+      toolName: "Utility Tools Hub HTML Editor",
+      savedAt: new Date().toISOString(),
+      pages,
+      currentPageId,
+      selectedBlockId: selectedId,
+      canvasViewport,
+    };
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, "0");
+    const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = `utility-tools-hub-html-project-${timestamp}.uth-html-editor.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+    setProjectFeedback({ type: "success", message: "Project saved as JSON." });
+  };
+
+  const loadProjectFile = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setProjectFeedback(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        if (typeof reader.result !== "string") throw new Error("The project file could not be read.");
+        const normalized = normalizeProjectFile(JSON.parse(reader.result) as unknown);
+        if (pages.length > 0 && !window.confirm("Replace the current HTML Editor project?")) return;
+        const loadedPage = normalized.pages.find((page) => page.id === normalized.currentPageId) ?? normalized.pages[0];
+        setPages(normalized.pages);
+        setCurrentPageId(loadedPage.id);
+        setSelectedId(loadedPage.blocks[0]?.id ?? null);
+        setCanvasViewport(normalized.canvasViewport);
+        setImageError(null);
+        setImportFeedback(null);
+        nextPageId.current = normalized.nextPageId;
+        nextId.current = normalized.nextBlockId;
+        setProjectFeedback(normalized.hasProFeatures && !isHtmlEditorPro
+          ? { type: "warning", message: "Pro features were loaded but are locked on Free plan." }
+          : { type: "success", message: `Loaded ${normalized.pages.length} page${normalized.pages.length === 1 ? "" : "s"}.` });
+      } catch (error) {
+        setProjectFeedback({ type: "error", message: error instanceof Error ? error.message : "The project file is invalid." });
+      }
+    };
+    reader.onerror = () => setProjectFeedback({ type: "error", message: "The project file could not be read." });
     reader.readAsText(file);
     input.value = "";
   };
@@ -929,17 +1148,35 @@ export default function HtmlEditorPage({ onBack }: { onBack: () => void }) {
               </button>
             </div>
           </div>
-          <div className="html-editor-import-section">
-            <h3>Import HTML</h3>
-            <label className="html-editor-import-control">
-              Import HTML
-              <input
-                type="file"
-                accept=".html,.htm,text/html"
-                onChange={(event) => importHtmlFile(event.target.files?.[0], event.currentTarget)}
-              />
-            </label>
-            <p>Supported HTML is converted into editable blocks on the current page.</p>
+          <div className="html-editor-project-section">
+            <h3>Project</h3>
+            <div className="html-editor-project-actions">
+              <button type="button" onClick={saveProject}>Save Project</button>
+              <label className="html-editor-project-file-control">
+                Load Project
+                <input
+                  type="file"
+                  accept=".json,.uth-html-editor.json,application/json"
+                  onChange={(event) => loadProjectFile(event.target.files?.[0], event.currentTarget)}
+                />
+              </label>
+            </div>
+            {projectFeedback && (
+              <div className={`html-editor-project-message is-${projectFeedback.type}`} role="status">
+                {projectFeedback.message}
+              </div>
+            )}
+            <div className="html-editor-project-import">
+              <label className="html-editor-import-control">
+                Import HTML
+                <input
+                  type="file"
+                  accept=".html,.htm,text/html"
+                  onChange={(event) => importHtmlFile(event.target.files?.[0], event.currentTarget)}
+                />
+              </label>
+              <p>Supported HTML is converted into editable blocks on the current page.</p>
+            </div>
             {importFeedback && (
               <div className={`html-editor-import-message is-${importFeedback.type}`} role="status">
                 {importFeedback.message}
