@@ -1,16 +1,23 @@
 # Auth & Payment Plan
 
-> **Status: Design Documentation Only**  
-> This document outlines the planned account authentication and payment state management for Utility Tools Hub.  
-> No implementation exists at this time.
+> **Status: UI Foundation and Design Documentation Only**
+> This document outlines the planned account authentication and payment state management for Utility Tools Hub.
+> An Account / License UI foundation exists, but authentication, billing, and license verification are not implemented.
 
 ---
 
 ## 1. Overview
 
 - Account authentication and payment state management designed for future integration into Utility Tools Hub.
-- At present, this is a design memo only — no code is implemented.
+- At present, only non-functional Account / License UI placeholders are implemented.
 - The desktop app will **not** handle card information directly. All payments are assumed to be processed via external browser-based checkout flows.
+
+### Account / License UI foundation
+
+- The current UI reports **Free Preview** and **Not activated** without unlocking Pro features.
+- License input remains in temporary component state and is not saved, logged, or sent to an external service.
+- Sign in, billing management, and license activation remain unavailable.
+- Future integration candidates include Stripe Checkout, Stripe Customer Portal, a license verification API, and Supabase or another authentication provider.
 
 ---
 

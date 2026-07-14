@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import HtmlEditorPage from "./HtmlEditor";
 import UpdaterPanel from "./UpdaterPanel";
+import AccountPanel from "./AccountPanel";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
 declare const __TAURI__:
@@ -267,42 +268,7 @@ function ToolCard({
 /* ── Account ── */
 
 function AccountPage() {
-  const [toast, setToast] = useState(false);
-
-  return (
-    <div>
-      <div className="page-header">
-        <h1>Account</h1>
-        <p>認証設定を管理します</p>
-      </div>
-
-      {toast && (
-        <div className="toast">Auth integration coming soon</div>
-      )}
-
-      <div className="auth-container">
-        <div className="card">
-          <div className="auth-avatar">{"👤"}</div>
-          <div className="auth-title">Not signed in</div>
-
-          <div className="auth-buttons">
-            <button
-              className="auth-btn auth-btn-primary"
-              onClick={() => setToast(true)}
-            >
-              Sign in with Email
-            </button>
-            <button
-              className="auth-btn auth-btn-google"
-              onClick={() => setToast(true)}
-            >
-              Sign in with Google
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <AccountPanel />;
 }
 
 /* ── Billing ── */
