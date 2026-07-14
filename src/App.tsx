@@ -4,6 +4,7 @@ import HtmlEditorPage from "./HtmlEditor";
 import UpdaterPanel from "./UpdaterPanel";
 import AccountPanel from "./AccountPanel";
 import BillingPanel from "./BillingPanel";
+import SettingsPanel from "./SettingsPanel";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
 declare const __TAURI__:
@@ -281,39 +282,7 @@ function BillingPage() {
 /* ── Settings ── */
 
 function SettingsPage() {
-  return (
-    <div>
-      <div className="page-header">
-        <h1>Settings</h1>
-        <p>アプリの設定を管理します</p>
-      </div>
-
-      <div className="card" style={{ padding: 0 }}>
-        <ul className="settings-list">
-          <li className="settings-item">
-            <span className="settings-label">Theme</span>
-            <span className="settings-value">Light</span>
-          </li>
-          <li className="settings-item">
-            <span className="settings-label">Language</span>
-            <span className="settings-value">日本語</span>
-          </li>
-          <li className="settings-item">
-            <span className="settings-label">Local processing</span>
-            <span className="settings-value">Enabled</span>
-          </li>
-          <li className="settings-item">
-            <span className="settings-label">Data privacy</span>
-            <span className="settings-value">データはローカルに保存されます</span>
-          </li>
-          <li className="settings-item">
-            <span className="settings-label">App version</span>
-            <span className="settings-value">0.1.0</span>
-          </li>
-        </ul>
-      </div>
-    </div>
-  );
+  return <SettingsPanel />;
 }
 
 
