@@ -3,15 +3,15 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.2.3](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.2.3)
+- **Latest release:** [v0.2.4](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.2.4)
 
 ## Current Status
 
-- Latest release: v0.2.3
+- Latest release: v0.2.4
 - Windows desktop app
 - Excel to HTML Converter is available
-- Plan / Feature foundation provides shared Free Preview and Pro Planned definitions for Account, Billing, and Tools displays
-- Real authentication, payment, license activation, Pro unlock, and external communication are not implemented yet
+- Billing shows a pricing model draft, and Account shows a planned license activation flow
+- Real authentication, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, and external communication are not implemented yet
 
 ## Features
 

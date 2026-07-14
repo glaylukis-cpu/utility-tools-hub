@@ -84,3 +84,11 @@ git push origin vX.Y.Z
 - Account, Billing, and Tools displays can reference shared feature definitions.
 - No real login, payment, license activation, Pro unlock, localStorage plan cache, or external communication is included.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.2.4 Release Note
+
+- v0.2.4 is a foundation release for pricing model and license flow design.
+- The current plan remains Free Preview, and all pricing is draft or planned and may change before launch.
+- Single Tool Pro is planned at ¥500/month, All Tools Pro at ¥1,500/month, and Future Expanded Pro is a ¥2,000/month candidate.
+- No real login, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, localStorage plan cache, or external communication is included.
+- Updater verification will be done after the signed build and GitHub Release are created.
