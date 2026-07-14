@@ -3,6 +3,7 @@ import "./App.css";
 import HtmlEditorPage from "./HtmlEditor";
 import UpdaterPanel from "./UpdaterPanel";
 import AccountPanel from "./AccountPanel";
+import BillingPanel from "./BillingPanel";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
 declare const __TAURI__:
@@ -274,88 +275,7 @@ function AccountPage() {
 /* ── Billing ── */
 
 function BillingPage() {
-  const [toast, setToast] = useState(false);
-
-  return (
-    <div>
-      <div className="page-header">
-        <h1>Billing</h1>
-        <p>サブスクリプションと課金を管理します</p>
-      </div>
-
-      {toast && (
-        <div className="toast">Billing integration coming soon</div>
-      )}
-
-      <div className="info-box">
-        <span>{"💰"}</span>
-        <strong>Current plan: Free</strong>
-      </div>
-
-      <div className="plan-grid">
-        {/* Free */}
-        <div className="plan-card current">
-          <div className="plan-name">Free Plan</div>
-          <div className="plan-price">\u00A50</div>
-          <div className="plan-period">無料</div>
-          <ul className="plan-features">
-            <li>\u2713 Free ツールの利用</li>
-            <li>\u2713 月間 10 回までの処理</li>
-            <li>\u2717 Pro ツール不可</li>
-            <li>\u2717 優先サポートなし</li>
-          </ul>
-          <button className="btn btn-disabled" disabled>
-            Current Plan
-          </button>
-        </div>
-
-        {/* Single Tool Pro */}
-        <div className="plan-card">
-          <div className="plan-name">Single Tool Pro</div>
-          <div className="plan-price">\u00A5500</div>
-          <div className="plan-period">/ month</div>
-          <ul className="plan-features">
-            <li>\u2713 選択した Pro ツールを無制限利用</li>
-            <li>\u2713 Free ツールの利用</li>
-            <li>\u2717 他のProツール不可</li>
-          </ul>
-          <button
-            className="btn btn-outline"
-            onClick={() => setToast(true)}
-          >
-            Upgrade
-          </button>
-        </div>
-
-        {/* All Tools Pro */}
-        <div className="plan-card">
-          <div className="plan-name">All Tools Pro</div>
-          <div className="plan-price">\u00A51,500</div>
-          <div className="plan-period">/ month</div>
-          <ul className="plan-features">
-            <li>\u2713 全ツールを無制限利用</li>
-            <li>\u2713 優先サポート</li>
-            <li>\u2713 新機能の早期アクセス</li>
-          </ul>
-          <button
-            className="btn btn-primary"
-            onClick={() => setToast(true)}
-          >
-            Upgrade
-          </button>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 20, textAlign: "center" }}>
-        <button
-          className="btn btn-outline"
-          onClick={() => setToast(true)}
-        >
-          Manage subscription
-        </button>
-      </div>
-    </div>
-  );
+  return <BillingPanel />;
 }
 
 /* ── Settings ── */
