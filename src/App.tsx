@@ -177,7 +177,7 @@ const tools = [
     id: "converter-tools",
     featureId: "converter_tools_pack_1" as FeatureId,
     name: "Converter Tools",
-    desc: "JSON、CSV、Markdown、Base64、URL、テキスト変換をまとめて利用",
+    desc: "JSON、CSV、Markdown、Base64、URLなどの軽量テキスト・データ変換",
     badge: "Free",
     status: "Available",
     locked: false,
@@ -222,7 +222,10 @@ const tools = [
 ];
 
 function ToolsPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) {
-  const availableTools = tools.filter((tool) => !tool.locked);
+  const converterTools = tools.filter((tool) =>
+    ["excel-html-converter", "text-case-converter", "converter-tools"].includes(tool.id ?? ""),
+  );
+  const editorTools = tools.filter((tool) => tool.id === "html-table-editor");
   const plannedTools = tools.filter((tool) => tool.locked);
 
   return (
@@ -232,9 +235,16 @@ function ToolsPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) {
         <p>使えるツールを一覧で確認できます</p>
       </div>
 
-      <div className="section-title">Available tools</div>
+      <div className="section-title">Converters</div>
       <div className="card-grid">
-        {availableTools.map((tool) => (
+        {converterTools.map((tool) => (
+          <ToolCard key={tool.id ?? tool.name} tool={tool} onOpenTool={onOpenTool} />
+        ))}
+      </div>
+
+      <div className="section-title">Editors</div>
+      <div className="card-grid">
+        {editorTools.map((tool) => (
           <ToolCard key={tool.id ?? tool.name} tool={tool} onOpenTool={onOpenTool} />
         ))}
       </div>

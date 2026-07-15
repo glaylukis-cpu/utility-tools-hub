@@ -211,10 +211,10 @@ export default function ConverterToolsPanel({
         </article>
       </section>
 
-      <section className="converter-tools-shell" aria-labelledby="converter-title">
+      <section className="converter-tools-shell" aria-label="Data and text converters">
         <div className="converter-tools-tab-groups">
           {categoryGroups.map((group) => (
-            <div className="converter-tools-tab-group" key={group.title}>
+            <section className="converter-tools-tab-group" key={group.title}>
               <div className="converter-tools-tab-group-heading">
                 <h2>{group.title}</h2>
                 <p>{group.description}</p>
@@ -247,69 +247,75 @@ export default function ConverterToolsPanel({
                     </button>
                   ))}
               </div>
-            </div>
+              {group.categoryIds.includes(categoryId) && (
+                <div className="converter-tools-card" role="tabpanel">
+                  <div className="converter-tools-card-heading">
+                    <div>
+                      <h2>{category.title}</h2>
+                      <p>{category.description}</p>
+                    </div>
+                    <button type="button" className="converter-clear-button" onClick={clear}>
+                      Clear
+                    </button>
+                  </div>
+
+                  <div className="converter-editor-grid">
+                    <label className="converter-field">
+                      <span>Input</span>
+                      <textarea
+                        value={input}
+                        onChange={(event) => {
+                          setInput(event.target.value);
+                          resetFeedback();
+                        }}
+                        placeholder={category.placeholder}
+                        spellCheck={false}
+                      />
+                    </label>
+
+                    <label className="converter-field">
+                      <span>Output</span>
+                      <textarea
+                        value={output}
+                        readOnly
+                        placeholder="Converted output appears here"
+                        spellCheck={false}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="converter-tools-actions">
+                    <div className="converter-primary-actions">
+                      {category.actions.map((action) => (
+                        <button
+                          key={action.label}
+                          type="button"
+                          className="converter-action-button"
+                          onClick={() => convert(action)}
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button type="button" className="converter-copy-button" onClick={copyOutput}>
+                      Copy output
+                    </button>
+                  </div>
+
+                  {error && (
+                    <div className="converter-feedback converter-feedback-error" role="alert">
+                      {error}
+                    </div>
+                  )}
+                  {!error && message && (
+                    <div className="converter-feedback" role="status">
+                      {message}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
           ))}
-        </div>
-
-        <div className="converter-tools-card" role="tabpanel">
-          <div className="converter-tools-card-heading">
-            <div>
-              <h2 id="converter-title">{category.title}</h2>
-              <p>{category.description}</p>
-            </div>
-            <button type="button" className="converter-clear-button" onClick={clear}>
-              Clear
-            </button>
-          </div>
-
-          <div className="converter-editor-grid">
-            <label className="converter-field">
-              <span>Input</span>
-              <textarea
-                value={input}
-                onChange={(event) => {
-                  setInput(event.target.value);
-                  resetFeedback();
-                }}
-                placeholder={category.placeholder}
-                spellCheck={false}
-              />
-            </label>
-
-            <label className="converter-field">
-              <span>Output</span>
-              <textarea value={output} readOnly placeholder="Converted output appears here" spellCheck={false} />
-            </label>
-          </div>
-
-          <div className="converter-tools-actions">
-            <div className="converter-primary-actions">
-              {category.actions.map((action) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  className="converter-action-button"
-                  onClick={() => convert(action)}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="converter-copy-button" onClick={copyOutput}>
-              Copy output
-            </button>
-          </div>
-
-          {error && (
-            <div className="converter-feedback converter-feedback-error" role="alert">
-              {error}
-            </div>
-          )}
-          {!error && message && (
-            <div className="converter-feedback" role="status">
-              {message}
-            </div>
-          )}
         </div>
       </section>
     </div>
