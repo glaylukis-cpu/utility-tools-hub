@@ -29,6 +29,8 @@ This is a UI and navigation organization change; the converter implementations a
 
 The Tools catalog is organized into Converters, Editors, and Planned / Pro tools. Converter Tools stacks File, Data, and Text converter sections vertically: Data contains JSON and CSV / JSON, Text contains the Text Case link plus Markdown, Base64, and URL tools, and File contains the Excel → HTML link. This changes UI and navigation only; converter behavior is unchanged, and PDF tools remain planned for a later phase.
 
+v0.2.8 records this catalog and vertical converter layout cleanup without changing converter logic or adding PDF tools, external communication, or package dependencies.
+
 ## Out of scope
 
 - File upload and file save workflows

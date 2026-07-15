@@ -115,5 +115,16 @@ git push origin vX.Y.Z
 - Converter Tools links to Text Case Converter and Excel → HTML Converter with clearer role descriptions.
 - Text Case Converter and Excel → HTML Converter behavior is unchanged.
 - No PDF tools, external communication, or package dependency are added.
+
+## v0.2.8 Release Note
+
+- v0.2.8 is a tools catalog and converter layout cleanup release.
+- The Tools list is organized into Converters, Editors, and Planned / Pro tools.
+- Converter Tools is organized into vertically stacked File, Data, and Text converter sections.
+- Data converters include JSON and CSV / JSON, while Text converters include Text Case navigation, Markdown, Base64, and URL tools.
+- File converters include Excel → HTML Converter navigation.
+- Converter logic and the behavior of Text Case Converter and Excel → HTML Converter are unchanged.
+- No PDF tools, external communication, or package dependency are added.
+- Updater verification will be done after the signed build and GitHub Release are created.
 - Updater verification will be done after the signed build and GitHub Release are created.
 - Updater verification will be done after the signed build and GitHub Release are created.
