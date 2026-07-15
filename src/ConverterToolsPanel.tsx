@@ -81,11 +81,34 @@ const categories: readonly {
   },
 ];
 
+const categoryGroups: readonly {
+  title: string;
+  description: string;
+  categoryIds: readonly ConverterCategory[];
+}[] = [
+  {
+    title: "Data converters",
+    description: "Format JSON and convert between CSV and JSON.",
+    categoryIds: ["json", "csv-json"],
+  },
+  {
+    title: "Text converters",
+    description: "Convert Markdown, Base64, and URL-encoded text.",
+    categoryIds: ["markdown", "base64", "url"],
+  },
+];
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Conversion failed. Check the input and try again.";
 }
 
-export default function ConverterToolsPanel({ onBack }: { onBack: () => void }) {
+export default function ConverterToolsPanel({
+  onBack,
+  onOpenExcelConverter,
+}: {
+  onBack: () => void;
+  onOpenExcelConverter: () => void;
+}) {
   const [categoryId, setCategoryId] = useState<ConverterCategory>("json");
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
@@ -166,19 +189,51 @@ export default function ConverterToolsPanel({ onBack }: { onBack: () => void }) 
         No upload, no network, no external service. Input stays in this screen and is not saved.
       </div>
 
+      <section className="converter-tools-file-section" aria-labelledby="file-converters-title">
+        <div className="converter-tools-section-heading">
+          <div>
+            <h2 id="file-converters-title">File converters</h2>
+            <p>Open an existing tool for file-based conversion.</p>
+          </div>
+        </div>
+
+        <article className="converter-tools-file-card">
+          <div>
+            <span className="converter-tools-card-eyebrow">Available · Free Preview</span>
+            <h3>Excel → HTML Converter</h3>
+            <p>Convert Excel workbooks into HTML previews.</p>
+          </div>
+          <button type="button" className="btn btn-primary" onClick={onOpenExcelConverter}>
+            Open Excel Converter
+          </button>
+        </article>
+      </section>
+
       <section className="converter-tools-shell" aria-labelledby="converter-title">
-        <div className="converter-tools-tabs" role="tablist" aria-label="Converter categories">
-          {categories.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={categoryId === item.id}
-              className={categoryId === item.id ? "active" : ""}
-              onClick={() => selectCategory(item.id)}
-            >
-              {item.label}
-            </button>
+        <div className="converter-tools-tab-groups">
+          {categoryGroups.map((group) => (
+            <div className="converter-tools-tab-group" key={group.title}>
+              <div className="converter-tools-tab-group-heading">
+                <h2>{group.title}</h2>
+                <p>{group.description}</p>
+              </div>
+              <div className="converter-tools-tabs" role="tablist" aria-label={group.title}>
+                {categories
+                  .filter((item) => group.categoryIds.includes(item.id))
+                  .map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={categoryId === item.id}
+                      className={categoryId === item.id ? "active" : ""}
+                      onClick={() => selectCategory(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+              </div>
+            </div>
           ))}
         </div>
 
