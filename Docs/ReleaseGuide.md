@@ -100,3 +100,11 @@ git push origin vX.Y.Z
 - All converter tools run locally, with no external communication or package dependency added.
 - PDF tools are planned for a later phase.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.2.6 Release Note
+
+- v0.2.6 is a converter tools UI polish release.
+- Converter Tools now uses a white card-based UI aligned with the rest of the app.
+- Converter categories are organized into file, data, and text converter areas, with improved navigation to Excel → HTML Converter.
+- No PDF tools, external communication, or package dependency are added.
+- Updater verification will be done after the signed build and GitHub Release are created.

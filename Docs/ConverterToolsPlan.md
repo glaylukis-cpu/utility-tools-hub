@@ -19,6 +19,8 @@ All conversions run locally in the React / TypeScript UI. The pack does not uplo
 - Excel → HTML Converter remains the existing file converter and is linked from the Converter Tools screen.
 - PDF tools remain planned for a later phase.
 
+v0.2.6 polishes this structure with a white card-based UI and clearer file, data, and text converter navigation.
+
 ## Out of scope
 
 - File upload and file save workflows
