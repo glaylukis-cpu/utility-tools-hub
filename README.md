@@ -3,14 +3,15 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.2.4](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.2.4)
+- **Latest release:** [v0.2.5](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.2.5)
 
 ## Current Status
 
-- Latest release: v0.2.4
+- Latest release: v0.2.5
 - Windows desktop app
 - Excel to HTML Converter is available
-- Converter Tools pack 1 provides local JSON, CSV, Markdown, Base64, and URL conversions without external communication
+- Converter Tools pack 1 provides JSON formatting/minifying, CSV/JSON conversion, Markdown to HTML, Base64, and URL conversion locally
+- Converter Tools do not use external communication or new package dependencies; PDF tools are not included yet
 - Billing shows a pricing model draft, and Account shows a planned license activation flow
 - Real authentication, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, and external communication are not implemented yet
 

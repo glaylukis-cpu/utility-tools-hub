@@ -92,3 +92,11 @@ git push origin vX.Y.Z
 - Single Tool Pro is planned at ¥500/month, All Tools Pro at ¥1,500/month, and Future Expanded Pro is a ¥2,000/month candidate.
 - No real login, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, localStorage plan cache, or external communication is included.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.2.5 Release Note
+
+- v0.2.5 is a converter tools pack release.
+- Adds JSON Formatter / Minifier, CSV to JSON, JSON to CSV, Markdown to HTML, Base64 Encode / Decode, and URL Encode / Decode.
+- All converter tools run locally, with no external communication or package dependency added.
+- PDF tools are planned for a later phase.
+- Updater verification will be done after the signed build and GitHub Release are created.
