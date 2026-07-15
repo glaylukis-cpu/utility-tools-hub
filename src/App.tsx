@@ -68,6 +68,7 @@ export default function App() {
           <ConverterToolsPanel
             onBack={() => setSelectedTool(null)}
             onOpenExcelConverter={() => setSelectedTool("excel-html-converter")}
+            onOpenTextCaseConverter={() => setSelectedTool("text-case-converter")}
           />
         )}
         {selectedTool == "batch-file-renamer" && (
@@ -167,7 +168,7 @@ const tools = [
     id: "text-case-converter",
     featureId: "text_case_converter" as FeatureId,
     name: "Text Case Converter",
-    desc: "テキストを大文字・小文字・各種ケースへ変換",
+    desc: "大文字・小文字・各種ケースをすばやく変換。Converter Toolsからも利用可能",
     badge: "Free",
     status: "Available",
     locked: false,
@@ -176,7 +177,7 @@ const tools = [
     id: "converter-tools",
     featureId: "converter_tools_pack_1" as FeatureId,
     name: "Converter Tools",
-    desc: "JSON、CSV、Markdown、Base64、URL向けのデータ／テキスト変換",
+    desc: "JSON、CSV、Markdown、Base64、URL、テキスト変換をまとめて利用",
     badge: "Free",
     status: "Available",
     locked: false,
@@ -221,6 +222,9 @@ const tools = [
 ];
 
 function ToolsPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) {
+  const availableTools = tools.filter((tool) => !tool.locked);
+  const plannedTools = tools.filter((tool) => tool.locked);
+
   return (
     <div>
       <div className="page-header">
@@ -228,9 +232,17 @@ function ToolsPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) {
         <p>使えるツールを一覧で確認できます</p>
       </div>
 
+      <div className="section-title">Available tools</div>
       <div className="card-grid">
-        {tools.map((t, i) => (
-          <ToolCard key={i} tool={t} onOpenTool={onOpenTool} />
+        {availableTools.map((tool) => (
+          <ToolCard key={tool.id ?? tool.name} tool={tool} onOpenTool={onOpenTool} />
+        ))}
+      </div>
+
+      <div className="section-title">Planned / Pro tools</div>
+      <div className="card-grid">
+        {plannedTools.map((tool) => (
+          <ToolCard key={tool.id ?? tool.name} tool={tool} onOpenTool={onOpenTool} />
         ))}
       </div>
     </div>

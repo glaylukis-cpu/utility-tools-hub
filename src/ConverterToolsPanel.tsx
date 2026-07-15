@@ -93,7 +93,7 @@ const categoryGroups: readonly {
   },
   {
     title: "Text converters",
-    description: "Convert Markdown, Base64, and URL-encoded text.",
+    description: "Open the dedicated Text Case tool or convert Markdown, Base64, and URL-encoded text.",
     categoryIds: ["markdown", "base64", "url"],
   },
 ];
@@ -105,9 +105,11 @@ function errorMessage(error: unknown): string {
 export default function ConverterToolsPanel({
   onBack,
   onOpenExcelConverter,
+  onOpenTextCaseConverter,
 }: {
   onBack: () => void;
   onOpenExcelConverter: () => void;
+  onOpenTextCaseConverter: () => void;
 }) {
   const [categoryId, setCategoryId] = useState<ConverterCategory>("json");
   const [input, setInput] = useState("");
@@ -217,6 +219,18 @@ export default function ConverterToolsPanel({
                 <h2>{group.title}</h2>
                 <p>{group.description}</p>
               </div>
+              {group.title === "Text converters" && (
+                <article className="converter-tools-text-case-card">
+                  <div>
+                    <span className="converter-tools-card-eyebrow">Dedicated text tool</span>
+                    <h3>Text Case Converter</h3>
+                    <p>Convert text to uppercase, lowercase, title case, snake_case, and kebab-case.</p>
+                  </div>
+                  <button type="button" className="btn btn-primary" onClick={onOpenTextCaseConverter}>
+                    Open Text Case Converter
+                  </button>
+                </article>
+              )}
               <div className="converter-tools-tabs" role="tablist" aria-label={group.title}>
                 {categories
                   .filter((item) => group.categoryIds.includes(item.id))
