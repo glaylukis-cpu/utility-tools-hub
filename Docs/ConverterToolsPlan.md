@@ -23,6 +23,8 @@ All conversions run locally in the React / TypeScript UI. The pack does not uplo
 
 v0.2.6 polishes this structure with a white card-based UI and clearer file, data, and text converter navigation.
 
+v0.2.7 clarifies the Available and Planned / Pro catalog groups and the navigation to Text Case Converter and Excel → HTML Converter without changing converter behavior.
+
 This is a UI and navigation organization change; the converter implementations are unchanged.
 
 ## Out of scope

@@ -107,4 +107,13 @@ git push origin vX.Y.Z
 - Converter Tools now uses a white card-based UI aligned with the rest of the app.
 - Converter categories are organized into file, data, and text converter areas, with improved navigation to Excel → HTML Converter.
 - No PDF tools, external communication, or package dependency are added.
+
+## v0.2.7 Release Note
+
+- v0.2.7 is a tools catalog and converter navigation cleanup release.
+- The Tools list separates Available tools from Planned / Pro tools more clearly.
+- Converter Tools links to Text Case Converter and Excel → HTML Converter with clearer role descriptions.
+- Text Case Converter and Excel → HTML Converter behavior is unchanged.
+- No PDF tools, external communication, or package dependency are added.
+- Updater verification will be done after the signed build and GitHub Release are created.
 - Updater verification will be done after the signed build and GitHub Release are created.
