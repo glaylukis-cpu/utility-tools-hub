@@ -10,6 +10,7 @@ A desktop hub for small, local-first productivity tools.
 - Latest release: v0.2.4
 - Windows desktop app
 - Excel to HTML Converter is available
+- Converter Tools pack 1 provides local JSON, CSV, Markdown, Base64, and URL conversions without external communication
 - Billing shows a pricing model draft, and Account shows a planned license activation flow
 - Real authentication, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, and external communication are not implemented yet
 

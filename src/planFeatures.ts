@@ -3,6 +3,7 @@ export type PlanId = "free_preview" | "pro_planned";
 export type FeatureId =
   | "excel_html_converter"
   | "text_case_converter"
+  | "converter_tools_pack_1"
   | "html_editor_single_page"
   | "html_editor_save_open_project"
   | "html_editor_multipage_zip"
@@ -67,6 +68,15 @@ const featureDefinitions: readonly FeatureDefinition[] = [
     id: "text_case_converter",
     label: "Text Case Converter",
     description: "Convert text between common letter-case formats.",
+    status: "available",
+    planLabel: currentPlan.label,
+    visibleInToolsList: true,
+    billingComparison: "free_preview",
+  },
+  {
+    id: "converter_tools_pack_1",
+    label: "Converter Tools pack 1",
+    description: "Convert JSON, CSV, Markdown, Base64, and URL text locally.",
     status: "available",
     planLabel: currentPlan.label,
     visibleInToolsList: true,

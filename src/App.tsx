@@ -5,6 +5,7 @@ import UpdaterPanel from "./UpdaterPanel";
 import AccountPanel from "./AccountPanel";
 import BillingPanel from "./BillingPanel";
 import SettingsPanel from "./SettingsPanel";
+import ConverterToolsPanel from "./ConverterToolsPanel";
 import { getFeatureById, type FeatureId } from "./planFeatures";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
@@ -63,6 +64,7 @@ export default function App() {
         {selectedTool === "excel-html-converter" && <ExcelToolPage onBack={() => setSelectedTool(null)} />}
         {selectedTool === "text-case-converter" && <TextCaseToolPage onBack={() => setSelectedTool(null)} />}
         {selectedTool === "html-table-editor" && <HtmlEditorPage onBack={() => setSelectedTool(null)} />}
+        {selectedTool === "converter-tools" && <ConverterToolsPanel onBack={() => setSelectedTool(null)} />}
         {selectedTool == "batch-file-renamer" && (
           <PendingToolPage tool={selectedTool!} onBack={() => setSelectedTool(null)} />
         )}
@@ -161,6 +163,15 @@ const tools = [
     featureId: "text_case_converter" as FeatureId,
     name: "Text Case Converter",
     desc: "テキストを大文字・小文字・各種ケースへ変換",
+    badge: "Free",
+    status: "Available",
+    locked: false,
+  },
+  {
+    id: "converter-tools",
+    featureId: "converter_tools_pack_1" as FeatureId,
+    name: "Converter Tools",
+    desc: "JSON、CSV、Markdown、Base64、URLをローカルで変換",
     badge: "Free",
     status: "Available",
     locked: false,
