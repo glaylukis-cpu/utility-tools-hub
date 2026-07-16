@@ -6,6 +6,7 @@ import AccountPanel from "./AccountPanel";
 import BillingPanel from "./BillingPanel";
 import SettingsPanel from "./SettingsPanel";
 import ConverterToolsPanel from "./ConverterToolsPanel";
+import PdfToolsPanel from "./PdfToolsPanel";
 import { getFeatureById, type FeatureId } from "./planFeatures";
 
 // Tauri v2 runtime invoke (only available inside the Tauri app)
@@ -64,6 +65,7 @@ export default function App() {
         {selectedTool === "excel-html-converter" && <ExcelToolPage onBack={() => setSelectedTool(null)} />}
         {selectedTool === "text-case-converter" && <TextCaseToolPage onBack={() => setSelectedTool(null)} />}
         {selectedTool === "html-table-editor" && <HtmlEditorPage onBack={() => setSelectedTool(null)} />}
+        {selectedTool === "pdf-tools" && <PdfToolsPanel onBack={() => setSelectedTool(null)} />}
         {selectedTool === "converter-tools" && (
           <ConverterToolsPanel
             onBack={() => setSelectedTool(null)}
@@ -192,6 +194,15 @@ const tools = [
     locked: false,
   },
   {
+    id: "pdf-tools",
+    featureId: "pdf_tools_foundation" as FeatureId,
+    name: "PDF Tools",
+    desc: "Plan PDF page operations such as merge, split, extract, rotate, and reorder.",
+    badge: "Planned",
+    status: "Planned",
+    locked: false,
+  },
+  {
     name: "CSV Formatter",
     desc: "CSVファイルのフォーマット変換とクリーニング",
     badge: "Pro",
@@ -226,7 +237,7 @@ function ToolsPage({ onOpenTool }: { onOpenTool?: (tool: string) => void }) {
     ["excel-html-converter", "text-case-converter", "converter-tools"].includes(tool.id ?? ""),
   );
   const editorTools = tools.filter((tool) => tool.id === "html-table-editor");
-  const plannedTools = tools.filter((tool) => tool.locked);
+  const plannedTools = tools.filter((tool) => tool.locked || tool.id === "pdf-tools");
 
   return (
     <div>

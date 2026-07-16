@@ -11,6 +11,7 @@ export type FeatureId =
   | "account_foundation"
   | "billing_foundation"
   | "app_language_foundation"
+  | "pdf_tools_foundation"
   | "future_batch_tools"
   | "future_account_cloud_features";
 
@@ -125,6 +126,15 @@ const featureDefinitions: readonly FeatureDefinition[] = [
     status: "available",
     planLabel: currentPlan.label,
     visibleInToolsList: false,
+    billingComparison: null,
+  },
+  {
+    id: "pdf_tools_foundation",
+    label: "PDF Tools foundation",
+    description: "Planning and local file workflow UI for future PDF page tools.",
+    status: "planned",
+    planLabel: "Planned",
+    visibleInToolsList: true,
     billingComparison: null,
   },
   {

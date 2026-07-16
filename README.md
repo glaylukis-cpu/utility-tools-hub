@@ -13,6 +13,7 @@ A desktop hub for small, local-first productivity tools.
 - The Tools catalog is organized into Converters, Editors, and Planned / Pro tools
 - Converter Tools stacks File, Data, and Text converter sections, with each active editor shown inside its category
 - Text Case Converter navigation is available and Excel → HTML Converter navigation is maintained; PDF tools are not included yet
+- PDF Tools has a planning and local file workflow foundation; PDF content processing is not implemented yet
 - Billing shows a pricing model draft, and Account shows a planned license activation flow
 - Real authentication, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, and external communication are not implemented yet
 
