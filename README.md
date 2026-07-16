@@ -3,17 +3,18 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.2.8](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.2.8)
+- **Latest release:** [v0.2.9](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.2.9)
 
 ## Current Status
 
-- Latest release: v0.2.8
+- Latest release: v0.2.9
 - Windows desktop app
 - Excel to HTML Converter is available
 - The Tools catalog is organized into Converters, Editors, and Planned / Pro tools
 - Converter Tools stacks File, Data, and Text converter sections, with each active editor shown inside its category
-- Text Case Converter navigation is available and Excel → HTML Converter navigation is maintained; PDF tools are not included yet
-- PDF Tools has a planning and local file workflow foundation; PDF content processing is not implemented yet
+- Text Case Converter navigation and Excel → HTML Converter navigation are maintained
+- PDF Tools has a planning and local file workflow foundation with PDF selection, output destination, planned page tools, and safety notes; PDF content processing is not implemented yet
+- No PDF library, external communication, or package dependency was added for the PDF Tools foundation
 - Billing shows a pricing model draft, and Account shows a planned license activation flow
 - Real authentication, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, and external communication are not implemented yet
 

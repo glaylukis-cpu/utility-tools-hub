@@ -33,3 +33,5 @@ Longer-term candidates include:
 Direct text editing in existing PDFs is complex and remains a later research topic. Safe redaction must remove the underlying content instead of only covering it visually.
 
 This foundation adds no PDF processing, PDF library, external service, file upload, or output writing behavior.
+
+The v0.2.9 release adds no package dependency. Updater verification will be performed after the signed build and GitHub Release are created.

@@ -128,3 +128,11 @@ git push origin vX.Y.Z
 - Updater verification will be done after the signed build and GitHub Release are created.
 - Updater verification will be done after the signed build and GitHub Release are created.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.2.9 Release Note
+
+- v0.2.9 is a PDF tools planning and file workflow foundation release.
+- It adds the PDF Tools screen, PDF file selection UI, output destination UI, planned PDF page tools, future advanced tools, and safety notes.
+- Planned page tools include merge, split, extract, delete, rotate, and reorder.
+- PDF processing is not implemented, no PDF content is modified, and no PDF library, external communication, or package dependency is added.
+- Updater verification will be done after the signed build and GitHub Release are created.
