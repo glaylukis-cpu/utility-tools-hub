@@ -35,3 +35,7 @@ Direct text editing in existing PDFs is complex and remains a later research top
 This foundation adds no PDF processing, PDF library, external service, file upload, or output writing behavior.
 
 The v0.2.9 release adds no package dependency. Updater verification will be performed after the signed build and GitHub Release are created.
+
+## Rust merge core foundation
+
+The Rust PDF merge core foundation has started. Merge is currently available only as an internal Rust API, with UI connection planned next; it does not use a Python sidecar, and PDF text editing, OCR, and redaction remain unimplemented.
