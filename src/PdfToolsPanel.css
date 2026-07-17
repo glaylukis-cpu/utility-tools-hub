@@ -84,6 +84,82 @@
   display: none;
 }
 
+.pdf-tools-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pdf-tools-selection-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  border-radius: 9px;
+  background: #f8f9fa;
+  padding: 10px 12px;
+  color: #6c757d;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pdf-tools-selection-summary strong {
+  color: #212529;
+  font-size: 15px;
+}
+
+.pdf-tools-file-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pdf-tools-file-list li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #e9ecef;
+  border-radius: 9px;
+  padding: 9px 11px;
+  color: #343a40;
+  font-size: 13px;
+}
+
+.pdf-tools-file-list li > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pdf-tools-file-list strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-tools-empty-selection,
+.pdf-tools-desktop-note,
+.pdf-tools-merge-requirements {
+  margin: 10px 0 0;
+  color: #6c757d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pdf-tools-desktop-note {
+  color: #9a3412;
+}
+
 .pdf-tools-selection-details {
   display: grid;
   gap: 10px;
@@ -118,6 +194,8 @@
 }
 
 .pdf-tools-feedback {
+  display: grid;
+  gap: 4px;
   margin-bottom: 18px;
   border: 1px solid #bbf7d0;
   border-radius: 10px;
@@ -127,10 +205,21 @@
   font-size: 13px;
 }
 
+.pdf-tools-feedback-loading {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .pdf-tools-feedback-error {
   border-color: #fecaca;
   background: #fef2f2;
   color: #b91c1c;
+}
+
+.pdf-tools-merge {
+  border-color: #c7d2fe;
+  background: #fafaff;
 }
 
 .pdf-tools-feature-grid {
