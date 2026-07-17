@@ -1,9 +1,10 @@
 use lopdf::{dictionary, Document, Object, ObjectId};
+use serde::Serialize;
 use std::error::Error;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PdfMergeResult {
     pub output_path: String,
     pub input_count: usize,
@@ -216,6 +217,7 @@ fn find_inherited_page_attribute(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{run_pdf_merge_bridge, PdfMergeRequest};
     use lopdf::Stream;
     use std::fs;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -336,6 +338,82 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error, PdfToolError::InputNotFound);
+    }
+
+    #[test]
+    fn bridge_merges_two_pdf_files() {
+        let directory = TestDirectory::new();
+        let first = directory.path("bridge-first.pdf");
+        let second = directory.path("bridge-second.pdf");
+        let output = directory.path("bridge-merged.pdf");
+        create_single_page_pdf(&first);
+        create_single_page_pdf(&second);
+
+        let result = run_pdf_merge_bridge(pdf_merge_request(vec![first, second], output.clone()))
+            .expect("bridge merge should succeed");
+
+        assert!(output.is_file());
+        assert_eq!(result.input_count, 2);
+        assert_eq!(result.page_count, 2);
+    }
+
+    #[test]
+    fn bridge_rejects_a_single_input_pdf() {
+        let directory = TestDirectory::new();
+        let input = directory.path("bridge-input.pdf");
+        create_single_page_pdf(&input);
+
+        let error = run_pdf_merge_bridge(pdf_merge_request(
+            vec![input],
+            directory.path("bridge-merged.pdf"),
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::NotEnoughInputs.to_string());
+    }
+
+    #[test]
+    fn bridge_rejects_non_pdf_input_extension() {
+        let directory = TestDirectory::new();
+        let first = directory.path("bridge-first.pdf");
+        let second = directory.path("bridge-second.txt");
+        create_single_page_pdf(&first);
+        fs::write(&second, b"not a PDF").expect("test input should be written");
+
+        let error = run_pdf_merge_bridge(pdf_merge_request(
+            vec![first, second],
+            directory.path("bridge-merged.pdf"),
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidInputExtension.to_string());
+    }
+
+    #[test]
+    fn bridge_rejects_non_pdf_output_extension() {
+        let directory = TestDirectory::new();
+        let first = directory.path("bridge-first.pdf");
+        let second = directory.path("bridge-second.pdf");
+        create_single_page_pdf(&first);
+        create_single_page_pdf(&second);
+
+        let error = run_pdf_merge_bridge(pdf_merge_request(
+            vec![first, second],
+            directory.path("bridge-merged.txt"),
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidOutputExtension.to_string());
+    }
+
+    fn pdf_merge_request(input_paths: Vec<PathBuf>, output_path: PathBuf) -> PdfMergeRequest {
+        PdfMergeRequest {
+            input_paths: input_paths
+                .into_iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect(),
+            output_path: output_path.to_string_lossy().into_owned(),
+        }
     }
 
     fn create_single_page_pdf(path: &Path) {

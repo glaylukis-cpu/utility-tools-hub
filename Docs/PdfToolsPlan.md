@@ -39,3 +39,5 @@ The v0.2.9 release adds no package dependency. Updater verification will be perf
 ## Rust merge core foundation
 
 The Rust PDF merge core foundation has started. Merge is currently available only as an internal Rust API, with UI connection planned next; it does not use a Python sidecar, and PDF text editing, OCR, and redaction remain unimplemented.
+
+The PDF merge command bridge now connects the Rust core to the app-side ToolRegistry, JobManager, and `execute_tool` execution layer. React UI connection is planned next; no Python sidecar is used, and PDF text editing, OCR, redaction, split, extract, rotate, delete, and reorder remain unimplemented.

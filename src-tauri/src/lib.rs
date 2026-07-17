@@ -47,6 +47,7 @@ pub fn run() {
 
 const EXCEL_HTML_CONVERTER_TOOL_ID: &str = "excel_html_converter";
 const TEXT_CASE_CONVERTER_TOOL_ID: &str = "text_case_converter";
+const PDF_MERGE_TOOL_ID: &str = "pdf_merge";
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -108,6 +109,22 @@ struct TextCaseConverterRequest {
     mode: TextCaseMode,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PdfMergeInput {
+    input_paths: Vec<String>,
+    output_path: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfMergeOptions {}
+
+pub(crate) struct PdfMergeRequest {
+    input_paths: Vec<String>,
+    output_path: String,
+}
+
 #[derive(Clone, Copy)]
 enum TextCaseMode {
     Uppercase,
@@ -143,6 +160,7 @@ impl TextCaseMode {
 enum RegisteredTool {
     ExcelHtmlConverter,
     TextCaseConverter,
+    PdfMerge,
 }
 
 struct ToolRegistry;
@@ -152,6 +170,7 @@ impl ToolRegistry {
         match tool_id {
             EXCEL_HTML_CONVERTER_TOOL_ID => Ok(RegisteredTool::ExcelHtmlConverter),
             TEXT_CASE_CONVERTER_TOOL_ID => Ok(RegisteredTool::TextCaseConverter),
+            PDF_MERGE_TOOL_ID => Ok(RegisteredTool::PdfMerge),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
         }
     }
@@ -199,6 +218,21 @@ impl RegisteredTool {
                     },
                 ))
             }
+            RegisteredTool::PdfMerge => {
+                let input: PdfMergeInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfMergeOptions::default()
+                } else {
+                    serde_json::from_value::<PdfMergeOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfMerge(PdfMergeRequest {
+                    input_paths: input.input_paths,
+                    output_path: input.output_path,
+                }))
+            }
         }
     }
 }
@@ -206,6 +240,7 @@ impl RegisteredTool {
 enum ValidatedToolRequest {
     ExcelHtmlConverter(ExcelHtmlConverterRequest),
     TextCaseConverter(TextCaseConverterRequest),
+    PdfMerge(PdfMergeRequest),
 }
 
 impl ValidatedToolRequest {
@@ -213,6 +248,7 @@ impl ValidatedToolRequest {
         match self {
             ValidatedToolRequest::ExcelHtmlConverter(_) => EXCEL_HTML_CONVERTER_TOOL_ID,
             ValidatedToolRequest::TextCaseConverter(_) => TEXT_CASE_CONVERTER_TOOL_ID,
+            ValidatedToolRequest::PdfMerge(_) => PDF_MERGE_TOOL_ID,
         }
     }
 
@@ -224,6 +260,7 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::TextCaseConverter(request) => {
                 TextCaseConverterHandler.execute(app, request).await
             }
+            ValidatedToolRequest::PdfMerge(request) => PdfMergeHandler.execute(app, request).await,
         }
     }
 }
@@ -268,6 +305,32 @@ impl ToolHandler for TextCaseConverterHandler {
                 .map_err(|e| format!("Failed to serialize tool result: {}", e))
         })
     }
+}
+
+struct PdfMergeHandler;
+
+impl ToolHandler for PdfMergeHandler {
+    type Request = PdfMergeRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result =
+                tauri::async_runtime::spawn_blocking(move || run_pdf_merge_bridge(request))
+                    .await
+                    .map_err(|_| "PDF merge task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_merge_bridge(
+    request: PdfMergeRequest,
+) -> Result<pdf_tools::PdfMergeResult, String> {
+    let input_paths = request.input_paths.into_iter().map(PathBuf::from).collect();
+    pdf_tools::merge_pdfs(input_paths, PathBuf::from(request.output_path))
+        .map_err(|error| error.to_string())
 }
 
 #[derive(Debug, Serialize)]
@@ -739,6 +802,14 @@ mod tests {
         assert!(matches!(
             ToolRegistry::resolve(TEXT_CASE_CONVERTER_TOOL_ID),
             Ok(RegisteredTool::TextCaseConverter)
+        ));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_merge_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_MERGE_TOOL_ID),
+            Ok(RegisteredTool::PdfMerge)
         ));
     }
 
