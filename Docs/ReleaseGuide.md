@@ -143,3 +143,10 @@ git push origin vX.Y.Z
 - PdfToolsPanel merges multiple PDFs through the local Rust PDF merge bridge, with input and output selection plus loading, success, and error states.
 - A Python sidecar is not used; split, extract, rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.3.1 Release Note
+
+- v0.3.1 is the PDF split / extract MVP release.
+- PdfToolsPanel can split one PDF into separate page PDFs and extract selected pages into a new PDF while Merge PDFs remains available.
+- PDF processing stays local without a Python sidecar; rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.
+- Updater verification will be done after the signed build and GitHub Release are created.

@@ -46,6 +46,6 @@ The PDF merge command bridge connects the Rust core to the app-side ToolRegistry
 
 v0.3.0 connects multiple PDF selection, output PDF selection, and loading, success, and error states in PdfToolsPanel to the local Rust merge bridge. No Python sidecar is used; split, extract, rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.
 
-## v0.3.1 split / extract core preparation
+## v0.3.1 PDF split / extract MVP
 
-PdfToolsPanel now connects to the existing PDF split and extract command bridges through ToolRegistry, JobManager, and `execute_tool`, making Split PDF and Extract pages UI-connected MVPs alongside Merge PDFs. Processing stays local without a Python sidecar; rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.
+PdfToolsPanel now connects to the existing PDF split and extract command bridges through ToolRegistry, JobManager, and `execute_tool`, making Split PDF and Extract pages UI-connected MVPs alongside Merge PDFs. Processing stays local without a Python sidecar; rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented. Updater verification will be done after the signed build and GitHub Release are created.
