@@ -542,8 +542,9 @@ fn find_inherited_page_attribute(
 mod tests {
     use super::*;
     use crate::{
-        run_pdf_extract_bridge, run_pdf_merge_bridge, run_pdf_split_bridge, PdfExtractRequest,
-        PdfMergeRequest, PdfSplitRequest,
+        run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_merge_bridge, run_pdf_rotate_bridge,
+        run_pdf_split_bridge, PdfDeleteRequest, PdfExtractRequest, PdfMergeRequest,
+        PdfRotateRequest, PdfSplitRequest,
     };
     use lopdf::Stream;
     use std::fs;
@@ -1208,6 +1209,153 @@ mod tests {
     }
 
     #[test]
+    fn rotate_bridge_rotates_selected_pages() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rotate-bridge-input.pdf");
+        let output = directory.path("rotate-bridge-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q 1 0 0 1 2 2 cm Q", b"q Q"]);
+
+        let result =
+            run_pdf_rotate_bridge(pdf_rotate_request(input, output.clone(), vec![1, 3], 90))
+                .expect("rotate bridge should succeed");
+
+        assert!(output.is_file());
+        assert_eq!(result.rotated_pages, vec![1, 3]);
+        assert_eq!(result.angle_degrees, 90);
+        assert_eq!(result.page_count, 3);
+    }
+
+    #[test]
+    fn rotate_bridge_rejects_invalid_angle() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rotate-bridge-input.pdf");
+        create_single_page_pdf(&input);
+
+        let error = run_pdf_rotate_bridge(pdf_rotate_request(
+            input,
+            directory.path("rotate-bridge-output.pdf"),
+            vec![1],
+            45,
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidRotationAngle.to_string());
+    }
+
+    #[test]
+    fn rotate_bridge_rejects_empty_and_zero_page_selections() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rotate-bridge-input.pdf");
+        create_single_page_pdf(&input);
+
+        let empty_error = run_pdf_rotate_bridge(pdf_rotate_request(
+            input.clone(),
+            directory.path("rotate-bridge-output.pdf"),
+            vec![],
+            90,
+        ))
+        .unwrap_err();
+        assert_eq!(empty_error, PdfToolError::EmptyPageSelection.to_string());
+
+        let zero_error = run_pdf_rotate_bridge(pdf_rotate_request(
+            input,
+            directory.path("rotate-bridge-output.pdf"),
+            vec![0],
+            90,
+        ))
+        .unwrap_err();
+        assert_eq!(zero_error, PdfToolError::InvalidPageNumber.to_string());
+    }
+
+    #[test]
+    fn rotate_bridge_rejects_non_pdf_output_extension() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rotate-bridge-input.pdf");
+        create_single_page_pdf(&input);
+
+        let error = run_pdf_rotate_bridge(pdf_rotate_request(
+            input,
+            directory.path("rotate-bridge-output.txt"),
+            vec![1],
+            90,
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidOutputExtension.to_string());
+    }
+
+    #[test]
+    fn delete_bridge_deletes_selected_pages() {
+        let directory = TestDirectory::new();
+        let input = directory.path("delete-bridge-input.pdf");
+        let output = directory.path("delete-bridge-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q", b"q Q"]);
+
+        let result = run_pdf_delete_bridge(pdf_delete_request(input, output.clone(), vec![2, 4]))
+            .expect("delete bridge should succeed");
+
+        assert!(output.is_file());
+        assert_eq!(result.deleted_pages, vec![2, 4]);
+        assert_eq!(result.original_page_count, 4);
+        assert_eq!(result.remaining_page_count, 2);
+    }
+
+    #[test]
+    fn delete_bridge_rejects_empty_and_zero_page_selections() {
+        let directory = TestDirectory::new();
+        let input = directory.path("delete-bridge-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+
+        let empty_error = run_pdf_delete_bridge(pdf_delete_request(
+            input.clone(),
+            directory.path("delete-bridge-output.pdf"),
+            vec![],
+        ))
+        .unwrap_err();
+        assert_eq!(empty_error, PdfToolError::EmptyPageSelection.to_string());
+
+        let zero_error = run_pdf_delete_bridge(pdf_delete_request(
+            input,
+            directory.path("delete-bridge-output.pdf"),
+            vec![0],
+        ))
+        .unwrap_err();
+        assert_eq!(zero_error, PdfToolError::InvalidPageNumber.to_string());
+    }
+
+    #[test]
+    fn delete_bridge_rejects_non_pdf_output_extension() {
+        let directory = TestDirectory::new();
+        let input = directory.path("delete-bridge-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+
+        let error = run_pdf_delete_bridge(pdf_delete_request(
+            input,
+            directory.path("delete-bridge-output.txt"),
+            vec![1],
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidOutputExtension.to_string());
+    }
+
+    #[test]
+    fn delete_bridge_rejects_all_pages() {
+        let directory = TestDirectory::new();
+        let input = directory.path("delete-bridge-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+
+        let error = run_pdf_delete_bridge(pdf_delete_request(
+            input,
+            directory.path("delete-bridge-output.pdf"),
+            vec![1, 2],
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::CannotDeleteAllPages.to_string());
+    }
+
+    #[test]
     fn bridge_merges_two_pdf_files() {
         let directory = TestDirectory::new();
         let first = directory.path("bridge-first.pdf");
@@ -1291,6 +1439,32 @@ mod tests {
         pages: Vec<usize>,
     ) -> PdfExtractRequest {
         PdfExtractRequest {
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: output_path.to_string_lossy().into_owned(),
+            pages,
+        }
+    }
+
+    fn pdf_rotate_request(
+        input_path: PathBuf,
+        output_path: PathBuf,
+        pages: Vec<usize>,
+        angle_degrees: i32,
+    ) -> PdfRotateRequest {
+        PdfRotateRequest {
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: output_path.to_string_lossy().into_owned(),
+            pages,
+            angle_degrees,
+        }
+    }
+
+    fn pdf_delete_request(
+        input_path: PathBuf,
+        output_path: PathBuf,
+        pages: Vec<usize>,
+    ) -> PdfDeleteRequest {
+        PdfDeleteRequest {
             input_path: input_path.to_string_lossy().into_owned(),
             output_path: output_path.to_string_lossy().into_owned(),
             pages,

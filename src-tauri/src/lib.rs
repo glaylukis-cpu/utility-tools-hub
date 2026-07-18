@@ -50,6 +50,8 @@ const TEXT_CASE_CONVERTER_TOOL_ID: &str = "text_case_converter";
 const PDF_MERGE_TOOL_ID: &str = "pdf_merge";
 const PDF_SPLIT_TOOL_ID: &str = "pdf_split";
 const PDF_EXTRACT_TOOL_ID: &str = "pdf_extract";
+const PDF_ROTATE_TOOL_ID: &str = "pdf_rotate";
+const PDF_DELETE_TOOL_ID: &str = "pdf_delete";
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -163,6 +165,44 @@ pub(crate) struct PdfExtractRequest {
     pages: Vec<usize>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PdfRotateInput {
+    input_path: String,
+    output_path: String,
+    pages: Vec<usize>,
+    angle_degrees: i32,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfRotateOptions {}
+
+pub(crate) struct PdfRotateRequest {
+    input_path: String,
+    output_path: String,
+    pages: Vec<usize>,
+    angle_degrees: i32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PdfDeleteInput {
+    input_path: String,
+    output_path: String,
+    pages: Vec<usize>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfDeleteOptions {}
+
+pub(crate) struct PdfDeleteRequest {
+    input_path: String,
+    output_path: String,
+    pages: Vec<usize>,
+}
+
 #[derive(Clone, Copy)]
 enum TextCaseMode {
     Uppercase,
@@ -201,6 +241,8 @@ enum RegisteredTool {
     PdfMerge,
     PdfSplit,
     PdfExtract,
+    PdfRotate,
+    PdfDelete,
 }
 
 struct ToolRegistry;
@@ -213,6 +255,8 @@ impl ToolRegistry {
             PDF_MERGE_TOOL_ID => Ok(RegisteredTool::PdfMerge),
             PDF_SPLIT_TOOL_ID => Ok(RegisteredTool::PdfSplit),
             PDF_EXTRACT_TOOL_ID => Ok(RegisteredTool::PdfExtract),
+            PDF_ROTATE_TOOL_ID => Ok(RegisteredTool::PdfRotate),
+            PDF_DELETE_TOOL_ID => Ok(RegisteredTool::PdfDelete),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
         }
     }
@@ -307,6 +351,39 @@ impl RegisteredTool {
                     pages: input.pages,
                 }))
             }
+            RegisteredTool::PdfRotate => {
+                let input: PdfRotateInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfRotateOptions::default()
+                } else {
+                    serde_json::from_value::<PdfRotateOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfRotate(PdfRotateRequest {
+                    input_path: input.input_path,
+                    output_path: input.output_path,
+                    pages: input.pages,
+                    angle_degrees: input.angle_degrees,
+                }))
+            }
+            RegisteredTool::PdfDelete => {
+                let input: PdfDeleteInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfDeleteOptions::default()
+                } else {
+                    serde_json::from_value::<PdfDeleteOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfDelete(PdfDeleteRequest {
+                    input_path: input.input_path,
+                    output_path: input.output_path,
+                    pages: input.pages,
+                }))
+            }
         }
     }
 }
@@ -317,6 +394,8 @@ enum ValidatedToolRequest {
     PdfMerge(PdfMergeRequest),
     PdfSplit(PdfSplitRequest),
     PdfExtract(PdfExtractRequest),
+    PdfRotate(PdfRotateRequest),
+    PdfDelete(PdfDeleteRequest),
 }
 
 impl ValidatedToolRequest {
@@ -327,6 +406,8 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::PdfMerge(_) => PDF_MERGE_TOOL_ID,
             ValidatedToolRequest::PdfSplit(_) => PDF_SPLIT_TOOL_ID,
             ValidatedToolRequest::PdfExtract(_) => PDF_EXTRACT_TOOL_ID,
+            ValidatedToolRequest::PdfRotate(_) => PDF_ROTATE_TOOL_ID,
+            ValidatedToolRequest::PdfDelete(_) => PDF_DELETE_TOOL_ID,
         }
     }
 
@@ -342,6 +423,12 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::PdfSplit(request) => PdfSplitHandler.execute(app, request).await,
             ValidatedToolRequest::PdfExtract(request) => {
                 PdfExtractHandler.execute(app, request).await
+            }
+            ValidatedToolRequest::PdfRotate(request) => {
+                PdfRotateHandler.execute(app, request).await
+            }
+            ValidatedToolRequest::PdfDelete(request) => {
+                PdfDeleteHandler.execute(app, request).await
             }
         }
     }
@@ -466,6 +553,65 @@ pub(crate) fn run_pdf_extract_bridge(
     request: PdfExtractRequest,
 ) -> Result<pdf_tools::PdfExtractResult, String> {
     pdf_tools::extract_pdf_pages(
+        PathBuf::from(request.input_path),
+        PathBuf::from(request.output_path),
+        request.pages,
+    )
+    .map_err(|error| error.to_string())
+}
+
+struct PdfRotateHandler;
+
+impl ToolHandler for PdfRotateHandler {
+    type Request = PdfRotateRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result =
+                tauri::async_runtime::spawn_blocking(move || run_pdf_rotate_bridge(request))
+                    .await
+                    .map_err(|_| "PDF rotate task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_rotate_bridge(
+    request: PdfRotateRequest,
+) -> Result<pdf_tools::PdfRotateResult, String> {
+    pdf_tools::rotate_pdf_pages(
+        PathBuf::from(request.input_path),
+        PathBuf::from(request.output_path),
+        request.pages,
+        request.angle_degrees,
+    )
+    .map_err(|error| error.to_string())
+}
+
+struct PdfDeleteHandler;
+
+impl ToolHandler for PdfDeleteHandler {
+    type Request = PdfDeleteRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result =
+                tauri::async_runtime::spawn_blocking(move || run_pdf_delete_bridge(request))
+                    .await
+                    .map_err(|_| "PDF delete task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_delete_bridge(
+    request: PdfDeleteRequest,
+) -> Result<pdf_tools::PdfDeleteResult, String> {
+    pdf_tools::delete_pdf_pages(
         PathBuf::from(request.input_path),
         PathBuf::from(request.output_path),
         request.pages,
@@ -966,6 +1112,22 @@ mod tests {
         assert!(matches!(
             ToolRegistry::resolve(PDF_EXTRACT_TOOL_ID),
             Ok(RegisteredTool::PdfExtract)
+        ));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_rotate_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_ROTATE_TOOL_ID),
+            Ok(RegisteredTool::PdfRotate)
+        ));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_delete_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_DELETE_TOOL_ID),
+            Ok(RegisteredTool::PdfDelete)
         ));
     }
 

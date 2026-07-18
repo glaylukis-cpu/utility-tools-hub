@@ -52,6 +52,12 @@ PdfToolsPanel now connects to the existing PDF split and extract command bridges
 
 ## v0.3.2 rotate / delete core preparation
 
-The Rust rotate and page-delete cores have been added in preparation for v0.3.2. Rotate and delete are currently Rust-core-only; their command bridges and UI connections are planned next. Merge, split, and extract remain available, and no Python sidecar is used.
+The Rust rotate and page-delete cores were added in preparation for v0.3.2. Rotate and delete started as Rust-core-only operations; the command bridge is the next foundation step described below. Merge, split, and extract remain available, and no Python sidecar is used.
 
 Reorder, OCR, redaction, watermark, page numbers, and direct PDF text editing are not implemented.
+
+## v0.3.2 rotate / delete command bridge
+
+The PDF rotate and delete command bridges now connect the Rust cores to the app-side ToolRegistry, JobManager, and `execute_tool` execution layer. React UI connection is planned next. Merge, split, and extract remain available, and no Python sidecar is used.
+
+Reorder, watermark, page numbers, OCR, redaction, and direct PDF text editing are not implemented.
