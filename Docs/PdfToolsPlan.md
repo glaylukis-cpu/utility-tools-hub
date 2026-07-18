@@ -45,3 +45,7 @@ The PDF merge command bridge connects the Rust core to the app-side ToolRegistry
 ## v0.3.0 PDF merge MVP
 
 v0.3.0 connects multiple PDF selection, output PDF selection, and loading, success, and error states in PdfToolsPanel to the local Rust merge bridge. No Python sidecar is used; split, extract, rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.
+
+## v0.3.1 split / extract core preparation
+
+Rust split and extract cores have been added for v0.3.1 preparation while Merge PDFs remains available. Split and extract are Rust-core-only in this phase, with UI and command bridge connection planned next; rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented, and no Python sidecar is used.
