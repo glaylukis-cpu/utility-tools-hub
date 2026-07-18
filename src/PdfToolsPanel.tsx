@@ -28,13 +28,24 @@ type PdfMergeResult = {
   page_count: number;
 };
 
-const plannedPageTools = [
-  "Split PDF",
-  "Extract pages",
-  "Delete pages",
-  "Rotate pages",
-  "Reorder pages",
-] as const;
+type PdfSplitResult = {
+  input_path: string;
+  output_paths: string[];
+  page_count: number;
+};
+
+type PdfExtractResult = {
+  input_path: string;
+  output_path: string;
+  selected_pages: number[];
+  page_count: number;
+};
+
+type PageParseResult =
+  | { pages: number[]; error: null }
+  | { pages: null; error: string };
+
+const plannedPageTools = ["Delete pages", "Rotate pages", "Reorder pages"] as const;
 
 const futureAdvancedTools = [
   "Add page numbers",
@@ -48,7 +59,10 @@ const futureAdvancedTools = [
 ] as const;
 
 const PDF_MERGE_TOOL_ID = "pdf_merge";
+const PDF_SPLIT_TOOL_ID = "pdf_split";
+const PDF_EXTRACT_TOOL_ID = "pdf_extract";
 const POLL_INTERVAL_MS = 500;
+const MAX_EXPANDED_PAGES = 10_000;
 
 function fileNameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() || path;
@@ -58,18 +72,110 @@ function mergeFailureMessage(): string {
   return "Merge failed. Check that the selected files are valid PDFs and the output location is writable.";
 }
 
+function splitFailureMessage(): string {
+  return "Split failed. Check that the input is a valid PDF and the output folder is writable.";
+}
+
+function extractFailureMessage(): string {
+  return "Extract failed. Check the selected pages, input PDF, and output location.";
+}
+
+function parsePageSelection(value: string): PageParseResult {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return { pages: null, error: "Enter one or more page numbers." };
+  }
+
+  const pages: number[] = [];
+  const seenPages = new Set<number>();
+
+  const addPage = (page: number): string | null => {
+    if (!Number.isSafeInteger(page) || page < 1) {
+      return "Page numbers must be one or greater.";
+    }
+    if (seenPages.has(page)) {
+      return `Page ${page} is specified more than once.`;
+    }
+    if (pages.length >= MAX_EXPANDED_PAGES) {
+      return "The page selection is too large.";
+    }
+
+    seenPages.add(page);
+    pages.push(page);
+    return null;
+  };
+
+  for (const part of trimmedValue.split(",")) {
+    const token = part.trim();
+    if (!token) {
+      return { pages: null, error: "Use page numbers separated by commas." };
+    }
+
+    const rangeMatch = token.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 1 || end < 1) {
+        return { pages: null, error: "Page numbers must be one or greater." };
+      }
+      if (end < start) {
+        return { pages: null, error: "Page ranges must be written from lower to higher." };
+      }
+      if (end - start + 1 > MAX_EXPANDED_PAGES) {
+        return { pages: null, error: "The page range is too large." };
+      }
+
+      for (let page = start; page <= end; page += 1) {
+        const error = addPage(page);
+        if (error) return { pages: null, error };
+      }
+      continue;
+    }
+
+    if (!/^\d+$/.test(token)) {
+      return { pages: null, error: "Use page numbers such as 1,3,5 or 1-3,5." };
+    }
+
+    const error = addPage(Number(token));
+    if (error) return { pages: null, error };
+  }
+
+  return { pages, error: null };
+}
+
 export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mergeFileInputRef = useRef<HTMLInputElement>(null);
+  const splitFileInputRef = useRef<HTMLInputElement>(null);
+  const extractFileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
   const isRunningRef = useRef(false);
+
   const [selectedPdfs, setSelectedPdfs] = useState<SelectedPdf[]>([]);
   const [outputPath, setOutputPath] = useState<string | null>(null);
   const [mergeResult, setMergeResult] = useState<PdfMergeResult | null>(null);
   const [isMerging, setIsMerging] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [splitInput, setSplitInput] = useState<SelectedPdf | null>(null);
+  const [splitOutputDir, setSplitOutputDir] = useState<string | null>(null);
+  const [splitOutputPrefix, setSplitOutputPrefix] = useState("split-document");
+  const [splitResult, setSplitResult] = useState<PdfSplitResult | null>(null);
+  const [isSplitting, setIsSplitting] = useState(false);
+  const [splitFeedback, setSplitFeedback] = useState<string | null>(null);
+  const [splitError, setSplitError] = useState<string | null>(null);
+
+  const [extractInput, setExtractInput] = useState<SelectedPdf | null>(null);
+  const [extractPagesInput, setExtractPagesInput] = useState("");
+  const [extractOutputPath, setExtractOutputPath] = useState<string | null>(null);
+  const [extractResult, setExtractResult] = useState<PdfExtractResult | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractFeedback, setExtractFeedback] = useState<string | null>(null);
+  const [extractError, setExtractError] = useState<string | null>(null);
+
   const nativeDialogAvailable = isTauri();
+  const parsedExtractPages = parsePageSelection(extractPagesInput);
 
   const stopPolling = () => {
     if (pollTimerRef.current !== null) {
@@ -85,6 +191,77 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       stopPolling();
     };
   }, []);
+
+  const executeAdditionalPdfTool = async <T,>(
+    toolId: string,
+    input: Record<string, unknown>,
+    setRunning: (running: boolean) => void,
+    onSuccess: (result: T) => void,
+    onFailure: () => void,
+  ) => {
+    if (isRunningRef.current) return;
+
+    stopPolling();
+    const runId = runIdRef.current + 1;
+    runIdRef.current = runId;
+    isRunningRef.current = true;
+    setRunning(true);
+
+    const finishWithError = () => {
+      if (runIdRef.current !== runId) return;
+      stopPolling();
+      isRunningRef.current = false;
+      setRunning(false);
+      onFailure();
+    };
+
+    try {
+      const jobId = await invoke<string>("execute_tool", {
+        request: {
+          tool_id: toolId,
+          input,
+          options: {},
+        },
+      });
+
+      if (runIdRef.current !== runId) return;
+
+      const pollJob = async () => {
+        if (runIdRef.current !== runId) return;
+
+        try {
+          const job = await invoke<ToolJob<T>>("get_job_status", { jobId });
+          if (runIdRef.current !== runId) return;
+
+          if (job.status === "queued" || job.status === "running") {
+            pollTimerRef.current = setTimeout(() => {
+              void pollJob();
+            }, POLL_INTERVAL_MS);
+            return;
+          }
+
+          stopPolling();
+          isRunningRef.current = false;
+          setRunning(false);
+
+          if (job.status === "succeeded" && job.result) {
+            onSuccess(job.result);
+            return;
+          }
+
+          onFailure();
+        } catch {
+          finishWithError();
+        }
+      };
+
+      pollTimerRef.current = setTimeout(() => {
+        void pollJob();
+      }, POLL_INTERVAL_MS);
+    } catch {
+      finishWithError();
+    }
+  };
 
   const selectPdfs = async () => {
     if (isRunningRef.current) return;
@@ -120,7 +297,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       }
     }
 
-    fileInputRef.current?.click();
+    mergeFileInputRef.current?.click();
   };
 
   const selectBrowserPdfs = (files: FileList | null, input: HTMLInputElement) => {
@@ -261,57 +438,274 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     }
   };
 
+  const selectSplitInput = async () => {
+    if (isRunningRef.current) return;
+    setSplitFeedback(null);
+    setSplitError(null);
+    setSplitResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF to split",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        setSplitInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
+        setSplitFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        return;
+      } catch {
+        setSplitError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    splitFileInputRef.current?.click();
+  };
+
+  const selectBrowserSplitInput = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setSplitFeedback(null);
+    setSplitResult(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setSplitInput(null);
+      setSplitError("Please select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setSplitInput({ name: file.name });
+    setSplitError("Desktop file path selection is required to split PDFs.");
+    input.value = "";
+  };
+
+  const selectSplitOutputDir = async () => {
+    if (!nativeDialogAvailable || isRunningRef.current) return;
+    setSplitFeedback(null);
+    setSplitError(null);
+    setSplitResult(null);
+
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await open({
+        multiple: false,
+        directory: true,
+        title: "Select split output folder",
+      });
+      if (typeof selectedPath !== "string") return;
+      setSplitOutputDir(selectedPath);
+      setSplitFeedback(`Output folder selected: ${fileNameFromPath(selectedPath)}`);
+    } catch {
+      setSplitError("The split output folder could not be selected.");
+    }
+  };
+
+  const splitPdf = async () => {
+    if (isRunningRef.current) return;
+    const prefix = splitOutputPrefix.trim();
+    if (!splitInput?.path || !splitOutputDir || !prefix || /[\\/]/.test(prefix)) {
+      setSplitError("Select a desktop PDF, output folder, and valid output prefix first.");
+      return;
+    }
+
+    setSplitResult(null);
+    setSplitFeedback(null);
+    setSplitError(null);
+
+    await executeAdditionalPdfTool<PdfSplitResult>(
+      PDF_SPLIT_TOOL_ID,
+      {
+        input_path: splitInput.path,
+        output_dir: splitOutputDir,
+        output_prefix: prefix,
+      },
+      setIsSplitting,
+      (result) => {
+        setSplitResult(result);
+        setSplitFeedback("Split completed");
+        setSplitError(null);
+      },
+      () => {
+        setSplitResult(null);
+        setSplitFeedback(null);
+        setSplitError(splitFailureMessage());
+      },
+    );
+  };
+
+  const selectExtractInput = async () => {
+    if (isRunningRef.current) return;
+    setExtractFeedback(null);
+    setExtractError(null);
+    setExtractResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF to extract pages from",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        setExtractInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
+        setExtractFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        return;
+      } catch {
+        setExtractError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    extractFileInputRef.current?.click();
+  };
+
+  const selectBrowserExtractInput = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setExtractFeedback(null);
+    setExtractResult(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setExtractInput(null);
+      setExtractError("Please select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setExtractInput({ name: file.name });
+    setExtractError("Desktop file path selection is required to extract pages.");
+    input.value = "";
+  };
+
+  const selectExtractOutputPdf = async () => {
+    if (!nativeDialogAvailable || isRunningRef.current) return;
+    setExtractFeedback(null);
+    setExtractError(null);
+    setExtractResult(null);
+
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await save({
+        defaultPath: "extracted-pages.pdf",
+        title: "Select extracted output PDF",
+        filters: [{ name: "PDF document", extensions: ["pdf"] }],
+      });
+      if (!selectedPath) return;
+      if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+        setExtractError("The output file must use the .pdf extension.");
+        return;
+      }
+
+      setExtractOutputPath(selectedPath);
+      setExtractFeedback(`Output selected: ${fileNameFromPath(selectedPath)}`);
+    } catch {
+      setExtractError("The extracted output PDF could not be selected.");
+    }
+  };
+
+  const extractPdfPages = async () => {
+    if (isRunningRef.current) return;
+    if (!extractInput?.path || !extractOutputPath || !parsedExtractPages.pages) {
+      setExtractError(
+        parsedExtractPages.error ?? "Select a desktop PDF, valid pages, and an output PDF first.",
+      );
+      return;
+    }
+
+    setExtractResult(null);
+    setExtractFeedback(null);
+    setExtractError(null);
+
+    await executeAdditionalPdfTool<PdfExtractResult>(
+      PDF_EXTRACT_TOOL_ID,
+      {
+        input_path: extractInput.path,
+        output_path: extractOutputPath,
+        pages: parsedExtractPages.pages,
+      },
+      setIsExtracting,
+      (result) => {
+        setExtractResult(result);
+        setExtractFeedback("Extract completed");
+        setExtractError(null);
+      },
+      () => {
+        setExtractResult(null);
+        setExtractFeedback(null);
+        setExtractError(extractFailureMessage());
+      },
+    );
+  };
+
   const hasDesktopInputPaths =
     selectedPdfs.length > 0 && selectedPdfs.every((pdf) => typeof pdf.path === "string");
+  const isAnyOperationRunning = isMerging || isSplitting || isExtracting;
+  const hasValidSplitPrefix =
+    splitOutputPrefix.trim().length > 0 && !/[\\/]/.test(splitOutputPrefix.trim());
   const canMerge =
     nativeDialogAvailable &&
     selectedPdfs.length >= 2 &&
     hasDesktopInputPaths &&
     outputPath !== null &&
-    !isMerging;
+    !isAnyOperationRunning;
+  const canSplit =
+    nativeDialogAvailable &&
+    typeof splitInput?.path === "string" &&
+    splitOutputDir !== null &&
+    hasValidSplitPrefix &&
+    !isAnyOperationRunning;
+  const canExtract =
+    nativeDialogAvailable &&
+    typeof extractInput?.path === "string" &&
+    extractOutputPath !== null &&
+    parsedExtractPages.pages !== null &&
+    !isAnyOperationRunning;
 
   return (
     <div className="pdf-tools-page">
-      <button type="button" className="btn btn-outline" onClick={onBack} disabled={isMerging}>
+      <button type="button" className="btn btn-outline" onClick={onBack} disabled={isAnyOperationRunning}>
         ← Back to Tools
       </button>
 
       <div className="page-header pdf-tools-header">
         <div>
           <h1>PDF Tools</h1>
-          <p>Local PDF workflow foundation</p>
+          <p>Local PDF page-operation MVPs</p>
         </div>
-        <span className="pdf-tools-planned-badge">Merge MVP · Other tools planned</span>
+        <span className="pdf-tools-planned-badge">Merge · Split · Extract MVP</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>Merge PDFs is available as a local MVP.</strong>
+        <strong>Merge, Split, and Extract are available as local MVPs.</strong>
         <span>Other PDF page tools are planned. Selected files stay on this device.</span>
       </div>
 
       <div className="pdf-tools-workflow-grid">
         <section className="pdf-tools-panel" aria-labelledby="pdf-input-title">
           <div className="pdf-tools-section-heading">
-            <span>Step 1</span>
+            <span>Merge · Step 1</span>
             <h2 id="pdf-input-title">Input PDFs</h2>
             <p>Select two or more local PDFs. Files are merged in the order shown below.</p>
           </div>
 
           <div className="pdf-tools-button-row">
-            <button type="button" className="btn btn-primary" onClick={selectPdfs} disabled={isMerging}>
+            <button type="button" className="btn btn-primary" onClick={selectPdfs} disabled={isAnyOperationRunning}>
               Select PDFs
             </button>
             <button
               type="button"
               className="btn btn-outline"
               onClick={clearSelection}
-              disabled={selectedPdfs.length === 0 || isMerging}
+              disabled={selectedPdfs.length === 0 || isAnyOperationRunning}
             >
               Clear selection
             </button>
           </div>
           <input
-            ref={fileInputRef}
+            ref={mergeFileInputRef}
             className="pdf-tools-hidden-input"
             type="file"
             accept=".pdf,application/pdf"
@@ -344,7 +738,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
         <section className="pdf-tools-panel" aria-labelledby="pdf-output-title">
           <div className="pdf-tools-section-heading">
-            <span>Step 2</span>
+            <span>Merge · Step 2</span>
             <h2 id="pdf-output-title">Output PDF</h2>
             <p>Choose where the Rust PDF merge bridge should write the merged document.</p>
           </div>
@@ -353,7 +747,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             type="button"
             className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
             onClick={selectOutputPdf}
-            disabled={!nativeDialogAvailable || isMerging}
+            disabled={!nativeDialogAvailable || isAnyOperationRunning}
           >
             {nativeDialogAvailable ? "Select output PDF" : "Select output PDF (Desktop only)"}
           </button>
@@ -375,7 +769,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
       <section className="pdf-tools-section pdf-tools-merge" aria-labelledby="pdf-merge-title">
         <div className="pdf-tools-section-heading">
-          <span>Step 3</span>
+          <span>Merge · Step 3</span>
           <h2 id="pdf-merge-title">Merge PDFs</h2>
           <p>Uses the existing local Rust merge core through the shared tool execution queue.</p>
         </div>
@@ -383,7 +777,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           {isMerging ? "Merging..." : "Merge PDFs"}
         </button>
         {!canMerge && !isMerging && (
-          <p className="pdf-tools-merge-requirements">
+          <p className="pdf-tools-operation-requirements">
             Select at least two desktop PDF paths and one output PDF to enable merge.
           </p>
         )}
@@ -410,20 +804,181 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         </div>
       )}
 
+      <div className="pdf-tools-operation-grid">
+        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-split-title">
+          <div className="pdf-tools-section-heading">
+            <span>Available MVP</span>
+            <h2 id="pdf-split-title">Split PDF</h2>
+            <p>Split one PDF into separate single-page PDF files.</p>
+          </div>
+
+          <div className="pdf-tools-button-row">
+            <button type="button" className="btn btn-outline" onClick={selectSplitInput} disabled={isAnyOperationRunning}>
+              Select input PDF
+            </button>
+            <button
+              type="button"
+              className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
+              onClick={selectSplitOutputDir}
+              disabled={!nativeDialogAvailable || isAnyOperationRunning}
+            >
+              {nativeDialogAvailable ? "Select output folder" : "Output folder (Desktop only)"}
+            </button>
+          </div>
+          <input
+            ref={splitFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) =>
+              selectBrowserSplitInput(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+
+          <dl className="pdf-tools-selection-details">
+            <div><dt>Input PDF</dt><dd>{splitInput?.name ?? "Not selected"}</dd></div>
+            <div>
+              <dt>Output folder</dt>
+              <dd className="pdf-tools-path" title={splitOutputDir ?? undefined}>
+                {splitOutputDir ? fileNameFromPath(splitOutputDir) : "Not selected"}
+              </dd>
+            </div>
+          </dl>
+
+          <label className="pdf-tools-field">
+            <span>Output prefix</span>
+            <input
+              type="text"
+              value={splitOutputPrefix}
+              onChange={(event) => {
+                setSplitOutputPrefix(event.currentTarget.value);
+                setSplitResult(null);
+                setSplitFeedback(null);
+                setSplitError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="split-document"
+            />
+          </label>
+          {!hasValidSplitPrefix && splitOutputPrefix.length > 0 && (
+            <p className="pdf-tools-field-error">Output prefix cannot contain path separators.</p>
+          )}
+
+          <button type="button" className="btn btn-primary" onClick={splitPdf} disabled={!canSplit}>
+            {isSplitting ? "Splitting..." : "Split PDF"}
+          </button>
+          {!canSplit && !isSplitting && (
+            <p className="pdf-tools-operation-requirements">
+              Select a desktop PDF, output folder, and valid output prefix.
+            </p>
+          )}
+
+          {isSplitting && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Splitting...</div>}
+          {splitError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{splitError}</div>}
+          {!splitError && !isSplitting && splitFeedback && (
+            <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
+              <strong>{splitFeedback}</strong>
+              {splitResult && (
+                <span>{splitResult.page_count} pages · {splitResult.output_paths.length} files · Folder: {splitOutputDir ? fileNameFromPath(splitOutputDir) : "Selected folder"}</span>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-extract-title">
+          <div className="pdf-tools-section-heading">
+            <span>Available MVP</span>
+            <h2 id="pdf-extract-title">Extract pages</h2>
+            <p>Extract selected pages from one PDF into a new PDF.</p>
+          </div>
+
+          <div className="pdf-tools-button-row">
+            <button type="button" className="btn btn-outline" onClick={selectExtractInput} disabled={isAnyOperationRunning}>
+              Select input PDF
+            </button>
+            <button
+              type="button"
+              className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
+              onClick={selectExtractOutputPdf}
+              disabled={!nativeDialogAvailable || isAnyOperationRunning}
+            >
+              {nativeDialogAvailable ? "Select output PDF" : "Output PDF (Desktop only)"}
+            </button>
+          </div>
+          <input
+            ref={extractFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) =>
+              selectBrowserExtractInput(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+
+          <dl className="pdf-tools-selection-details">
+            <div><dt>Input PDF</dt><dd>{extractInput?.name ?? "Not selected"}</dd></div>
+            <div>
+              <dt>Output PDF</dt>
+              <dd className="pdf-tools-path" title={extractOutputPath ?? undefined}>
+                {extractOutputPath ? fileNameFromPath(extractOutputPath) : "Not selected"}
+              </dd>
+            </div>
+          </dl>
+
+          <label className="pdf-tools-field">
+            <span>Pages</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={extractPagesInput}
+              onChange={(event) => {
+                setExtractPagesInput(event.currentTarget.value);
+                setExtractResult(null);
+                setExtractFeedback(null);
+                setExtractError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="1,3,5 or 1-3,5"
+            />
+          </label>
+          {extractPagesInput.trim() && parsedExtractPages.error && (
+            <p className="pdf-tools-field-error">{parsedExtractPages.error}</p>
+          )}
+
+          <button type="button" className="btn btn-primary" onClick={extractPdfPages} disabled={!canExtract}>
+            {isExtracting ? "Extracting..." : "Extract pages"}
+          </button>
+          {!canExtract && !isExtracting && (
+            <p className="pdf-tools-operation-requirements">
+              Select a desktop PDF, valid pages, and an output PDF.
+            </p>
+          )}
+
+          {isExtracting && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Extracting...</div>}
+          {extractError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{extractError}</div>}
+          {!extractError && !isExtracting && extractFeedback && (
+            <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
+              <strong>{extractFeedback}</strong>
+              {extractResult && (
+                <span>Pages {extractResult.selected_pages.join(", ")} · {extractResult.page_count} pages · Output: {fileNameFromPath(extractResult.output_path)}</span>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+
       <section className="pdf-tools-section" aria-labelledby="planned-pdf-tools-title">
         <div className="pdf-tools-section-heading">
           <span>Planned foundation</span>
           <h2 id="planned-pdf-tools-title">Planned PDF page tools</h2>
-          <p>These operations remain disabled and are not part of the merge MVP.</p>
+          <p>These operations remain disabled and are not part of the current MVPs.</p>
         </div>
         <div className="pdf-tools-feature-grid">
           {plannedPageTools.map((tool) => (
             <article className="pdf-tools-feature-card" key={tool}>
               <h3>{tool}</h3>
               <p>Not implemented yet</p>
-              <button type="button" className="btn btn-disabled" disabled>
-                Planned
-              </button>
+              <button type="button" className="btn btn-disabled" disabled>Planned</button>
             </article>
           ))}
         </div>
@@ -436,9 +991,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <p>These are longer-term candidates and are not commitments for the next release.</p>
         </div>
         <div className="pdf-tools-future-list">
-          {futureAdvancedTools.map((tool) => (
-            <span key={tool}>{tool}</span>
-          ))}
+          {futureAdvancedTools.map((tool) => <span key={tool}>{tool}</span>)}
         </div>
       </section>
 
@@ -448,7 +1001,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h2 id="pdf-safety-title">Safety notes</h2>
         </div>
         <ul>
-          <li>Merge PDFs is available as an MVP; other PDF page tools are planned.</li>
+          <li>Merge, Split, and Extract are available as page-operation MVPs.</li>
+          <li>Rotate, delete, and reorder are planned.</li>
           <li>Direct text editing, OCR, and redaction are not implemented.</li>
           <li>Redaction must remove underlying content, not only cover it visually.</li>
           <li>PDF files stay on this device and are processed locally.</li>

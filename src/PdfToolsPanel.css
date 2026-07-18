@@ -43,6 +43,17 @@
   margin-bottom: 18px;
 }
 
+.pdf-tools-operation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.pdf-tools-operation-card {
+  min-width: 0;
+}
+
 .pdf-tools-panel,
 .pdf-tools-section {
   border: 1px solid #e9ecef;
@@ -149,7 +160,8 @@
 
 .pdf-tools-empty-selection,
 .pdf-tools-desktop-note,
-.pdf-tools-merge-requirements {
+.pdf-tools-merge-requirements,
+.pdf-tools-operation-requirements {
   margin: 10px 0 0;
   color: #6c757d;
   font-size: 12px;
@@ -193,6 +205,45 @@
   white-space: nowrap;
 }
 
+.pdf-tools-field {
+  display: grid;
+  gap: 7px;
+  margin: 18px 0;
+  color: #495057;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pdf-tools-field input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #dee2e6;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #212529;
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 400;
+}
+
+.pdf-tools-field input:focus {
+  border-color: #818cf8;
+  outline: 3px solid rgba(99, 102, 241, 0.14);
+}
+
+.pdf-tools-field input:disabled {
+  background: #f1f3f5;
+  color: #868e96;
+  cursor: not-allowed;
+}
+
+.pdf-tools-field-error {
+  margin: -10px 0 14px;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .pdf-tools-feedback {
   display: grid;
   gap: 4px;
@@ -215,6 +266,10 @@
   border-color: #fecaca;
   background: #fef2f2;
   color: #b91c1c;
+}
+
+.pdf-tools-operation-feedback {
+  margin: 14px 0 0;
 }
 
 .pdf-tools-merge {
@@ -288,6 +343,7 @@
 
 @media (max-width: 900px) {
   .pdf-tools-workflow-grid,
+  .pdf-tools-operation-grid,
   .pdf-tools-feature-grid {
     grid-template-columns: 1fr;
   }

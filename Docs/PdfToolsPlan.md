@@ -48,4 +48,4 @@ v0.3.0 connects multiple PDF selection, output PDF selection, and loading, succe
 
 ## v0.3.1 split / extract core preparation
 
-PDF split and extract command bridges now connect the Rust cores to the app-side ToolRegistry, JobManager, and `execute_tool` execution layer while Merge PDFs remains available. React UI connection is planned next; no Python sidecar is used, and rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.
+PdfToolsPanel now connects to the existing PDF split and extract command bridges through ToolRegistry, JobManager, and `execute_tool`, making Split PDF and Extract pages UI-connected MVPs alongside Merge PDFs. Processing stays local without a Python sidecar; rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.
