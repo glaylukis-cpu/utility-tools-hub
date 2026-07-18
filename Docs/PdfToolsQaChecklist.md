@@ -4,6 +4,13 @@
 
 Use local, non-sensitive test PDFs with known page counts and visible page numbers. Keep the source files unchanged so each operation can be repeated. Record only file names and page counts in QA notes; do not copy private local paths.
 
+## v0.3.4 Merge bugfix QA
+
+- [ ] Recheck the two real PDFs that exposed the v0.3.3 Merge failure, even though each input opens on its own.
+- [ ] Repeat the merge with an output PDF directly under the Desktop folder.
+- [ ] Confirm a successful output opens, has the combined page count, and preserves input order.
+- [ ] If the merge fails, confirm the UI distinguishes unreadable or unsupported input, encryption, an input/output conflict, and an unwritable output without exposing full paths.
+
 ## Merge PDFs
 
 - [ ] Select two or more PDF files.
@@ -88,4 +95,3 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] HTML Editor opens and its existing editing, project, and export flows are unchanged.
 - [ ] Account, Billing, Settings, and Updater panels still open.
 - [ ] Tools navigation and Back to Tools behavior remain intact.
-

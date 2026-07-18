@@ -89,8 +89,23 @@ function fileNameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
-function mergeFailureMessage(): string {
-  return "Merge failed. Confirm the inputs are valid PDFs, choose a writable output location, and try again.";
+function mergeFailureMessage(reason?: string | null): string {
+  const knownMessages: Record<string, string> = {
+    "at least two input PDF files are required": "Merge requires at least two input PDF files.",
+    "every input file must use the .pdf extension": "Every input file must use the .pdf extension.",
+    "the output file must use the .pdf extension": "The output file must use the .pdf extension.",
+    "an input PDF file does not exist": "An input PDF could not be found. Select the input files again.",
+    "the output directory does not exist": "The selected output folder no longer exists. Choose the output PDF again.",
+    "the output file must differ from every input file": "The output PDF must use a different file from every input PDF.",
+    "encrypted PDF files are not supported": "Encrypted PDFs are not supported. Use unencrypted input files.",
+    "an input file is not a supported PDF document": "An input PDF could not be read or uses an unsupported PDF structure.",
+    "the output PDF could not be saved": "The output PDF could not be written. Choose a writable location and try again.",
+  };
+
+  return (
+    (reason ? knownMessages[reason.trim()] : undefined) ??
+    "Merge failed. Re-select the input PDFs and choose a writable output location, then try again."
+  );
 }
 
 function splitFailureMessage(): string {
@@ -425,14 +440,14 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     setFeedback(null);
     setError(null);
 
-    const finishWithError = () => {
+    const finishWithError = (reason?: string | null) => {
       if (runIdRef.current !== runId) return;
       stopPolling();
       isRunningRef.current = false;
       setIsMerging(false);
       setMergeResult(null);
       setFeedback(null);
-      setError(mergeFailureMessage());
+      setError(mergeFailureMessage(reason));
     };
 
     try {
@@ -474,7 +489,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             return;
           }
 
-          finishWithError();
+          finishWithError(job.error);
         } catch {
           finishWithError();
         }

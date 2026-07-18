@@ -113,6 +113,8 @@ pub fn merge_pdfs(
             return Err(PdfToolError::EncryptedPdfUnsupported);
         }
 
+        preserve_newer_pdf_version(&mut merged_document, &input_document);
+
         input_document.renumber_objects_with(next_object_id);
         next_object_id = input_document.max_id.saturating_add(1);
 
@@ -171,6 +173,17 @@ pub fn merge_pdfs(
         input_count,
         page_count: merged_page_ids.len(),
     })
+}
+
+fn preserve_newer_pdf_version(output_document: &mut Document, input_document: &Document) {
+    let parse_version = |version: &str| {
+        let (major, minor) = version.split_once('.')?;
+        Some((major.parse::<u16>().ok()?, minor.parse::<u16>().ok()?))
+    };
+
+    if parse_version(&input_document.version) > parse_version(&output_document.version) {
+        output_document.version.clone_from(&input_document.version);
+    }
 }
 
 /// Splits an input PDF into one-page PDF files.
@@ -617,6 +630,41 @@ mod tests {
     }
 
     #[test]
+    fn merges_multi_page_pdfs_with_nested_page_trees_and_compressed_streams() {
+        let directory = TestDirectory::new();
+        let first = directory.path("browser-print-a.pdf");
+        let second = directory.path("browser-print-b.pdf");
+        let output = directory.path("browser-print-merged.pdf");
+        let first_markers: [&[u8]; 2] = [b"FIRST-A ", b"FIRST-B "];
+        let second_markers: [&[u8]; 3] = [b"SECOND-A ", b"SECOND-B ", b"SECOND-C "];
+        create_nested_page_tree_pdf(&first, &first_markers);
+        create_nested_page_tree_pdf(&second, &second_markers);
+
+        let result = merge_pdfs(vec![first, second], output.clone()).expect("merge should succeed");
+        let merged_document = Document::load(&output).expect("merged PDF should load");
+        let merged_pages = merged_document.get_pages();
+        let expected_markers = first_markers
+            .into_iter()
+            .chain(second_markers)
+            .collect::<Vec<_>>();
+
+        assert!(output.is_file());
+        assert_eq!(result.input_count, 2);
+        assert_eq!(result.page_count, 5);
+        assert_eq!(merged_pages.len(), 5);
+        assert_eq!(merged_document.version, "1.7");
+
+        for (index, marker) in expected_markers.into_iter().enumerate() {
+            assert_eq!(
+                merged_document
+                    .get_page_content(merged_pages[&((index + 1) as u32)])
+                    .expect("merged page content should load"),
+                marker.repeat(64)
+            );
+        }
+    }
+
+    #[test]
     fn rejects_a_single_input_pdf() {
         let directory = TestDirectory::new();
         let input = directory.path("input.pdf");
@@ -666,6 +714,72 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error, PdfToolError::InputNotFound);
+    }
+
+    #[test]
+    fn rejects_a_missing_output_directory() {
+        let directory = TestDirectory::new();
+        let first = directory.path("first.pdf");
+        let second = directory.path("second.pdf");
+        create_single_page_pdf(&first);
+        create_single_page_pdf(&second);
+
+        let error = merge_pdfs(
+            vec![first, second],
+            directory.path("missing-output").join("merged.pdf"),
+        )
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::OutputDirectoryNotFound);
+    }
+
+    #[test]
+    fn rejects_an_output_path_that_matches_an_input() {
+        let directory = TestDirectory::new();
+        let first = directory.path("first.pdf");
+        let second = directory.path("second.pdf");
+        create_single_page_pdf(&first);
+        create_single_page_pdf(&second);
+
+        let error = merge_pdfs(vec![first.clone(), second], first).unwrap_err();
+
+        assert_eq!(error, PdfToolError::OutputConflictsWithInput);
+    }
+
+    #[test]
+    fn rejects_a_corrupted_input_pdf() {
+        let directory = TestDirectory::new();
+        let corrupted = directory.path("corrupted.pdf");
+        let valid = directory.path("valid.pdf");
+        fs::write(&corrupted, b"%PDF-1.7\ncorrupted input")
+            .expect("corrupted fixture should be written");
+        create_single_page_pdf(&valid);
+
+        let error = merge_pdfs(vec![corrupted, valid], directory.path("merged.pdf")).unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidPdf);
+    }
+
+    #[test]
+    fn rejects_an_encrypted_input_pdf() {
+        let directory = TestDirectory::new();
+        let encrypted = directory.path("encrypted.pdf");
+        let valid = directory.path("valid.pdf");
+        create_single_page_pdf(&encrypted);
+        create_single_page_pdf(&valid);
+
+        let mut encrypted_document = Document::load(&encrypted).expect("fixture should load");
+        let encryption_id = encrypted_document.add_object(dictionary! {
+            "Filter" => "Standard",
+        });
+        encrypted_document.trailer.set("Encrypt", encryption_id);
+        encrypted_document
+            .save(&encrypted)
+            .expect("encrypted marker should be saved");
+
+        let error = merge_pdfs(vec![encrypted, valid], directory.path("merged.pdf")).unwrap_err();
+
+        assert_eq!(error, PdfToolError::EncryptedPdfUnsupported);
     }
 
     #[test]
@@ -1517,6 +1631,63 @@ mod tests {
         let catalog_id = document.add_object(dictionary! {
             "Type" => "Catalog",
             "Pages" => pages_id,
+        });
+        document.trailer.set("Root", catalog_id);
+        document.save(path).expect("test PDF should be saved");
+    }
+
+    fn create_nested_page_tree_pdf(path: &Path, page_markers: &[&[u8]]) {
+        assert!(!page_markers.is_empty());
+        let mut document = Document::with_version("1.7");
+        let root_pages_id = document.new_object_id();
+        let nested_pages_id = document.new_object_id();
+        let font_id = document.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+        let resources_id = document.add_object(dictionary! {
+            "Font" => dictionary! {
+                "F1" => font_id,
+            },
+        });
+        let mut kids = Vec::with_capacity(page_markers.len());
+
+        for marker in page_markers {
+            let mut content = Stream::new(dictionary! {}, marker.repeat(64));
+            content.compress().expect("content stream should compress");
+            let content_id = document.add_object(content);
+            let page_id = document.add_object(dictionary! {
+                "Type" => "Page",
+                "Parent" => nested_pages_id,
+                "Contents" => content_id,
+            });
+            kids.push(Object::Reference(page_id));
+        }
+
+        document.objects.insert(
+            nested_pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Parent" => root_pages_id,
+                "Kids" => kids,
+                "Count" => page_markers.len() as i64,
+                "CropBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
+            }),
+        );
+        document.objects.insert(
+            root_pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(nested_pages_id)],
+                "Count" => page_markers.len() as i64,
+                "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
+                "Resources" => resources_id,
+            }),
+        );
+        let catalog_id = document.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => root_pages_id,
         });
         document.trailer.set("Root", catalog_id);
         document.save(path).expect("test PDF should be saved");
