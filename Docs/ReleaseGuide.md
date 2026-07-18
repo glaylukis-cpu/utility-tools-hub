@@ -158,3 +158,12 @@ git push origin vX.Y.Z
 - Merge, split, and extract remain available through the local Rust PDF page-operation core without a Python sidecar.
 - Delete pages is not redaction; reorder, watermark, page numbers, OCR, redaction, and direct text editing remain unimplemented.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.3.3 Release Note
+
+- v0.3.3 is the PDF tools QA and UX polish release.
+- PdfToolsPanel descriptions, input examples, disabled reasons, and loading, success, and error messages are clearer.
+- Delete pages is whole-page deletion, not redaction, and Planned and Research PDF features are separated more clearly.
+- `Docs/PdfToolsQaChecklist.md` provides repeatable real-file QA steps.
+- No new PDF processing feature was added, the Rust PDF core and bridge were not changed, and no Python sidecar is used.
+- Updater verification will be done after the signed build and GitHub Release are created.

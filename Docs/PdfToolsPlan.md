@@ -74,4 +74,4 @@ v0.3.2 ships the local Rotate pages and Delete pages MVPs alongside Merge, Split
 
 ## v0.3.3 QA / UX polish
 
-v0.3.3 focuses on clearer guidance, validation reasons, operation status, safety wording, and repeatable real-file QA for the existing Merge, Split, Extract, Rotate, and Delete MVPs. No new PDF processing capability or Rust PDF logic is added.
+v0.3.3 focuses on clearer guidance, validation reasons, operation status, safety wording, and repeatable real-file QA for the existing Merge, Split, Extract, Rotate, and Delete MVPs. No new PDF processing capability or Rust PDF logic is added; the Rust bridge is unchanged, no Python sidecar is used, and updater verification will follow the signed build and GitHub Release.

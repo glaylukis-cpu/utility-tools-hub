@@ -3,17 +3,19 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.3.2](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.3.2)
+- **Latest release:** [v0.3.3](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.3.3)
 
 ## Current Status
 
-- Latest release: v0.3.2
+- Latest release: v0.3.3
 - Windows desktop app
 - Excel to HTML Converter is available
 - The Tools catalog is organized into Converters, Editors, and Planned / Pro tools
 - Converter Tools stacks File, Data, and Text converter sections, with each active editor shown inside its category
 - Text Case Converter navigation and Excel → HTML Converter navigation are maintained
 - PDF Tools provides local Merge PDFs, Split PDF, Extract pages, Rotate pages, and Delete pages MVPs with success, error, and loading states
+- v0.3.3 improves PDF operation guidance, input examples, disabled reasons, status messages, and Planned / Research labeling, and adds a real-file QA checklist
+- Delete pages is whole-page deletion, not redaction; v0.3.3 adds no new PDF processing feature and does not change the Rust PDF core or bridge
 - PDF page operations use the local Rust core without a Python sidecar or external communication
 - Reorder, watermark, and page numbers remain planned; direct PDF text editing, OCR, and redaction are not implemented
 - Delete pages removes whole pages and is not redaction
