@@ -67,3 +67,7 @@ Reorder, watermark, page numbers, OCR, redaction, and direct PDF text editing ar
 PdfToolsPanel can now call the Rust PDF rotate and delete bridges through the shared execution layer. Rotate pages and Delete pages are UI-connected MVPs alongside Merge, Split, and Extract. Processing stays local and no Python sidecar is used.
 
 Reorder, watermark, page numbers, OCR, redaction, and direct PDF text editing are not implemented.
+
+## v0.3.2 PDF rotate / delete MVP release
+
+v0.3.2 ships the local Rotate pages and Delete pages MVPs alongside Merge, Split, and Extract. Delete removes whole pages and is not redaction; reorder, watermark, page numbers, OCR, redaction, and direct text editing remain unimplemented. Updater verification will follow the signed build and GitHub Release.

@@ -150,3 +150,11 @@ git push origin vX.Y.Z
 - PdfToolsPanel can split one PDF into separate page PDFs and extract selected pages into a new PDF while Merge PDFs remains available.
 - PDF processing stays local without a Python sidecar; rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.3.2 Release Note
+
+- v0.3.2 is the PDF rotate / delete MVP release.
+- PdfToolsPanel can rotate selected pages by 90, 180, or 270 degrees and delete selected whole pages into a new PDF.
+- Merge, split, and extract remain available through the local Rust PDF page-operation core without a Python sidecar.
+- Delete pages is not redaction; reorder, watermark, page numbers, OCR, redaction, and direct text editing remain unimplemented.
+- Updater verification will be done after the signed build and GitHub Release are created.
