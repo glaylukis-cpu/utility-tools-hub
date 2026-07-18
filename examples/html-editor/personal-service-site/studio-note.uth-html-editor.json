@@ -1,0 +1,157 @@
+{
+  "projectVersion": 1,
+  "toolName": "Utility Tools Hub HTML Editor",
+  "savedAt": "2026-07-18T00:00:00.000Z",
+  "pages": [
+    {
+      "id": 1,
+      "title": "Studio Note | 個人事業のWeb・事務サポート",
+      "slug": "index",
+      "blocks": [
+        {
+          "id": 1,
+          "type": "paragraph",
+          "text": "個人事業・小さなお店のためのオンラインサポート",
+          "style": { "align": "center", "backgroundColor": "#eef2ff", "textColor": "#4338ca", "padding": 12, "width": "full", "fontSize": 14, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 2,
+          "type": "heading",
+          "text": "Studio Note",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#3730a3", "padding": 20, "width": "full", "fontSize": 42, "fontWeight": "700", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 3,
+          "type": "heading",
+          "text": "伝えたいことを整理して、\n続けられる形に整えます。",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#1e293b", "padding": 12, "width": "full", "fontSize": 30, "fontWeight": "700", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 4,
+          "type": "paragraph",
+          "text": "Webページの更新、資料づくり、日々の事務作業。\nひとりでは後回しになりやすい仕事を、必要な分だけお手伝いする架空の個人サービスです。",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#475569", "padding": 16, "width": "full", "fontSize": 17, "fontWeight": "normal", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 5,
+          "type": "button",
+          "text": "サービスについて相談する",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#1e293b", "padding": 18, "width": "full", "fontSize": 16, "fontWeight": "700", "underline": false },
+          "link": { "type": "custom", "pageId": null, "customUrl": "#" }
+        },
+        {
+          "id": 6,
+          "type": "divider",
+          "text": "",
+          "style": { "align": "left", "backgroundColor": "#ffffff", "textColor": "#1e293b", "padding": 16, "width": "full", "fontSize": 16, "fontWeight": "normal", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 7,
+          "type": "heading",
+          "text": "こんなお悩みはありませんか？",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#1e293b", "padding": 20, "width": "full", "fontSize": 28, "fontWeight": "700", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 8,
+          "type": "paragraph",
+          "text": "Web更新が止まりがち\n\nお知らせやサービス内容を更新したいのに、日々の仕事で後回しになっている。",
+          "style": { "align": "left", "backgroundColor": "#f8fafc", "textColor": "#334155", "padding": 24, "width": "third", "fontSize": 15, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 9,
+          "type": "paragraph",
+          "text": "資料がまとまらない\n\n伝えたい内容はあるけれど、文章や構成を整理するところで手が止まってしまう。",
+          "style": { "align": "left", "backgroundColor": "#f8fafc", "textColor": "#334155", "padding": 24, "width": "third", "fontSize": 15, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 10,
+          "type": "paragraph",
+          "text": "細かな作業に追われる\n\n入力や整形などの小さな作業が積み重なり、本来の仕事に集中しにくい。",
+          "style": { "align": "left", "backgroundColor": "#f8fafc", "textColor": "#334155", "padding": 24, "width": "third", "fontSize": 15, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 11,
+          "type": "heading",
+          "text": "提供できること",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#1e293b", "padding": 24, "width": "full", "fontSize": 28, "fontWeight": "700", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 12,
+          "type": "paragraph",
+          "text": "Web・情報整理サポート\n\n・簡単なページ更新\n・掲載文章の整理\n・お知らせやFAQの下書き\n・HTMLデータの整形",
+          "style": { "align": "left", "backgroundColor": "#eef2ff", "textColor": "#312e81", "padding": 28, "width": "half", "fontSize": 16, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 13,
+          "type": "paragraph",
+          "text": "事務・資料サポート\n\n・表や文章の整形\n・定型作業の手順整理\n・資料のたたき台作成\n・小さな業務改善の相談",
+          "style": { "align": "left", "backgroundColor": "#faf5ff", "textColor": "#581c87", "padding": 28, "width": "half", "fontSize": 16, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 14,
+          "type": "heading",
+          "text": "ご依頼の流れ",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#1e293b", "padding": 24, "width": "full", "fontSize": 28, "fontWeight": "700", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 15,
+          "type": "paragraph",
+          "text": "01　相談\n困っていることと、希望する期限を伺います。",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#334155", "padding": 22, "width": "third", "fontSize": 15, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 16,
+          "type": "paragraph",
+          "text": "02　提案\n作業範囲、進め方、スケジュールをご案内します。",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#334155", "padding": 22, "width": "third", "fontSize": 15, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 17,
+          "type": "paragraph",
+          "text": "03　作業・確認\n途中経過を共有しながら、確認後に納品します。",
+          "style": { "align": "center", "backgroundColor": "#ffffff", "textColor": "#334155", "padding": 22, "width": "third", "fontSize": 15, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 18,
+          "type": "paragraph",
+          "text": "まずは、小さな困りごとから。\n\n「何を頼めるか分からない」という段階でも大丈夫です。\n現在の状況を伺い、無理のない進め方を一緒に考えます。",
+          "style": { "align": "center", "backgroundColor": "#312e81", "textColor": "#ffffff", "padding": 36, "width": "full", "fontSize": 18, "fontWeight": "500", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        },
+        {
+          "id": 19,
+          "type": "button",
+          "text": "相談内容をまとめてみる",
+          "style": { "align": "center", "backgroundColor": "#312e81", "textColor": "#ffffff", "padding": 22, "width": "full", "fontSize": 16, "fontWeight": "700", "underline": false },
+          "link": { "type": "custom", "pageId": null, "customUrl": "#" }
+        },
+        {
+          "id": 20,
+          "type": "paragraph",
+          "text": "Studio Note\n架空の個人サービス紹介サイト作成例",
+          "style": { "align": "center", "backgroundColor": "#0f172a", "textColor": "#cbd5e1", "padding": 24, "width": "full", "fontSize": 13, "fontWeight": "normal", "underline": false },
+          "link": { "type": "none", "pageId": null, "customUrl": "" }
+        }
+      ]
+    }
+  ],
+  "currentPageId": 1,
+  "selectedBlockId": 1,
+  "canvasViewport": "desktop"
+}
