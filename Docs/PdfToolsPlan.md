@@ -61,3 +61,9 @@ Reorder, OCR, redaction, watermark, page numbers, and direct PDF text editing ar
 The PDF rotate and delete command bridges now connect the Rust cores to the app-side ToolRegistry, JobManager, and `execute_tool` execution layer. React UI connection is planned next. Merge, split, and extract remain available, and no Python sidecar is used.
 
 Reorder, watermark, page numbers, OCR, redaction, and direct PDF text editing are not implemented.
+
+## v0.3.2 rotate / delete UI connection
+
+PdfToolsPanel can now call the Rust PDF rotate and delete bridges through the shared execution layer. Rotate pages and Delete pages are UI-connected MVPs alongside Merge, Split, and Extract. Processing stays local and no Python sidecar is used.
+
+Reorder, watermark, page numbers, OCR, redaction, and direct PDF text editing are not implemented.

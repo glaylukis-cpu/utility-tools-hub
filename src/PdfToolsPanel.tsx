@@ -41,11 +41,27 @@ type PdfExtractResult = {
   page_count: number;
 };
 
+type PdfRotateResult = {
+  input_path: string;
+  output_path: string;
+  rotated_pages: number[];
+  angle_degrees: number;
+  page_count: number;
+};
+
+type PdfDeleteResult = {
+  input_path: string;
+  output_path: string;
+  deleted_pages: number[];
+  original_page_count: number;
+  remaining_page_count: number;
+};
+
 type PageParseResult =
   | { pages: number[]; error: null }
   | { pages: null; error: string };
 
-const plannedPageTools = ["Delete pages", "Rotate pages", "Reorder pages"] as const;
+const plannedPageTools = ["Reorder pages"] as const;
 
 const futureAdvancedTools = [
   "Add page numbers",
@@ -61,6 +77,8 @@ const futureAdvancedTools = [
 const PDF_MERGE_TOOL_ID = "pdf_merge";
 const PDF_SPLIT_TOOL_ID = "pdf_split";
 const PDF_EXTRACT_TOOL_ID = "pdf_extract";
+const PDF_ROTATE_TOOL_ID = "pdf_rotate";
+const PDF_DELETE_TOOL_ID = "pdf_delete";
 const POLL_INTERVAL_MS = 500;
 const MAX_EXPANDED_PAGES = 10_000;
 
@@ -78,6 +96,14 @@ function splitFailureMessage(): string {
 
 function extractFailureMessage(): string {
   return "Extract failed. Check the selected pages, input PDF, and output location.";
+}
+
+function rotateFailureMessage(): string {
+  return "Rotate failed. Check the selected pages, input PDF, angle, and output location.";
+}
+
+function deleteFailureMessage(): string {
+  return "Delete failed. Check the selected pages, input PDF, and output location.";
 }
 
 function parsePageSelection(value: string): PageParseResult {
@@ -147,6 +173,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const mergeFileInputRef = useRef<HTMLInputElement>(null);
   const splitFileInputRef = useRef<HTMLInputElement>(null);
   const extractFileInputRef = useRef<HTMLInputElement>(null);
+  const rotateFileInputRef = useRef<HTMLInputElement>(null);
+  const deleteFileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
   const isRunningRef = useRef(false);
@@ -174,8 +202,27 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [extractFeedback, setExtractFeedback] = useState<string | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
 
+  const [rotateInput, setRotateInput] = useState<SelectedPdf | null>(null);
+  const [rotatePagesInput, setRotatePagesInput] = useState("");
+  const [rotateAngle, setRotateAngle] = useState<90 | 180 | 270>(90);
+  const [rotateOutputPath, setRotateOutputPath] = useState<string | null>(null);
+  const [rotateResult, setRotateResult] = useState<PdfRotateResult | null>(null);
+  const [isRotating, setIsRotating] = useState(false);
+  const [rotateFeedback, setRotateFeedback] = useState<string | null>(null);
+  const [rotateError, setRotateError] = useState<string | null>(null);
+
+  const [deleteInput, setDeleteInput] = useState<SelectedPdf | null>(null);
+  const [deletePagesInput, setDeletePagesInput] = useState("");
+  const [deleteOutputPath, setDeleteOutputPath] = useState<string | null>(null);
+  const [deleteResult, setDeleteResult] = useState<PdfDeleteResult | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const nativeDialogAvailable = isTauri();
   const parsedExtractPages = parsePageSelection(extractPagesInput);
+  const parsedRotatePages = parsePageSelection(rotatePagesInput);
+  const parsedDeletePages = parsePageSelection(deletePagesInput);
 
   const stopPolling = () => {
     if (pollTimerRef.current !== null) {
@@ -640,9 +687,219 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     );
   };
 
+  const selectRotateInput = async () => {
+    if (isRunningRef.current) return;
+    setRotateFeedback(null);
+    setRotateError(null);
+    setRotateResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF to rotate pages in",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        setRotateInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
+        setRotateFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        return;
+      } catch {
+        setRotateError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    rotateFileInputRef.current?.click();
+  };
+
+  const selectBrowserRotateInput = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setRotateFeedback(null);
+    setRotateResult(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setRotateInput(null);
+      setRotateError("Please select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setRotateInput({ name: file.name });
+    setRotateError("Desktop file path selection is required to rotate pages.");
+    input.value = "";
+  };
+
+  const selectRotateOutputPdf = async () => {
+    if (!nativeDialogAvailable || isRunningRef.current) return;
+    setRotateFeedback(null);
+    setRotateError(null);
+    setRotateResult(null);
+
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await save({
+        defaultPath: "rotated-pages.pdf",
+        title: "Select rotated output PDF",
+        filters: [{ name: "PDF document", extensions: ["pdf"] }],
+      });
+      if (!selectedPath) return;
+      if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+        setRotateError("The output file must use the .pdf extension.");
+        return;
+      }
+
+      setRotateOutputPath(selectedPath);
+      setRotateFeedback(`Output selected: ${fileNameFromPath(selectedPath)}`);
+    } catch {
+      setRotateError("The rotated output PDF could not be selected.");
+    }
+  };
+
+  const rotatePdfPages = async () => {
+    if (isRunningRef.current) return;
+    if (!rotateInput?.path || !rotateOutputPath || !parsedRotatePages.pages) {
+      setRotateError(
+        parsedRotatePages.error ?? "Select a desktop PDF, valid pages, angle, and output PDF first.",
+      );
+      return;
+    }
+
+    setRotateResult(null);
+    setRotateFeedback(null);
+    setRotateError(null);
+
+    await executeAdditionalPdfTool<PdfRotateResult>(
+      PDF_ROTATE_TOOL_ID,
+      {
+        input_path: rotateInput.path,
+        output_path: rotateOutputPath,
+        pages: parsedRotatePages.pages,
+        angle_degrees: rotateAngle,
+      },
+      setIsRotating,
+      (result) => {
+        setRotateResult(result);
+        setRotateFeedback("Rotate completed");
+        setRotateError(null);
+      },
+      () => {
+        setRotateResult(null);
+        setRotateFeedback(null);
+        setRotateError(rotateFailureMessage());
+      },
+    );
+  };
+
+  const selectDeleteInput = async () => {
+    if (isRunningRef.current) return;
+    setDeleteFeedback(null);
+    setDeleteError(null);
+    setDeleteResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF to delete pages from",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        setDeleteInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
+        setDeleteFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        return;
+      } catch {
+        setDeleteError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    deleteFileInputRef.current?.click();
+  };
+
+  const selectBrowserDeleteInput = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setDeleteFeedback(null);
+    setDeleteResult(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setDeleteInput(null);
+      setDeleteError("Please select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setDeleteInput({ name: file.name });
+    setDeleteError("Desktop file path selection is required to delete pages.");
+    input.value = "";
+  };
+
+  const selectDeleteOutputPdf = async () => {
+    if (!nativeDialogAvailable || isRunningRef.current) return;
+    setDeleteFeedback(null);
+    setDeleteError(null);
+    setDeleteResult(null);
+
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await save({
+        defaultPath: "deleted-pages.pdf",
+        title: "Select deleted-pages output PDF",
+        filters: [{ name: "PDF document", extensions: ["pdf"] }],
+      });
+      if (!selectedPath) return;
+      if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+        setDeleteError("The output file must use the .pdf extension.");
+        return;
+      }
+
+      setDeleteOutputPath(selectedPath);
+      setDeleteFeedback(`Output selected: ${fileNameFromPath(selectedPath)}`);
+    } catch {
+      setDeleteError("The deleted-pages output PDF could not be selected.");
+    }
+  };
+
+  const deletePdfPages = async () => {
+    if (isRunningRef.current) return;
+    if (!deleteInput?.path || !deleteOutputPath || !parsedDeletePages.pages) {
+      setDeleteError(
+        parsedDeletePages.error ?? "Select a desktop PDF, valid pages, and an output PDF first.",
+      );
+      return;
+    }
+
+    setDeleteResult(null);
+    setDeleteFeedback(null);
+    setDeleteError(null);
+
+    await executeAdditionalPdfTool<PdfDeleteResult>(
+      PDF_DELETE_TOOL_ID,
+      {
+        input_path: deleteInput.path,
+        output_path: deleteOutputPath,
+        pages: parsedDeletePages.pages,
+      },
+      setIsDeleting,
+      (result) => {
+        setDeleteResult(result);
+        setDeleteFeedback("Delete completed");
+        setDeleteError(null);
+      },
+      () => {
+        setDeleteResult(null);
+        setDeleteFeedback(null);
+        setDeleteError(deleteFailureMessage());
+      },
+    );
+  };
+
   const hasDesktopInputPaths =
     selectedPdfs.length > 0 && selectedPdfs.every((pdf) => typeof pdf.path === "string");
-  const isAnyOperationRunning = isMerging || isSplitting || isExtracting;
+  const isAnyOperationRunning =
+    isMerging || isSplitting || isExtracting || isRotating || isDeleting;
   const hasValidSplitPrefix =
     splitOutputPrefix.trim().length > 0 && !/[\\/]/.test(splitOutputPrefix.trim());
   const canMerge =
@@ -663,6 +920,18 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     extractOutputPath !== null &&
     parsedExtractPages.pages !== null &&
     !isAnyOperationRunning;
+  const canRotate =
+    nativeDialogAvailable &&
+    typeof rotateInput?.path === "string" &&
+    rotateOutputPath !== null &&
+    parsedRotatePages.pages !== null &&
+    !isAnyOperationRunning;
+  const canDelete =
+    nativeDialogAvailable &&
+    typeof deleteInput?.path === "string" &&
+    deleteOutputPath !== null &&
+    parsedDeletePages.pages !== null &&
+    !isAnyOperationRunning;
 
   return (
     <div className="pdf-tools-page">
@@ -675,12 +944,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h1>PDF Tools</h1>
           <p>Local PDF page-operation MVPs</p>
         </div>
-        <span className="pdf-tools-planned-badge">Merge · Split · Extract MVP</span>
+        <span className="pdf-tools-planned-badge">Merge · Split · Extract · Rotate · Delete MVP</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>Merge, Split, and Extract are available as local MVPs.</strong>
-        <span>Other PDF page tools are planned. Selected files stay on this device.</span>
+        <strong>Merge, Split, Extract, Rotate, and Delete are available as local MVPs.</strong>
+        <span>Reorder and advanced PDF tools remain planned. Selected files stay on this device.</span>
       </div>
 
       <div className="pdf-tools-workflow-grid">
@@ -965,6 +1234,185 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+
+        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-rotate-title">
+          <div className="pdf-tools-section-heading">
+            <span>Available MVP</span>
+            <h2 id="pdf-rotate-title">Rotate pages</h2>
+            <p>Rotate selected pages in one PDF and save a new PDF.</p>
+          </div>
+
+          <div className="pdf-tools-button-row">
+            <button type="button" className="btn btn-outline" onClick={selectRotateInput} disabled={isAnyOperationRunning}>
+              Select input PDF
+            </button>
+            <button
+              type="button"
+              className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
+              onClick={selectRotateOutputPdf}
+              disabled={!nativeDialogAvailable || isAnyOperationRunning}
+            >
+              {nativeDialogAvailable ? "Select output PDF" : "Output PDF (Desktop only)"}
+            </button>
+          </div>
+          <input
+            ref={rotateFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) =>
+              selectBrowserRotateInput(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+
+          <dl className="pdf-tools-selection-details">
+            <div><dt>Input PDF</dt><dd>{rotateInput?.name ?? "Not selected"}</dd></div>
+            <div>
+              <dt>Output PDF</dt>
+              <dd className="pdf-tools-path" title={rotateOutputPath ?? undefined}>
+                {rotateOutputPath ? fileNameFromPath(rotateOutputPath) : "Not selected"}
+              </dd>
+            </div>
+          </dl>
+
+          <label className="pdf-tools-field">
+            <span>Pages</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={rotatePagesInput}
+              onChange={(event) => {
+                setRotatePagesInput(event.currentTarget.value);
+                setRotateResult(null);
+                setRotateFeedback(null);
+                setRotateError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="1,3,5 or 1-3,5"
+            />
+          </label>
+          {rotatePagesInput.trim() && parsedRotatePages.error && (
+            <p className="pdf-tools-field-error">{parsedRotatePages.error}</p>
+          )}
+
+          <label className="pdf-tools-field">
+            <span>Angle</span>
+            <select
+              value={rotateAngle}
+              onChange={(event) => setRotateAngle(Number(event.currentTarget.value) as 90 | 180 | 270)}
+              disabled={isAnyOperationRunning}
+            >
+              <option value={90}>90°</option>
+              <option value={180}>180°</option>
+              <option value={270}>270°</option>
+            </select>
+          </label>
+
+          <button type="button" className="btn btn-primary" onClick={rotatePdfPages} disabled={!canRotate}>
+            {isRotating ? "Rotating..." : "Rotate pages"}
+          </button>
+          {!canRotate && !isRotating && (
+            <p className="pdf-tools-operation-requirements">
+              {nativeDialogAvailable
+                ? "Select a desktop PDF, valid pages, angle, and an output PDF."
+                : "Desktop file path selection is required."}
+            </p>
+          )}
+
+          {isRotating && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Rotating...</div>}
+          {rotateError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{rotateError}</div>}
+          {!rotateError && !isRotating && rotateFeedback && (
+            <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
+              <strong>{rotateFeedback}</strong>
+              {rotateResult && (
+                <span>Pages {rotateResult.rotated_pages.join(", ")} · {rotateResult.angle_degrees}° · {rotateResult.page_count} total pages · Output: {fileNameFromPath(rotateResult.output_path)}</span>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-delete-title">
+          <div className="pdf-tools-section-heading">
+            <span>Available MVP</span>
+            <h2 id="pdf-delete-title">Delete pages</h2>
+            <p>Remove whole pages from one PDF and save a new PDF. This is not redaction.</p>
+          </div>
+
+          <div className="pdf-tools-button-row">
+            <button type="button" className="btn btn-outline" onClick={selectDeleteInput} disabled={isAnyOperationRunning}>
+              Select input PDF
+            </button>
+            <button
+              type="button"
+              className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
+              onClick={selectDeleteOutputPdf}
+              disabled={!nativeDialogAvailable || isAnyOperationRunning}
+            >
+              {nativeDialogAvailable ? "Select output PDF" : "Output PDF (Desktop only)"}
+            </button>
+          </div>
+          <input
+            ref={deleteFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) =>
+              selectBrowserDeleteInput(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+
+          <dl className="pdf-tools-selection-details">
+            <div><dt>Input PDF</dt><dd>{deleteInput?.name ?? "Not selected"}</dd></div>
+            <div>
+              <dt>Output PDF</dt>
+              <dd className="pdf-tools-path" title={deleteOutputPath ?? undefined}>
+                {deleteOutputPath ? fileNameFromPath(deleteOutputPath) : "Not selected"}
+              </dd>
+            </div>
+          </dl>
+
+          <label className="pdf-tools-field">
+            <span>Pages</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={deletePagesInput}
+              onChange={(event) => {
+                setDeletePagesInput(event.currentTarget.value);
+                setDeleteResult(null);
+                setDeleteFeedback(null);
+                setDeleteError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="2,4 or 2-4"
+            />
+          </label>
+          {deletePagesInput.trim() && parsedDeletePages.error && (
+            <p className="pdf-tools-field-error">{parsedDeletePages.error}</p>
+          )}
+
+          <button type="button" className="btn btn-primary" onClick={deletePdfPages} disabled={!canDelete}>
+            {isDeleting ? "Deleting..." : "Delete pages"}
+          </button>
+          {!canDelete && !isDeleting && (
+            <p className="pdf-tools-operation-requirements">
+              {nativeDialogAvailable
+                ? "Select a desktop PDF, valid pages, and an output PDF."
+                : "Desktop file path selection is required."}
+            </p>
+          )}
+
+          {isDeleting && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Deleting...</div>}
+          {deleteError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{deleteError}</div>}
+          {!deleteError && !isDeleting && deleteFeedback && (
+            <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
+              <strong>{deleteFeedback}</strong>
+              {deleteResult && (
+                <span>Pages {deleteResult.deleted_pages.join(", ")} deleted · {deleteResult.original_page_count} original pages · {deleteResult.remaining_page_count} remaining · Output: {fileNameFromPath(deleteResult.output_path)}</span>
+              )}
+            </div>
+          )}
+        </section>
       </div>
 
       <section className="pdf-tools-section" aria-labelledby="planned-pdf-tools-title">
@@ -1001,9 +1449,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h2 id="pdf-safety-title">Safety notes</h2>
         </div>
         <ul>
-          <li>Merge, Split, and Extract are available as page-operation MVPs.</li>
-          <li>Rotate, delete, and reorder are planned.</li>
+          <li>Merge, Split, Extract, Rotate, and Delete are available as page-operation MVPs.</li>
+          <li>Reorder, watermark, page numbers, OCR, and redaction are planned or under research.</li>
           <li>Direct text editing, OCR, and redaction are not implemented.</li>
+          <li>Delete pages removes whole pages. It is not redaction.</li>
           <li>Redaction must remove underlying content, not only cover it visually.</li>
           <li>PDF files stay on this device and are processed locally.</li>
         </ul>
