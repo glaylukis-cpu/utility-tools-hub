@@ -49,3 +49,9 @@ v0.3.0 connects multiple PDF selection, output PDF selection, and loading, succe
 ## v0.3.1 PDF split / extract MVP
 
 PdfToolsPanel now connects to the existing PDF split and extract command bridges through ToolRegistry, JobManager, and `execute_tool`, making Split PDF and Extract pages UI-connected MVPs alongside Merge PDFs. Processing stays local without a Python sidecar; rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented. Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.3.2 rotate / delete core preparation
+
+The Rust rotate and page-delete cores have been added in preparation for v0.3.2. Rotate and delete are currently Rust-core-only; their command bridges and UI connections are planned next. Merge, split, and extract remain available, and no Python sidecar is used.
+
+Reorder, OCR, redaction, watermark, page numbers, and direct PDF text editing are not implemented.

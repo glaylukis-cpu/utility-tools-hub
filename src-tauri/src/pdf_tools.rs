@@ -27,6 +27,24 @@ pub struct PdfExtractResult {
     pub page_count: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PdfRotateResult {
+    pub output_path: String,
+    pub input_path: String,
+    pub rotated_pages: Vec<usize>,
+    pub angle_degrees: i32,
+    pub page_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PdfDeleteResult {
+    pub output_path: String,
+    pub input_path: String,
+    pub deleted_pages: Vec<usize>,
+    pub original_page_count: usize,
+    pub remaining_page_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PdfToolError {
     NotEnoughInputs,
@@ -40,6 +58,8 @@ pub enum PdfToolError {
     InvalidPageNumber,
     PageOutOfRange,
     DuplicatePage,
+    InvalidRotationAngle,
+    CannotDeleteAllPages,
     EncryptedPdfUnsupported,
     InvalidPdf,
     SaveFailed,
@@ -61,6 +81,8 @@ impl fmt::Display for PdfToolError {
             Self::InvalidPageNumber => "page numbers must be one or greater",
             Self::PageOutOfRange => "a selected page is outside the input PDF page range",
             Self::DuplicatePage => "duplicate page numbers are not supported",
+            Self::InvalidRotationAngle => "the rotation angle must be 90, 180, or 270 degrees",
+            Self::CannotDeleteAllPages => "at least one page must remain after deletion",
             Self::EncryptedPdfUnsupported => "encrypted PDF files are not supported",
             Self::InvalidPdf => "an input file is not a supported PDF document",
             Self::SaveFailed => "the output PDF could not be saved",
@@ -223,6 +245,98 @@ pub fn extract_pdf_pages(
         input_path: input_path.to_string_lossy().into_owned(),
         selected_pages: pages,
         page_count,
+    })
+}
+
+/// Rotates selected one-based page numbers by the supplied clockwise angle.
+/// Existing page rotation is preserved by adding the new angle modulo 360.
+/// An existing output file is overwritten.
+pub fn rotate_pdf_pages(
+    input_path: PathBuf,
+    output_path: PathBuf,
+    pages: Vec<usize>,
+    angle_degrees: i32,
+) -> Result<PdfRotateResult, PdfToolError> {
+    validate_output_path(&output_path)?;
+    if input_path == output_path {
+        return Err(PdfToolError::OutputConflictsWithInput);
+    }
+    if !matches!(angle_degrees, 90 | 180 | 270) {
+        return Err(PdfToolError::InvalidRotationAngle);
+    }
+
+    let mut document = load_pdf_document(&input_path)?;
+    let available_pages = document.get_pages();
+    let selected_page_ids = validate_selected_pages(&pages, &available_pages)?;
+    let page_count = available_pages.len();
+
+    for page_id in selected_page_ids {
+        materialize_inherited_page_attributes(&mut document, page_id)?;
+        let page = document
+            .objects
+            .get_mut(&page_id)
+            .ok_or(PdfToolError::InvalidPdf)?;
+        let page_dictionary = page.as_dict_mut().map_err(|_| PdfToolError::InvalidPdf)?;
+        let existing_rotation = match page_dictionary.get(b"Rotate") {
+            Ok(Object::Integer(value)) => *value,
+            Err(_) => 0,
+            Ok(_) => return Err(PdfToolError::InvalidPdf),
+        };
+        let rotation = (existing_rotation + i64::from(angle_degrees)).rem_euclid(360);
+        page_dictionary.set("Rotate", rotation);
+    }
+
+    document
+        .save(&output_path)
+        .map_err(|_| PdfToolError::SaveFailed)?;
+
+    Ok(PdfRotateResult {
+        output_path: output_path.to_string_lossy().into_owned(),
+        input_path: input_path.to_string_lossy().into_owned(),
+        rotated_pages: pages,
+        angle_degrees,
+        page_count,
+    })
+}
+
+/// Deletes selected one-based page numbers while preserving remaining page order.
+/// An existing output file is overwritten.
+pub fn delete_pdf_pages(
+    input_path: PathBuf,
+    output_path: PathBuf,
+    pages: Vec<usize>,
+) -> Result<PdfDeleteResult, PdfToolError> {
+    validate_output_path(&output_path)?;
+    if input_path == output_path {
+        return Err(PdfToolError::OutputConflictsWithInput);
+    }
+
+    let document = load_pdf_document(&input_path)?;
+    let available_pages = document.get_pages();
+    let deleted_page_ids = validate_selected_pages(&pages, &available_pages)?
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let original_page_count = available_pages.len();
+    if deleted_page_ids.len() == original_page_count {
+        return Err(PdfToolError::CannotDeleteAllPages);
+    }
+
+    let remaining_page_ids = available_pages
+        .into_values()
+        .filter(|page_id| !deleted_page_ids.contains(page_id))
+        .collect::<Vec<_>>();
+    let remaining_page_count = remaining_page_ids.len();
+    let mut output_document = document_with_selected_pages(document, &remaining_page_ids)?;
+    output_document
+        .save(&output_path)
+        .map_err(|_| PdfToolError::SaveFailed)?;
+
+    Ok(PdfDeleteResult {
+        output_path: output_path.to_string_lossy().into_owned(),
+        input_path: input_path.to_string_lossy().into_owned(),
+        deleted_pages: pages,
+        original_page_count,
+        remaining_page_count,
     })
 }
 
@@ -754,6 +868,236 @@ mod tests {
     }
 
     #[test]
+    fn rotates_selected_pages() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rotate-input.pdf");
+        let output = directory.path("rotated.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q 1 0 0 1 2 2 cm Q", b"q Q"]);
+
+        let result = rotate_pdf_pages(input.clone(), output.clone(), vec![1, 3], 90)
+            .expect("rotation should succeed");
+        let output_document = Document::load(&output).expect("rotated PDF should load");
+
+        assert!(output.is_file());
+        assert_eq!(result.input_path, input.to_string_lossy());
+        assert_eq!(result.output_path, output.to_string_lossy());
+        assert_eq!(result.rotated_pages, vec![1, 3]);
+        assert_eq!(result.angle_degrees, 90);
+        assert_eq!(result.page_count, 3);
+        assert_eq!(page_rotation(&output_document, 1), Some(90));
+        assert_eq!(page_rotation(&output_document, 2), None);
+        assert_eq!(page_rotation(&output_document, 3), Some(90));
+    }
+
+    #[test]
+    fn rotate_adds_to_existing_rotation_and_normalizes() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rotate-existing-input.pdf");
+        let output = directory.path("rotate-existing-output.pdf");
+        create_single_page_pdf(&input);
+
+        let mut input_document = Document::load(&input).expect("input PDF should load");
+        let page_id = input_document.get_pages()[&1];
+        input_document
+            .get_object_mut(page_id)
+            .expect("page should exist")
+            .as_dict_mut()
+            .expect("page should be a dictionary")
+            .set("Rotate", 270_i64);
+        input_document
+            .save(&input)
+            .expect("input PDF with rotation should be saved");
+
+        rotate_pdf_pages(input, output.clone(), vec![1], 180).expect("rotation should succeed");
+        let output_document = Document::load(output).expect("rotated PDF should load");
+
+        assert_eq!(page_rotation(&output_document, 1), Some(90));
+    }
+
+    #[test]
+    fn rotate_rejects_invalid_angle() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rotate-input.pdf");
+        create_single_page_pdf(&input);
+
+        for angle in [0, 45, 360, -90] {
+            let error =
+                rotate_pdf_pages(input.clone(), directory.path("rotated.pdf"), vec![1], angle)
+                    .unwrap_err();
+            assert_eq!(error, PdfToolError::InvalidRotationAngle);
+        }
+    }
+
+    #[test]
+    fn rotate_rejects_invalid_page_selections() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rotate-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+
+        let cases = [
+            (vec![], PdfToolError::EmptyPageSelection),
+            (vec![0], PdfToolError::InvalidPageNumber),
+            (vec![3], PdfToolError::PageOutOfRange),
+            (vec![1, 1], PdfToolError::DuplicatePage),
+        ];
+        for (pages, expected_error) in cases {
+            let error = rotate_pdf_pages(input.clone(), directory.path("rotated.pdf"), pages, 90)
+                .unwrap_err();
+            assert_eq!(error, expected_error);
+        }
+    }
+
+    #[test]
+    fn rotate_rejects_non_pdf_extensions() {
+        let directory = TestDirectory::new();
+        let invalid_input = directory.path("rotate-input.txt");
+        create_single_page_pdf(&invalid_input);
+
+        let input_error =
+            rotate_pdf_pages(invalid_input, directory.path("rotated.pdf"), vec![1], 90)
+                .unwrap_err();
+        assert_eq!(input_error, PdfToolError::InvalidInputExtension);
+
+        let input = directory.path("rotate-input.pdf");
+        create_single_page_pdf(&input);
+        let output_error =
+            rotate_pdf_pages(input, directory.path("rotated.txt"), vec![1], 90).unwrap_err();
+        assert_eq!(output_error, PdfToolError::InvalidOutputExtension);
+    }
+
+    #[test]
+    fn rotate_rejects_missing_input_and_output_directory() {
+        let directory = TestDirectory::new();
+        let missing_input_error = rotate_pdf_pages(
+            directory.path("missing.pdf"),
+            directory.path("rotated.pdf"),
+            vec![1],
+            90,
+        )
+        .unwrap_err();
+        assert_eq!(missing_input_error, PdfToolError::InputNotFound);
+
+        let input = directory.path("rotate-input.pdf");
+        create_single_page_pdf(&input);
+        let missing_output_error = rotate_pdf_pages(
+            input,
+            directory.path("missing-output").join("rotated.pdf"),
+            vec![1],
+            90,
+        )
+        .unwrap_err();
+        assert_eq!(missing_output_error, PdfToolError::OutputDirectoryNotFound);
+    }
+
+    #[test]
+    fn deletes_selected_pages_and_preserves_order() {
+        let directory = TestDirectory::new();
+        let input = directory.path("delete-input.pdf");
+        let output = directory.path("deleted.pdf");
+        let page_contents: [&[u8]; 4] = [
+            b"q 1 0 0 1 10 10 cm Q",
+            b"q 1 0 0 1 20 20 cm Q",
+            b"q 1 0 0 1 30 30 cm Q",
+            b"q 1 0 0 1 40 40 cm Q",
+        ];
+        create_pdf_with_page_contents(&input, &page_contents);
+
+        let result = delete_pdf_pages(input.clone(), output.clone(), vec![2, 4])
+            .expect("deletion should succeed");
+        let output_document = Document::load(&output).expect("deleted-page PDF should load");
+        let output_pages = output_document.get_pages();
+
+        assert!(output.is_file());
+        assert_eq!(result.input_path, input.to_string_lossy());
+        assert_eq!(result.output_path, output.to_string_lossy());
+        assert_eq!(result.deleted_pages, vec![2, 4]);
+        assert_eq!(result.original_page_count, 4);
+        assert_eq!(result.remaining_page_count, 2);
+        assert_eq!(output_pages.len(), 2);
+        assert_eq!(
+            output_document
+                .get_page_content(output_pages[&1])
+                .expect("first remaining page content should load"),
+            page_contents[0]
+        );
+        assert_eq!(
+            output_document
+                .get_page_content(output_pages[&2])
+                .expect("second remaining page content should load"),
+            page_contents[2]
+        );
+    }
+
+    #[test]
+    fn delete_rejects_invalid_page_selections() {
+        let directory = TestDirectory::new();
+        let input = directory.path("delete-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+
+        let cases = [
+            (vec![], PdfToolError::EmptyPageSelection),
+            (vec![0], PdfToolError::InvalidPageNumber),
+            (vec![3], PdfToolError::PageOutOfRange),
+            (vec![1, 1], PdfToolError::DuplicatePage),
+        ];
+        for (pages, expected_error) in cases {
+            let error =
+                delete_pdf_pages(input.clone(), directory.path("deleted.pdf"), pages).unwrap_err();
+            assert_eq!(error, expected_error);
+        }
+    }
+
+    #[test]
+    fn delete_rejects_all_pages() {
+        let directory = TestDirectory::new();
+        let input = directory.path("delete-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+
+        let error = delete_pdf_pages(input, directory.path("deleted.pdf"), vec![1, 2]).unwrap_err();
+
+        assert_eq!(error, PdfToolError::CannotDeleteAllPages);
+    }
+
+    #[test]
+    fn delete_rejects_non_pdf_extensions() {
+        let directory = TestDirectory::new();
+        let invalid_input = directory.path("delete-input.txt");
+        create_pdf_with_page_contents(&invalid_input, &[b"q Q", b"q Q"]);
+
+        let input_error =
+            delete_pdf_pages(invalid_input, directory.path("deleted.pdf"), vec![1]).unwrap_err();
+        assert_eq!(input_error, PdfToolError::InvalidInputExtension);
+
+        let input = directory.path("delete-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+        let output_error =
+            delete_pdf_pages(input, directory.path("deleted.txt"), vec![1]).unwrap_err();
+        assert_eq!(output_error, PdfToolError::InvalidOutputExtension);
+    }
+
+    #[test]
+    fn delete_rejects_missing_input_and_output_directory() {
+        let directory = TestDirectory::new();
+        let missing_input_error = delete_pdf_pages(
+            directory.path("missing.pdf"),
+            directory.path("deleted.pdf"),
+            vec![1],
+        )
+        .unwrap_err();
+        assert_eq!(missing_input_error, PdfToolError::InputNotFound);
+
+        let input = directory.path("delete-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+        let missing_output_error = delete_pdf_pages(
+            input,
+            directory.path("missing-output").join("deleted.pdf"),
+            vec![1],
+        )
+        .unwrap_err();
+        assert_eq!(missing_output_error, PdfToolError::OutputDirectoryNotFound);
+    }
+
+    #[test]
     fn split_bridge_splits_a_three_page_pdf() {
         let directory = TestDirectory::new();
         let input = directory.path("split-bridge-input.pdf");
@@ -1002,5 +1346,19 @@ mod tests {
         });
         document.trailer.set("Root", catalog_id);
         document.save(path).expect("test PDF should be saved");
+    }
+
+    fn page_rotation(document: &Document, page_number: u32) -> Option<i64> {
+        let page_id = document.get_pages()[&page_number];
+        let page_dictionary = document
+            .get_object(page_id)
+            .expect("page should exist")
+            .as_dict()
+            .expect("page should be a dictionary");
+        match page_dictionary.get(b"Rotate") {
+            Ok(Object::Integer(value)) => Some(*value),
+            Err(_) => None,
+            Ok(_) => panic!("page rotation should be an integer"),
+        }
     }
 }
