@@ -71,3 +71,7 @@ Reorder, watermark, page numbers, OCR, redaction, and direct PDF text editing ar
 ## v0.3.2 PDF rotate / delete MVP release
 
 v0.3.2 ships the local Rotate pages and Delete pages MVPs alongside Merge, Split, and Extract. Delete removes whole pages and is not redaction; reorder, watermark, page numbers, OCR, redaction, and direct text editing remain unimplemented. Updater verification will follow the signed build and GitHub Release.
+
+## v0.3.3 QA / UX polish
+
+v0.3.3 focuses on clearer guidance, validation reasons, operation status, safety wording, and repeatable real-file QA for the existing Merge, Split, Extract, Rotate, and Delete MVPs. No new PDF processing capability or Rust PDF logic is added.

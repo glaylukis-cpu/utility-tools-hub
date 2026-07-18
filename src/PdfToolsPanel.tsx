@@ -61,17 +61,20 @@ type PageParseResult =
   | { pages: number[]; error: null }
   | { pages: null; error: string };
 
-const plannedPageTools = ["Reorder pages"] as const;
-
-const futureAdvancedTools = [
+const plannedPageTools = [
+  "Reorder pages",
   "Add page numbers",
   "Add watermark",
   "Add text stamp",
   "Add image stamp",
   "PDF to images",
   "Images to PDF",
+] as const;
+
+const researchTools = [
   "Safe redaction",
   "OCR-assisted workflow",
+  "Direct PDF text editing",
 ] as const;
 
 const PDF_MERGE_TOOL_ID = "pdf_merge";
@@ -87,23 +90,23 @@ function fileNameFromPath(path: string): string {
 }
 
 function mergeFailureMessage(): string {
-  return "Merge failed. Check that the selected files are valid PDFs and the output location is writable.";
+  return "Merge failed. Confirm the inputs are valid PDFs, choose a writable output location, and try again.";
 }
 
 function splitFailureMessage(): string {
-  return "Split failed. Check that the input is a valid PDF and the output folder is writable.";
+  return "Split failed. Confirm the input is a valid PDF, the output folder is writable, and the prefix is valid.";
 }
 
 function extractFailureMessage(): string {
-  return "Extract failed. Check the selected pages, input PDF, and output location.";
+  return "Extract failed. Check the 1-based page selection, input PDF, and writable output location, then try again.";
 }
 
 function rotateFailureMessage(): string {
-  return "Rotate failed. Check the selected pages, input PDF, angle, and output location.";
+  return "Rotate failed. Check the 1-based page selection, input PDF, angle, and writable output location.";
 }
 
 function deleteFailureMessage(): string {
-  return "Delete failed. Check the selected pages, input PDF, and output location.";
+  return "Delete failed. Check the 1-based page selection, keep at least one page, and choose a writable output location.";
 }
 
 function parsePageSelection(value: string): PageParseResult {
@@ -466,7 +469,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
           if (job.status === "succeeded" && job.result) {
             setMergeResult(job.result);
-            setFeedback("Merge completed");
+            setFeedback("Merge completed successfully.");
             setError(null);
             return;
           }
@@ -572,7 +575,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       setIsSplitting,
       (result) => {
         setSplitResult(result);
-        setSplitFeedback("Split completed");
+        setSplitFeedback("Split completed successfully.");
         setSplitError(null);
       },
       () => {
@@ -676,7 +679,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       setIsExtracting,
       (result) => {
         setExtractResult(result);
-        setExtractFeedback("Extract completed");
+        setExtractFeedback("Extract completed successfully.");
         setExtractError(null);
       },
       () => {
@@ -781,7 +784,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       setIsRotating,
       (result) => {
         setRotateResult(result);
-        setRotateFeedback("Rotate completed");
+        setRotateFeedback("Rotate completed successfully.");
         setRotateError(null);
       },
       () => {
@@ -885,7 +888,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       setIsDeleting,
       (result) => {
         setDeleteResult(result);
-        setDeleteFeedback("Delete completed");
+        setDeleteFeedback("Delete completed successfully.");
         setDeleteError(null);
       },
       () => {
@@ -932,6 +935,59 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     deleteOutputPath !== null &&
     parsedDeletePages.pages !== null &&
     !isAnyOperationRunning;
+  const mergeDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : selectedPdfs.length < 2
+      ? "Select at least two PDF files."
+      : !hasDesktopInputPaths
+        ? "Select the input PDFs again with the desktop file picker."
+        : !outputPath
+          ? "Select an output PDF."
+          : null;
+  const splitDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : !splitInput?.path
+      ? "Select one input PDF."
+      : !splitOutputDir
+        ? "Select an output folder."
+        : !splitOutputPrefix.trim()
+          ? "Enter an output prefix."
+          : !hasValidSplitPrefix
+            ? "Remove path separators from the output prefix."
+            : null;
+  const extractDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : !extractInput?.path
+      ? "Select one input PDF."
+      : !extractPagesInput.trim()
+        ? "Enter pages to extract, such as 1,3,5 or 1-3,5."
+        : parsedExtractPages.error
+          ? parsedExtractPages.error
+          : !extractOutputPath
+            ? "Select an output PDF."
+            : null;
+  const rotateDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : !rotateInput?.path
+      ? "Select one input PDF."
+      : !rotatePagesInput.trim()
+        ? "Enter pages to rotate, such as 1,3 or 1-3."
+        : parsedRotatePages.error
+          ? parsedRotatePages.error
+          : !rotateOutputPath
+            ? "Select an output PDF."
+            : null;
+  const deleteDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : !deleteInput?.path
+      ? "Select one input PDF."
+      : !deletePagesInput.trim()
+        ? "Enter pages to delete, such as 2,4 or 2-4."
+        : parsedDeletePages.error
+          ? parsedDeletePages.error
+          : !deleteOutputPath
+            ? "Select an output PDF."
+            : null;
 
   return (
     <div className="pdf-tools-page">
@@ -942,14 +998,15 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       <div className="page-header pdf-tools-header">
         <div>
           <h1>PDF Tools</h1>
-          <p>Local PDF page-operation MVPs</p>
+          <p>Local PDF page tools for files on this device</p>
         </div>
         <span className="pdf-tools-planned-badge">Merge · Split · Extract · Rotate · Delete MVP</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>Merge, Split, Extract, Rotate, and Delete are available as local MVPs.</strong>
-        <span>Reorder and advanced PDF tools remain planned. Selected files stay on this device.</span>
+        <strong>PDF page tools are available for local files.</strong>
+        <span>Merge, Split, Extract, Rotate, and Delete are available as MVPs. PDF files stay on this device.</span>
+        <span>Reorder, watermark, page numbers, OCR, redaction, and direct text editing are not implemented yet.</span>
       </div>
 
       <div className="pdf-tools-workflow-grid">
@@ -957,8 +1014,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <div className="pdf-tools-section-heading">
             <span>Merge · Step 1</span>
             <h2 id="pdf-input-title">Input PDFs</h2>
-            <p>Select two or more local PDFs. Files are merged in the order shown below.</p>
+            <p>Select two or more local PDFs to combine into one PDF.</p>
           </div>
+          <p className="pdf-tools-helper">Page order follows the numbered file order shown below.</p>
 
           <div className="pdf-tools-button-row">
             <button type="button" className="btn btn-primary" onClick={selectPdfs} disabled={isAnyOperationRunning}>
@@ -1009,7 +1067,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <div className="pdf-tools-section-heading">
             <span>Merge · Step 2</span>
             <h2 id="pdf-output-title">Output PDF</h2>
-            <p>Choose where the Rust PDF merge bridge should write the merged document.</p>
+            <p>Choose a new output PDF before starting the merge.</p>
           </div>
 
           <button
@@ -1024,7 +1082,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <dl className="pdf-tools-selection-details">
             <div>
               <dt>Output file</dt>
-              <dd className="pdf-tools-path" title={outputPath ?? undefined}>
+              <dd className="pdf-tools-path">
                 {outputPath ? fileNameFromPath(outputPath) : "Not selected"}
               </dd>
             </div>
@@ -1040,21 +1098,19 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         <div className="pdf-tools-section-heading">
           <span>Merge · Step 3</span>
           <h2 id="pdf-merge-title">Merge PDFs</h2>
-          <p>Uses the existing local Rust merge core through the shared tool execution queue.</p>
+          <p>Combines the selected PDFs in their displayed order and writes one new PDF.</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={mergePdfs} disabled={!canMerge}>
           {isMerging ? "Merging..." : "Merge PDFs"}
         </button>
         {!canMerge && !isMerging && (
-          <p className="pdf-tools-operation-requirements">
-            Select at least two desktop PDF paths and one output PDF to enable merge.
-          </p>
+          <p className="pdf-tools-operation-requirements">To enable Merge: {mergeDisabledReason}</p>
         )}
       </section>
 
       {isMerging && (
         <div className="pdf-tools-feedback pdf-tools-feedback-loading" role="status" aria-live="polite">
-          Merging...
+          Merging the selected PDFs in order...
         </div>
       )}
       {error && (
@@ -1078,8 +1134,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <div className="pdf-tools-section-heading">
             <span>Available MVP</span>
             <h2 id="pdf-split-title">Split PDF</h2>
-            <p>Split one PDF into separate single-page PDF files.</p>
+            <p>Split one PDF into a separate PDF file for each page.</p>
           </div>
+          <p className="pdf-tools-helper">Select an output folder and prefix. For prefix “document”, output starts with document-page-001.pdf.</p>
 
           <div className="pdf-tools-button-row">
             <button type="button" className="btn btn-outline" onClick={selectSplitInput} disabled={isAnyOperationRunning}>
@@ -1108,7 +1165,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <div><dt>Input PDF</dt><dd>{splitInput?.name ?? "Not selected"}</dd></div>
             <div>
               <dt>Output folder</dt>
-              <dd className="pdf-tools-path" title={splitOutputDir ?? undefined}>
+              <dd className="pdf-tools-path">
                 {splitOutputDir ? fileNameFromPath(splitOutputDir) : "Not selected"}
               </dd>
             </div>
@@ -1137,12 +1194,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             {isSplitting ? "Splitting..." : "Split PDF"}
           </button>
           {!canSplit && !isSplitting && (
-            <p className="pdf-tools-operation-requirements">
-              Select a desktop PDF, output folder, and valid output prefix.
-            </p>
+            <p className="pdf-tools-operation-requirements">To enable Split: {splitDisabledReason}</p>
           )}
 
-          {isSplitting && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Splitting...</div>}
+          {isSplitting && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Splitting the PDF into single-page files...</div>}
           {splitError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{splitError}</div>}
           {!splitError && !isSplitting && splitFeedback && (
             <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
@@ -1158,8 +1213,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <div className="pdf-tools-section-heading">
             <span>Available MVP</span>
             <h2 id="pdf-extract-title">Extract pages</h2>
-            <p>Extract selected pages from one PDF into a new PDF.</p>
+            <p>Copy only the selected pages into one new PDF.</p>
           </div>
+          <p className="pdf-tools-helper">Page numbers start at 1. Examples: 1,3,5 or 1-3,5.</p>
 
           <div className="pdf-tools-button-row">
             <button type="button" className="btn btn-outline" onClick={selectExtractInput} disabled={isAnyOperationRunning}>
@@ -1188,7 +1244,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <div><dt>Input PDF</dt><dd>{extractInput?.name ?? "Not selected"}</dd></div>
             <div>
               <dt>Output PDF</dt>
-              <dd className="pdf-tools-path" title={extractOutputPath ?? undefined}>
+              <dd className="pdf-tools-path">
                 {extractOutputPath ? fileNameFromPath(extractOutputPath) : "Not selected"}
               </dd>
             </div>
@@ -1218,12 +1274,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             {isExtracting ? "Extracting..." : "Extract pages"}
           </button>
           {!canExtract && !isExtracting && (
-            <p className="pdf-tools-operation-requirements">
-              Select a desktop PDF, valid pages, and an output PDF.
-            </p>
+            <p className="pdf-tools-operation-requirements">To enable Extract: {extractDisabledReason}</p>
           )}
 
-          {isExtracting && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Extracting...</div>}
+          {isExtracting && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Extracting the selected pages into a new PDF...</div>}
           {extractError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{extractError}</div>}
           {!extractError && !isExtracting && extractFeedback && (
             <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
@@ -1239,8 +1293,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <div className="pdf-tools-section-heading">
             <span>Available MVP</span>
             <h2 id="pdf-rotate-title">Rotate pages</h2>
-            <p>Rotate selected pages in one PDF and save a new PDF.</p>
+            <p>Rotate selected pages by 90°, 180°, or 270° and save a new PDF.</p>
           </div>
+          <p className="pdf-tools-helper">Page numbers start at 1. Examples: 1,3 or 1-3. The source PDF is not overwritten.</p>
 
           <div className="pdf-tools-button-row">
             <button type="button" className="btn btn-outline" onClick={selectRotateInput} disabled={isAnyOperationRunning}>
@@ -1269,7 +1324,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <div><dt>Input PDF</dt><dd>{rotateInput?.name ?? "Not selected"}</dd></div>
             <div>
               <dt>Output PDF</dt>
-              <dd className="pdf-tools-path" title={rotateOutputPath ?? undefined}>
+              <dd className="pdf-tools-path">
                 {rotateOutputPath ? fileNameFromPath(rotateOutputPath) : "Not selected"}
               </dd>
             </div>
@@ -1288,7 +1343,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                 setRotateError(null);
               }}
               disabled={isAnyOperationRunning}
-              placeholder="1,3,5 or 1-3,5"
+              placeholder="1,3 or 1-3"
             />
           </label>
           {rotatePagesInput.trim() && parsedRotatePages.error && (
@@ -1312,14 +1367,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             {isRotating ? "Rotating..." : "Rotate pages"}
           </button>
           {!canRotate && !isRotating && (
-            <p className="pdf-tools-operation-requirements">
-              {nativeDialogAvailable
-                ? "Select a desktop PDF, valid pages, angle, and an output PDF."
-                : "Desktop file path selection is required."}
-            </p>
+            <p className="pdf-tools-operation-requirements">To enable Rotate: {rotateDisabledReason}</p>
           )}
 
-          {isRotating && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Rotating...</div>}
+          {isRotating && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Rotating the selected pages into a new PDF...</div>}
           {rotateError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{rotateError}</div>}
           {!rotateError && !isRotating && rotateFeedback && (
             <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
@@ -1335,8 +1386,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <div className="pdf-tools-section-heading">
             <span>Available MVP</span>
             <h2 id="pdf-delete-title">Delete pages</h2>
-            <p>Remove whole pages from one PDF and save a new PDF. This is not redaction.</p>
+            <p>Remove selected whole pages and save the remaining pages as a new PDF.</p>
           </div>
+          <p className="pdf-tools-helper">Page numbers start at 1. Examples: 2,4 or 2-4. The source PDF is not overwritten.</p>
+          <p className="pdf-tools-warning"><strong>Not redaction:</strong> Delete pages removes whole pages only. It cannot safely hide selected text or personal information inside a page.</p>
 
           <div className="pdf-tools-button-row">
             <button type="button" className="btn btn-outline" onClick={selectDeleteInput} disabled={isAnyOperationRunning}>
@@ -1365,7 +1418,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <div><dt>Input PDF</dt><dd>{deleteInput?.name ?? "Not selected"}</dd></div>
             <div>
               <dt>Output PDF</dt>
-              <dd className="pdf-tools-path" title={deleteOutputPath ?? undefined}>
+              <dd className="pdf-tools-path">
                 {deleteOutputPath ? fileNameFromPath(deleteOutputPath) : "Not selected"}
               </dd>
             </div>
@@ -1395,14 +1448,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             {isDeleting ? "Deleting..." : "Delete pages"}
           </button>
           {!canDelete && !isDeleting && (
-            <p className="pdf-tools-operation-requirements">
-              {nativeDialogAvailable
-                ? "Select a desktop PDF, valid pages, and an output PDF."
-                : "Desktop file path selection is required."}
-            </p>
+            <p className="pdf-tools-operation-requirements">To enable Delete: {deleteDisabledReason}</p>
           )}
 
-          {isDeleting && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Deleting...</div>}
+          {isDeleting && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Removing the selected whole pages into a new PDF...</div>}
           {deleteError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{deleteError}</div>}
           {!deleteError && !isDeleting && deleteFeedback && (
             <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
@@ -1417,13 +1466,13 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
       <section className="pdf-tools-section" aria-labelledby="planned-pdf-tools-title">
         <div className="pdf-tools-section-heading">
-          <span>Planned foundation</span>
-          <h2 id="planned-pdf-tools-title">Planned PDF page tools</h2>
-          <p>These operations remain disabled and are not part of the current MVPs.</p>
+          <span>Planned</span>
+          <h2 id="planned-pdf-tools-title">Planned PDF tools</h2>
+          <p>These tools are not implemented and cannot be used in the current release.</p>
         </div>
         <div className="pdf-tools-feature-grid">
           {plannedPageTools.map((tool) => (
-            <article className="pdf-tools-feature-card" key={tool}>
+            <article className="pdf-tools-feature-card pdf-tools-feature-card-planned" key={tool}>
               <h3>{tool}</h3>
               <p>Not implemented yet</p>
               <button type="button" className="btn btn-disabled" disabled>Planned</button>
@@ -1432,14 +1481,14 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         </div>
       </section>
 
-      <section className="pdf-tools-section" aria-labelledby="advanced-pdf-tools-title">
+      <section className="pdf-tools-section pdf-tools-research" aria-labelledby="advanced-pdf-tools-title">
         <div className="pdf-tools-section-heading">
-          <span>Later research</span>
-          <h2 id="advanced-pdf-tools-title">Future advanced PDF tools</h2>
-          <p>These are longer-term candidates and are not commitments for the next release.</p>
+          <span>Research · Safety critical</span>
+          <h2 id="advanced-pdf-tools-title">Research topics</h2>
+          <p>These capabilities are not implemented. They require additional safety and document-structure research.</p>
         </div>
         <div className="pdf-tools-future-list">
-          {futureAdvancedTools.map((tool) => <span key={tool}>{tool}</span>)}
+          {researchTools.map((tool) => <span key={tool}>{tool} · Not available</span>)}
         </div>
       </section>
 
@@ -1449,11 +1498,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h2 id="pdf-safety-title">Safety notes</h2>
         </div>
         <ul>
-          <li>Merge, Split, Extract, Rotate, and Delete are available as page-operation MVPs.</li>
-          <li>Reorder, watermark, page numbers, OCR, and redaction are planned or under research.</li>
+          <li>Merge, Split, Extract, Rotate, and Delete are page-operation MVPs.</li>
+          <li>Delete pages removes whole pages only. Delete pages is not redaction.</li>
+          <li>Redaction must remove underlying content, not just cover it visually.</li>
           <li>Direct text editing, OCR, and redaction are not implemented.</li>
-          <li>Delete pages removes whole pages. It is not redaction.</li>
-          <li>Redaction must remove underlying content, not only cover it visually.</li>
+          <li>Reorder, watermark, and page numbers are planned but not implemented.</li>
           <li>PDF files stay on this device and are processed locally.</li>
         </ul>
       </section>
