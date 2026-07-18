@@ -136,3 +136,10 @@ git push origin vX.Y.Z
 - Planned page tools include merge, split, extract, delete, rotate, and reorder.
 - PDF processing is not implemented, no PDF content is modified, and no PDF library, external communication, or package dependency is added.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.3.0 Release Note
+
+- v0.3.0 is the PDF merge MVP release.
+- PdfToolsPanel merges multiple PDFs through the local Rust PDF merge bridge, with input and output selection plus loading, success, and error states.
+- A Python sidecar is not used; split, extract, rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.
+- Updater verification will be done after the signed build and GitHub Release are created.
