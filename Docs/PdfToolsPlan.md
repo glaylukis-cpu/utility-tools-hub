@@ -48,4 +48,4 @@ v0.3.0 connects multiple PDF selection, output PDF selection, and loading, succe
 
 ## v0.3.1 split / extract core preparation
 
-Rust split and extract cores have been added for v0.3.1 preparation while Merge PDFs remains available. Split and extract are Rust-core-only in this phase, with UI and command bridge connection planned next; rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented, and no Python sidecar is used.
+PDF split and extract command bridges now connect the Rust cores to the app-side ToolRegistry, JobManager, and `execute_tool` execution layer while Merge PDFs remains available. React UI connection is planned next; no Python sidecar is used, and rotate, delete, reorder, OCR, redaction, and direct text editing remain unimplemented.

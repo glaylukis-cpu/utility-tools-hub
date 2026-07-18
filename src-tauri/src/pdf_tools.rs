@@ -427,7 +427,10 @@ fn find_inherited_page_attribute(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{run_pdf_merge_bridge, PdfMergeRequest};
+    use crate::{
+        run_pdf_extract_bridge, run_pdf_merge_bridge, run_pdf_split_bridge, PdfExtractRequest,
+        PdfMergeRequest, PdfSplitRequest,
+    };
     use lopdf::Stream;
     use std::fs;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -751,6 +754,116 @@ mod tests {
     }
 
     #[test]
+    fn split_bridge_splits_a_three_page_pdf() {
+        let directory = TestDirectory::new();
+        let input = directory.path("split-bridge-input.pdf");
+        let output_dir = directory.path("split-bridge-output");
+        fs::create_dir_all(&output_dir).expect("split bridge output directory should be created");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q 1 0 0 1 2 2 cm Q", b"q Q"]);
+
+        let result = run_pdf_split_bridge(pdf_split_request(input, output_dir, "bridge-section"))
+            .expect("split bridge should succeed");
+
+        assert_eq!(result.page_count, 3);
+        assert_eq!(result.output_paths.len(), 3);
+        assert!(result
+            .output_paths
+            .iter()
+            .all(|output_path| Path::new(output_path).is_file()));
+    }
+
+    #[test]
+    fn split_bridge_rejects_non_pdf_input_extension() {
+        let directory = TestDirectory::new();
+        let input = directory.path("split-bridge-input.txt");
+        create_single_page_pdf(&input);
+
+        let error = run_pdf_split_bridge(pdf_split_request(
+            input,
+            directory.path.clone(),
+            "bridge-section",
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidInputExtension.to_string());
+    }
+
+    #[test]
+    fn split_bridge_rejects_empty_output_prefix() {
+        let directory = TestDirectory::new();
+        let input = directory.path("split-bridge-input.pdf");
+        create_single_page_pdf(&input);
+
+        let error = run_pdf_split_bridge(pdf_split_request(input, directory.path.clone(), "   "))
+            .unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidOutputPrefix.to_string());
+    }
+
+    #[test]
+    fn extract_bridge_extracts_selected_pages() {
+        let directory = TestDirectory::new();
+        let input = directory.path("extract-bridge-input.pdf");
+        let output = directory.path("extract-bridge-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q 1 0 0 1 2 2 cm Q", b"q Q", b"q Q"]);
+
+        let result = run_pdf_extract_bridge(pdf_extract_request(input, output.clone(), vec![1, 3]))
+            .expect("extract bridge should succeed");
+
+        assert!(output.is_file());
+        assert_eq!(result.selected_pages, vec![1, 3]);
+        assert_eq!(result.page_count, 2);
+    }
+
+    #[test]
+    fn extract_bridge_rejects_empty_page_selection() {
+        let directory = TestDirectory::new();
+        let input = directory.path("extract-bridge-input.pdf");
+        create_single_page_pdf(&input);
+
+        let error = run_pdf_extract_bridge(pdf_extract_request(
+            input,
+            directory.path("extract-bridge-output.pdf"),
+            vec![],
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::EmptyPageSelection.to_string());
+    }
+
+    #[test]
+    fn extract_bridge_rejects_zero_page_number() {
+        let directory = TestDirectory::new();
+        let input = directory.path("extract-bridge-input.pdf");
+        create_single_page_pdf(&input);
+
+        let error = run_pdf_extract_bridge(pdf_extract_request(
+            input,
+            directory.path("extract-bridge-output.pdf"),
+            vec![0],
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidPageNumber.to_string());
+    }
+
+    #[test]
+    fn extract_bridge_rejects_non_pdf_output_extension() {
+        let directory = TestDirectory::new();
+        let input = directory.path("extract-bridge-input.pdf");
+        create_single_page_pdf(&input);
+
+        let error = run_pdf_extract_bridge(pdf_extract_request(
+            input,
+            directory.path("extract-bridge-output.txt"),
+            vec![1],
+        ))
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::InvalidOutputExtension.to_string());
+    }
+
+    #[test]
     fn bridge_merges_two_pdf_files() {
         let directory = TestDirectory::new();
         let first = directory.path("bridge-first.pdf");
@@ -814,6 +927,30 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error, PdfToolError::InvalidOutputExtension.to_string());
+    }
+
+    fn pdf_split_request(
+        input_path: PathBuf,
+        output_dir: PathBuf,
+        output_prefix: &str,
+    ) -> PdfSplitRequest {
+        PdfSplitRequest {
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_dir: output_dir.to_string_lossy().into_owned(),
+            output_prefix: output_prefix.to_string(),
+        }
+    }
+
+    fn pdf_extract_request(
+        input_path: PathBuf,
+        output_path: PathBuf,
+        pages: Vec<usize>,
+    ) -> PdfExtractRequest {
+        PdfExtractRequest {
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: output_path.to_string_lossy().into_owned(),
+            pages,
+        }
     }
 
     fn pdf_merge_request(input_paths: Vec<PathBuf>, output_path: PathBuf) -> PdfMergeRequest {

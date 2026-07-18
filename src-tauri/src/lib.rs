@@ -48,6 +48,8 @@ pub fn run() {
 const EXCEL_HTML_CONVERTER_TOOL_ID: &str = "excel_html_converter";
 const TEXT_CASE_CONVERTER_TOOL_ID: &str = "text_case_converter";
 const PDF_MERGE_TOOL_ID: &str = "pdf_merge";
+const PDF_SPLIT_TOOL_ID: &str = "pdf_split";
+const PDF_EXTRACT_TOOL_ID: &str = "pdf_extract";
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -125,6 +127,42 @@ pub(crate) struct PdfMergeRequest {
     output_path: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PdfSplitInput {
+    input_path: String,
+    output_dir: String,
+    output_prefix: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfSplitOptions {}
+
+pub(crate) struct PdfSplitRequest {
+    input_path: String,
+    output_dir: String,
+    output_prefix: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PdfExtractInput {
+    input_path: String,
+    output_path: String,
+    pages: Vec<usize>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfExtractOptions {}
+
+pub(crate) struct PdfExtractRequest {
+    input_path: String,
+    output_path: String,
+    pages: Vec<usize>,
+}
+
 #[derive(Clone, Copy)]
 enum TextCaseMode {
     Uppercase,
@@ -161,6 +199,8 @@ enum RegisteredTool {
     ExcelHtmlConverter,
     TextCaseConverter,
     PdfMerge,
+    PdfSplit,
+    PdfExtract,
 }
 
 struct ToolRegistry;
@@ -171,6 +211,8 @@ impl ToolRegistry {
             EXCEL_HTML_CONVERTER_TOOL_ID => Ok(RegisteredTool::ExcelHtmlConverter),
             TEXT_CASE_CONVERTER_TOOL_ID => Ok(RegisteredTool::TextCaseConverter),
             PDF_MERGE_TOOL_ID => Ok(RegisteredTool::PdfMerge),
+            PDF_SPLIT_TOOL_ID => Ok(RegisteredTool::PdfSplit),
+            PDF_EXTRACT_TOOL_ID => Ok(RegisteredTool::PdfExtract),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
         }
     }
@@ -233,6 +275,38 @@ impl RegisteredTool {
                     output_path: input.output_path,
                 }))
             }
+            RegisteredTool::PdfSplit => {
+                let input: PdfSplitInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfSplitOptions::default()
+                } else {
+                    serde_json::from_value::<PdfSplitOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfSplit(PdfSplitRequest {
+                    input_path: input.input_path,
+                    output_dir: input.output_dir,
+                    output_prefix: input.output_prefix,
+                }))
+            }
+            RegisteredTool::PdfExtract => {
+                let input: PdfExtractInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfExtractOptions::default()
+                } else {
+                    serde_json::from_value::<PdfExtractOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfExtract(PdfExtractRequest {
+                    input_path: input.input_path,
+                    output_path: input.output_path,
+                    pages: input.pages,
+                }))
+            }
         }
     }
 }
@@ -241,6 +315,8 @@ enum ValidatedToolRequest {
     ExcelHtmlConverter(ExcelHtmlConverterRequest),
     TextCaseConverter(TextCaseConverterRequest),
     PdfMerge(PdfMergeRequest),
+    PdfSplit(PdfSplitRequest),
+    PdfExtract(PdfExtractRequest),
 }
 
 impl ValidatedToolRequest {
@@ -249,6 +325,8 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::ExcelHtmlConverter(_) => EXCEL_HTML_CONVERTER_TOOL_ID,
             ValidatedToolRequest::TextCaseConverter(_) => TEXT_CASE_CONVERTER_TOOL_ID,
             ValidatedToolRequest::PdfMerge(_) => PDF_MERGE_TOOL_ID,
+            ValidatedToolRequest::PdfSplit(_) => PDF_SPLIT_TOOL_ID,
+            ValidatedToolRequest::PdfExtract(_) => PDF_EXTRACT_TOOL_ID,
         }
     }
 
@@ -261,6 +339,10 @@ impl ValidatedToolRequest {
                 TextCaseConverterHandler.execute(app, request).await
             }
             ValidatedToolRequest::PdfMerge(request) => PdfMergeHandler.execute(app, request).await,
+            ValidatedToolRequest::PdfSplit(request) => PdfSplitHandler.execute(app, request).await,
+            ValidatedToolRequest::PdfExtract(request) => {
+                PdfExtractHandler.execute(app, request).await
+            }
         }
     }
 }
@@ -331,6 +413,64 @@ pub(crate) fn run_pdf_merge_bridge(
     let input_paths = request.input_paths.into_iter().map(PathBuf::from).collect();
     pdf_tools::merge_pdfs(input_paths, PathBuf::from(request.output_path))
         .map_err(|error| error.to_string())
+}
+
+struct PdfSplitHandler;
+
+impl ToolHandler for PdfSplitHandler {
+    type Request = PdfSplitRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result =
+                tauri::async_runtime::spawn_blocking(move || run_pdf_split_bridge(request))
+                    .await
+                    .map_err(|_| "PDF split task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_split_bridge(
+    request: PdfSplitRequest,
+) -> Result<pdf_tools::PdfSplitResult, String> {
+    pdf_tools::split_pdf(
+        PathBuf::from(request.input_path),
+        PathBuf::from(request.output_dir),
+        request.output_prefix,
+    )
+    .map_err(|error| error.to_string())
+}
+
+struct PdfExtractHandler;
+
+impl ToolHandler for PdfExtractHandler {
+    type Request = PdfExtractRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result =
+                tauri::async_runtime::spawn_blocking(move || run_pdf_extract_bridge(request))
+                    .await
+                    .map_err(|_| "PDF extract task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_extract_bridge(
+    request: PdfExtractRequest,
+) -> Result<pdf_tools::PdfExtractResult, String> {
+    pdf_tools::extract_pdf_pages(
+        PathBuf::from(request.input_path),
+        PathBuf::from(request.output_path),
+        request.pages,
+    )
+    .map_err(|error| error.to_string())
 }
 
 #[derive(Debug, Serialize)]
@@ -810,6 +950,22 @@ mod tests {
         assert!(matches!(
             ToolRegistry::resolve(PDF_MERGE_TOOL_ID),
             Ok(RegisteredTool::PdfMerge)
+        ));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_split_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_SPLIT_TOOL_ID),
+            Ok(RegisteredTool::PdfSplit)
+        ));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_extract_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_EXTRACT_TOOL_ID),
+            Ok(RegisteredTool::PdfExtract)
         ));
     }
 
