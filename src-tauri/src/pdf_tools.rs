@@ -3,6 +3,7 @@ use serde::Serialize;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -43,6 +44,21 @@ pub struct PdfDeleteResult {
     pub deleted_pages: Vec<usize>,
     pub original_page_count: usize,
     pub remaining_page_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PdfInspectResult {
+    pub input_path: String,
+    pub file_name: String,
+    pub file_size_bytes: u64,
+    pub pdf_version: String,
+    pub page_count: usize,
+    pub is_encrypted: bool,
+    pub is_protected: bool,
+    pub title: Option<String>,
+    pub author: Option<String>,
+    pub creator: Option<String>,
+    pub producer: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +111,88 @@ impl fmt::Display for PdfToolError {
 }
 
 impl Error for PdfToolError {}
+
+pub fn inspect_pdf(input_path: PathBuf) -> Result<PdfInspectResult, PdfToolError> {
+    if !has_pdf_extension(&input_path) {
+        return Err(PdfToolError::InvalidInputExtension);
+    }
+    if !input_path.is_file() {
+        return Err(PdfToolError::InputNotFound);
+    }
+
+    let file_size_bytes = fs::metadata(&input_path)
+        .map_err(|_| PdfToolError::InputNotFound)?
+        .len();
+    let document = Document::load(&input_path).map_err(|_| PdfToolError::InvalidPdf)?;
+    let is_encrypted = document.is_encrypted() || document.trailer.has(b"Encrypt");
+    let is_protected = is_encrypted;
+    let page_count = if is_protected {
+        0
+    } else {
+        document.get_pages().len()
+    };
+
+    if !is_protected && page_count == 0 {
+        return Err(PdfToolError::InvalidPdf);
+    }
+
+    let (title, author, creator, producer) = if is_protected {
+        (None, None, None, None)
+    } else {
+        (
+            read_document_info(&document, b"Title"),
+            read_document_info(&document, b"Author"),
+            read_document_info(&document, b"Creator"),
+            read_document_info(&document, b"Producer"),
+        )
+    };
+
+    Ok(PdfInspectResult {
+        input_path: input_path.to_string_lossy().into_owned(),
+        file_name: input_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .ok_or(PdfToolError::InvalidPdf)?,
+        file_size_bytes,
+        pdf_version: document.version,
+        page_count,
+        is_encrypted,
+        is_protected,
+        title,
+        author,
+        creator,
+        producer,
+    })
+}
+
+fn read_document_info(document: &Document, key: &[u8]) -> Option<String> {
+    let info = document.trailer.get_deref(b"Info", document).ok()?;
+    let dictionary = info.as_dict().ok()?;
+    let value = dictionary.get_deref(key, document).ok()?;
+    let bytes = value.as_str().ok()?;
+    decode_pdf_text(bytes)
+}
+
+fn decode_pdf_text(bytes: &[u8]) -> Option<String> {
+    let decoded = if bytes.starts_with(&[0xfe, 0xff]) {
+        let units = bytes[2..]
+            .chunks_exact(2)
+            .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
+            .collect::<Vec<_>>();
+        String::from_utf16(&units).ok()?
+    } else if bytes.starts_with(&[0xff, 0xfe]) {
+        let units = bytes[2..]
+            .chunks_exact(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect::<Vec<_>>();
+        String::from_utf16(&units).ok()?
+    } else {
+        String::from_utf8_lossy(bytes).into_owned()
+    };
+    let decoded = decoded.trim_matches(['\0', ' ', '\t', '\r', '\n']);
+
+    (!decoded.is_empty()).then(|| decoded.to_string())
+}
 
 pub fn merge_pdfs(
     input_paths: Vec<PathBuf>,
@@ -557,9 +655,9 @@ fn find_inherited_page_attribute(
 mod tests {
     use super::*;
     use crate::{
-        run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_merge_bridge, run_pdf_rotate_bridge,
-        run_pdf_split_bridge, PdfDeleteRequest, PdfExtractRequest, PdfMergeRequest,
-        PdfRotateRequest, PdfSplitRequest,
+        run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_inspect_bridge,
+        run_pdf_merge_bridge, run_pdf_rotate_bridge, run_pdf_split_bridge, PdfDeleteRequest,
+        PdfExtractRequest, PdfInspectRequest, PdfMergeRequest, PdfRotateRequest, PdfSplitRequest,
     };
     use lopdf::Stream;
     use std::fs;
@@ -596,6 +694,95 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.path);
         }
+    }
+
+    #[test]
+    fn inspects_a_normal_pdf_with_file_and_document_metadata() {
+        let directory = TestDirectory::new();
+        let input = directory.path("inspect-fixture.pdf");
+        create_pdf_with_metadata(&input);
+
+        let result = inspect_pdf(input.clone()).expect("PDF inspection should succeed");
+
+        assert_eq!(result.input_path, input.to_string_lossy());
+        assert_eq!(result.file_name, "inspect-fixture.pdf");
+        assert!(result.file_size_bytes > 0);
+        assert_eq!(result.pdf_version, "1.5");
+        assert_eq!(result.page_count, 1);
+        assert!(!result.is_encrypted);
+        assert!(!result.is_protected);
+        assert_eq!(result.title.as_deref(), Some("Inspection fixture"));
+        assert_eq!(result.author.as_deref(), Some("Utility Tools Hub"));
+        assert_eq!(result.creator.as_deref(), Some("PDF inspection tests"));
+        assert_eq!(result.producer.as_deref(), Some("lopdf"));
+    }
+
+    #[test]
+    fn inspects_a_multi_page_pdf() {
+        let directory = TestDirectory::new();
+        let input = directory.path("multi-page.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+
+        let result = inspect_pdf(input).expect("multi-page inspection should succeed");
+
+        assert_eq!(result.page_count, 3);
+        assert_eq!(result.title, None);
+        assert_eq!(result.author, None);
+        assert_eq!(result.creator, None);
+        assert_eq!(result.producer, None);
+    }
+
+    #[test]
+    fn inspection_rejects_a_non_pdf_extension_and_missing_file() {
+        let directory = TestDirectory::new();
+
+        assert_eq!(
+            inspect_pdf(directory.path("input.txt")).unwrap_err(),
+            PdfToolError::InvalidInputExtension
+        );
+        assert_eq!(
+            inspect_pdf(directory.path("missing.pdf")).unwrap_err(),
+            PdfToolError::InputNotFound
+        );
+    }
+
+    #[test]
+    fn inspection_detects_a_protected_pdf_without_decrypting_it() {
+        let directory = TestDirectory::new();
+        let input = directory.path("protected.pdf");
+        create_single_page_pdf(&input);
+
+        let mut protected_document = Document::load(&input).expect("fixture should load");
+        let encryption_id = protected_document.add_object(dictionary! {
+            "Filter" => "Standard",
+        });
+        protected_document.trailer.set("Encrypt", encryption_id);
+        protected_document
+            .save(&input)
+            .expect("protected marker should be saved");
+
+        let result = inspect_pdf(input).expect("protected PDF should return safe partial details");
+
+        assert!(result.is_encrypted);
+        assert!(result.is_protected);
+        assert_eq!(result.page_count, 0);
+        assert_eq!(result.title, None);
+    }
+
+    #[test]
+    fn pdf_inspect_bridge_returns_serializable_core_result() {
+        let directory = TestDirectory::new();
+        let input = directory.path("bridge-inspect.pdf");
+        create_single_page_pdf(&input);
+
+        let result = run_pdf_inspect_bridge(PdfInspectRequest {
+            input_path: input.to_string_lossy().into_owned(),
+        })
+        .expect("PDF inspect bridge should succeed");
+
+        assert_eq!(result.file_name, "bridge-inspect.pdf");
+        assert_eq!(result.page_count, 1);
+        assert!(!result.is_protected);
     }
 
     #[test]
@@ -1640,6 +1827,21 @@ mod tests {
         });
         document.trailer.set("Root", catalog_id);
         document.save(path).expect("test PDF should be saved");
+    }
+
+    fn create_pdf_with_metadata(path: &Path) {
+        create_single_page_pdf(path);
+        let mut document = Document::load(path).expect("metadata fixture should load");
+        let info_id = document.add_object(dictionary! {
+            "Title" => Object::string_literal("Inspection fixture"),
+            "Author" => Object::string_literal("Utility Tools Hub"),
+            "Creator" => Object::string_literal("PDF inspection tests"),
+            "Producer" => Object::string_literal("lopdf"),
+        });
+        document.trailer.set("Info", info_id);
+        document
+            .save(path)
+            .expect("metadata fixture should be saved");
     }
 
     fn create_nested_page_tree_pdf(path: &Path, page_markers: &[&[u8]]) {
