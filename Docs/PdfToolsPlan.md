@@ -78,4 +78,4 @@ v0.3.3 focuses on clearer guidance, validation reasons, operation status, safety
 
 ## v0.3.4 Merge bugfix
 
-v0.3.4 targets the real-file Merge failure found during v0.3.3 QA by improving general PDF compatibility coverage and preserving safe, actionable merge errors through the existing bridge and UI. No new PDF operation is added.
+v0.3.4 targets the real-file Merge failure found during v0.3.3 QA by improving general PDF compatibility coverage and preserving safe, actionable merge errors through the existing bridge and UI. Encrypted or permission-protected inputs are detected and clearly rejected without attempting decryption or bypass; no new PDF operation is added.

@@ -83,7 +83,9 @@ impl fmt::Display for PdfToolError {
             Self::DuplicatePage => "duplicate page numbers are not supported",
             Self::InvalidRotationAngle => "the rotation angle must be 90, 180, or 270 degrees",
             Self::CannotDeleteAllPages => "at least one page must remain after deletion",
-            Self::EncryptedPdfUnsupported => "encrypted PDF files are not supported",
+            Self::EncryptedPdfUnsupported => {
+                "encrypted or permission-protected PDF files are not supported yet"
+            }
             Self::InvalidPdf => "an input file is not a supported PDF document",
             Self::SaveFailed => "the output PDF could not be saved",
         };
@@ -780,6 +782,10 @@ mod tests {
         let error = merge_pdfs(vec![encrypted, valid], directory.path("merged.pdf")).unwrap_err();
 
         assert_eq!(error, PdfToolError::EncryptedPdfUnsupported);
+        assert_eq!(
+            error.to_string(),
+            "encrypted or permission-protected PDF files are not supported yet"
+        );
     }
 
     #[test]

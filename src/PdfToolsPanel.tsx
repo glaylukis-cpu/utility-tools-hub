@@ -97,7 +97,8 @@ function mergeFailureMessage(reason?: string | null): string {
     "an input PDF file does not exist": "An input PDF could not be found. Select the input files again.",
     "the output directory does not exist": "The selected output folder no longer exists. Choose the output PDF again.",
     "the output file must differ from every input file": "The output PDF must use a different file from every input PDF.",
-    "encrypted PDF files are not supported": "Encrypted PDFs are not supported. Use unencrypted input files.",
+    "encrypted or permission-protected PDF files are not supported yet":
+      "Encrypted or permission-protected PDFs are not supported yet. Remove password or permission protection, then try again.",
     "an input file is not a supported PDF document": "An input PDF could not be read or uses an unsupported PDF structure.",
     "the output PDF could not be saved": "The output PDF could not be written. Choose a writable location and try again.",
   };

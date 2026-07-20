@@ -9,7 +9,10 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Recheck the two real PDFs that exposed the v0.3.3 Merge failure, even though each input opens on its own.
 - [ ] Repeat the merge with an output PDF directly under the Desktop folder.
 - [ ] Confirm a successful output opens, has the combined page count, and preserves input order.
-- [ ] If the merge fails, confirm the UI distinguishes unreadable or unsupported input, encryption, an input/output conflict, and an unwritable output without exposing full paths.
+- [ ] Confirm normal unencrypted PDFs, including Delete / Rotate outputs, can still be merged.
+- [ ] Confirm an encrypted or permission-protected PDF is rejected with a specific, actionable message.
+- [ ] Remember that a PDF can open in Windows while still carrying encryption or permission protection internally.
+- [ ] If the merge fails, confirm the UI distinguishes unreadable or unsupported input, protection, an input/output conflict, and an unwritable output without exposing full paths.
 
 ## Merge PDFs
 
