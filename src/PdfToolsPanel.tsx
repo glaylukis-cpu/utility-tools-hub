@@ -1495,11 +1495,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <div className="pdf-tools-section-heading">
               <span>Future workspace</span>
               <h2 id="future-page-area-title">Page list and preview</h2>
-              <p>This reserved area is not interactive in the current release.</p>
+              <p>v0.4.2 documents preview options. This area remains non-interactive.</p>
             </div>
             <div className="pdf-tools-preview-placeholder" aria-label="Page preview planned">
               <span>Preview planned</span>
-              <small>Page thumbnails and reorder are not implemented.</small>
+              <small>No page rendering yet. A lightweight operation-plan view is the next planned step.</small>
             </div>
           </section>
         </aside>

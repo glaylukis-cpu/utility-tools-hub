@@ -34,6 +34,15 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm OCR, redaction, and direct PDF text editing remain labeled Research / not implemented.
 - [ ] Run Merge, Split, Extract, Rotate, and Delete with supported real PDF files and confirm their existing execution flows still complete.
 
+## v0.4.2 PDF preview research spike
+
+- [ ] Confirm `Docs/PdfPreviewResearch.md` documents the candidate approaches, comparison, risks, staged path, and next implementation step.
+- [ ] Confirm the Workbench does not claim that PDF page rendering or preview is implemented.
+- [ ] Confirm Preview, thumbnails, and Reorder remain Planned and unavailable.
+- [ ] Confirm OCR, redaction, and direct PDF text editing remain Research / not implemented.
+- [ ] Confirm Delete pages remains described as whole-page removal, not redaction.
+- [ ] Run Merge, Split, Extract, Rotate, and Delete with supported PDF files and confirm the research-only changes do not alter their existing flows.
+
 ## Merge PDFs
 
 - [ ] Select two or more PDF files.

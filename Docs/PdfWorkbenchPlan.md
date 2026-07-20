@@ -151,14 +151,23 @@ v0.4.1 focuses on PDF Workbench QA polish, responsive layout checks, safety word
 - メタデータの表示範囲とプライバシー方針の整理
 - 表示値と実処理結果の整合性テスト
 
-### v0.4.3 Page preview research spike
+v0.4.2 adds a PDF preview research spike and documents candidate preview approaches. No PDF rendering, thumbnails, reorder, OCR, redaction, or direct text editing is added.
 
-- ローカルページ描画方式の調査
-- サムネイル品質とパフォーマンスの測定
-- 大容量PDFのメモリ使用量確認
-- プレビューと出力結果の違いを明示
+### v0.4.3 Lightweight pseudo-preview / operation plan
 
-### v0.4.4 Reorder MVP
+- 実ページを描画せず、ページ番号と操作対象を可視化
+- Merge order、Extract / Rotate / Delete対象、Split後の構成を表示
+- Protected状態と実行不可理由を同じ領域で確認
+- 大量ページ向けの表示上限または仮想化方針を定義
+
+### v0.4.4 or later Experimental rendering prototype
+
+- pdf.jsまたはPDFiumによるローカルページ描画方式を比較
+- 1ページの低解像度prototypeで速度、メモリ、配布、CSPを測定
+- 実験機能として明示し、既存PDF操作の必須経路にしない
+- サムネイル、reorder、overlay writingはbackend選定後に段階導入
+
+### Later phase: Reorder MVP
 
 - ページ順序の明示的な指定
 - 重複、欠落、範囲外指定の検証
