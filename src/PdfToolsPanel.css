@@ -1,5 +1,5 @@
 .pdf-tools-page {
-  max-width: 1180px;
+  max-width: 1480px;
   margin: 0 auto;
 }
 
@@ -34,6 +34,213 @@
   color: #1e3a8a;
   padding: 14px 16px;
   font-size: 13px;
+}
+
+.pdf-tools-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(175px, 210px) minmax(420px, 1fr) minmax(210px, 250px);
+  align-items: start;
+  gap: 18px;
+}
+
+.pdf-tools-workbench-files,
+.pdf-tools-workbench-main,
+.pdf-tools-workbench-sidebar {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 18px;
+}
+
+.pdf-tools-workbench-heading {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 2px 2px 12px;
+}
+
+.pdf-tools-workbench-heading > span {
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pdf-tools-workbench-heading h2 {
+  margin: 4px 0;
+  color: #1e293b;
+  font-size: 20px;
+}
+
+.pdf-tools-workbench-heading p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.pdf-tools-sidebar-card {
+  padding: 18px;
+}
+
+.pdf-tools-file-overview {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.pdf-tools-file-overview > div {
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #f8fafc;
+  padding: 9px 10px;
+}
+
+.pdf-tools-file-overview dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.pdf-tools-file-overview dd {
+  overflow: hidden;
+  margin: 3px 0 0;
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-tools-local-notes {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.pdf-tools-local-notes p {
+  margin: 0;
+  border-left: 3px solid #a5b4fc;
+  background: #f8faff;
+  color: #475569;
+  padding: 7px 9px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pdf-tools-future-workspace {
+  border-style: dashed;
+  background: #fbfcff;
+}
+
+.pdf-tools-preview-placeholder {
+  display: grid;
+  min-height: 150px;
+  place-content: center;
+  gap: 6px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #f8fafc, #eef2ff);
+  color: #475569;
+  padding: 16px;
+  text-align: center;
+}
+
+.pdf-tools-preview-placeholder span {
+  color: #4338ca;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pdf-tools-preview-placeholder small {
+  max-width: 180px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pdf-tools-status-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pdf-tools-status-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid #eef2f7;
+  padding: 7px 0;
+  color: #475569;
+  font-size: 12px;
+}
+
+.pdf-tools-status-list strong {
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+.pdf-tools-status-list strong.is-running {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.pdf-tools-status-list strong.is-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pdf-tools-status-list strong.is-error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.pdf-tools-status-help {
+  margin: 12px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pdf-tools-capability-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.pdf-tools-capability-list span {
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  padding: 6px 9px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.pdf-tools-capability-available span {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.pdf-tools-capability-planned span {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.pdf-tools-capability-research span {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
 }
 
 .pdf-tools-workflow-grid {
@@ -388,7 +595,27 @@
   line-height: 1.55;
 }
 
+@media (max-width: 1100px) {
+  .pdf-tools-workbench-grid {
+    grid-template-columns: minmax(210px, 240px) minmax(0, 1fr);
+  }
+
+  .pdf-tools-workbench-sidebar {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
+  .pdf-tools-workbench-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pdf-tools-workbench-sidebar {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+
   .pdf-tools-workflow-grid,
   .pdf-tools-operation-grid,
   .pdf-tools-feature-grid {

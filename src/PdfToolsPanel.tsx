@@ -62,6 +62,7 @@ type PageParseResult =
   | { pages: null; error: string };
 
 const plannedPageTools = [
+  "Page preview",
   "Reorder pages",
   "Add page numbers",
   "Add watermark",
@@ -1013,19 +1014,60 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
       <div className="page-header pdf-tools-header">
         <div>
-          <h1>PDF Tools</h1>
-          <p>Local PDF page tools for files on this device</p>
+          <h1>PDF Workbench</h1>
+          <p>Local page operations with clear file, operation, result, and safety areas</p>
         </div>
         <span className="pdf-tools-planned-badge">Merge · Split · Extract · Rotate · Delete MVP</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>PDF page tools are available for local files.</strong>
-        <span>Merge, Split, Extract, Rotate, and Delete are available as MVPs. PDF files stay on this device.</span>
-        <span>Reorder, watermark, page numbers, OCR, redaction, and direct text editing are not implemented yet.</span>
+        <strong>Merge, Split, Extract, Rotate, and Delete are available as local page-operation MVPs.</strong>
+        <span>Preview, reorder, and overlay writing are planned. OCR, redaction, and direct text editing remain research topics.</span>
       </div>
 
-      <div className="pdf-tools-workflow-grid">
+      <div className="pdf-tools-workbench-grid">
+        <aside className="pdf-tools-workbench-files" aria-label="Selected PDF files">
+          <section className="pdf-tools-panel pdf-tools-sidebar-card">
+            <div className="pdf-tools-section-heading">
+              <span>Files</span>
+              <h2>Selected files</h2>
+              <p>Each operation keeps its own file selection in this UI shell.</p>
+            </div>
+            <dl className="pdf-tools-file-overview">
+              <div><dt>Merge</dt><dd>{selectedPdfs.length > 0 ? `${selectedPdfs.length} PDFs selected` : "No files selected"}</dd></div>
+              <div><dt>Split</dt><dd>{splitInput?.name ?? "No file selected"}</dd></div>
+              <div><dt>Extract</dt><dd>{extractInput?.name ?? "No file selected"}</dd></div>
+              <div><dt>Rotate</dt><dd>{rotateInput?.name ?? "No file selected"}</dd></div>
+              <div><dt>Delete</dt><dd>{deleteInput?.name ?? "No file selected"}</dd></div>
+            </dl>
+            <div className="pdf-tools-local-notes">
+              <p>PDF files stay on this device.</p>
+              <p>Original files are not overwritten by default.</p>
+              <p>Encrypted or permission-protected PDFs are not supported.</p>
+            </div>
+          </section>
+
+          <section className="pdf-tools-panel pdf-tools-future-workspace" aria-labelledby="future-page-area-title">
+            <div className="pdf-tools-section-heading">
+              <span>Future workspace</span>
+              <h2 id="future-page-area-title">Page list and preview</h2>
+              <p>This reserved area is not interactive in the current release.</p>
+            </div>
+            <div className="pdf-tools-preview-placeholder" aria-label="Page preview planned">
+              <span>Preview planned</span>
+              <small>Page thumbnails and reorder are not implemented.</small>
+            </div>
+          </section>
+        </aside>
+
+        <main className="pdf-tools-workbench-main" aria-label="PDF page operations">
+          <div className="pdf-tools-workbench-heading">
+            <span>Operations</span>
+            <h2>Page operations</h2>
+            <p>Select inputs and outputs inside each operation card.</p>
+          </div>
+
+          <div className="pdf-tools-workflow-grid">
         <section className="pdf-tools-panel" aria-labelledby="pdf-input-title">
           <div className="pdf-tools-section-heading">
             <span>Merge · Step 1</span>
@@ -1108,9 +1150,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           </dl>
         </section>
-      </div>
+          </div>
 
-      <section className="pdf-tools-section pdf-tools-merge" aria-labelledby="pdf-merge-title">
+          <section className="pdf-tools-section pdf-tools-merge" aria-labelledby="pdf-merge-title">
         <div className="pdf-tools-section-heading">
           <span>Merge · Step 3</span>
           <h2 id="pdf-merge-title">Merge PDFs</h2>
@@ -1122,19 +1164,19 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         {!canMerge && !isMerging && (
           <p className="pdf-tools-operation-requirements">To enable Merge: {mergeDisabledReason}</p>
         )}
-      </section>
+          </section>
 
-      {isMerging && (
+          {isMerging && (
         <div className="pdf-tools-feedback pdf-tools-feedback-loading" role="status" aria-live="polite">
           Merging the selected PDFs in order...
         </div>
-      )}
-      {error && (
+          )}
+          {error && (
         <div className="pdf-tools-feedback pdf-tools-feedback-error" role="alert">
           {error}
         </div>
-      )}
-      {!error && !isMerging && feedback && (
+          )}
+          {!error && !isMerging && feedback && (
         <div className="pdf-tools-feedback" role="status" aria-live="polite">
           <strong>{feedback}</strong>
           {mergeResult && (
@@ -1143,9 +1185,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </span>
           )}
         </div>
-      )}
+          )}
 
-      <div className="pdf-tools-operation-grid">
+          <div className="pdf-tools-operation-grid">
         <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-split-title">
           <div className="pdf-tools-section-heading">
             <span>Available MVP</span>
@@ -1478,50 +1520,74 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+          </div>
+        </main>
+
+        <aside className="pdf-tools-workbench-sidebar" aria-label="Results and safety">
+          <section className="pdf-tools-panel pdf-tools-sidebar-card" aria-labelledby="pdf-operation-status-title">
+            <div className="pdf-tools-section-heading">
+              <span>Results</span>
+              <h2 id="pdf-operation-status-title">Operation status</h2>
+              <p>Current status is shown without exposing full local paths.</p>
+            </div>
+            <ul className="pdf-tools-status-list">
+              <li><span>Merge</span><strong className={isMerging ? "is-running" : error ? "is-error" : mergeResult ? "is-success" : ""}>{isMerging ? "Running" : error ? "Needs attention" : mergeResult ? "Completed" : "Ready"}</strong></li>
+              <li><span>Split</span><strong className={isSplitting ? "is-running" : splitError ? "is-error" : splitResult ? "is-success" : ""}>{isSplitting ? "Running" : splitError ? "Needs attention" : splitResult ? "Completed" : "Ready"}</strong></li>
+              <li><span>Extract</span><strong className={isExtracting ? "is-running" : extractError ? "is-error" : extractResult ? "is-success" : ""}>{isExtracting ? "Running" : extractError ? "Needs attention" : extractResult ? "Completed" : "Ready"}</strong></li>
+              <li><span>Rotate</span><strong className={isRotating ? "is-running" : rotateError ? "is-error" : rotateResult ? "is-success" : ""}>{isRotating ? "Running" : rotateError ? "Needs attention" : rotateResult ? "Completed" : "Ready"}</strong></li>
+              <li><span>Delete</span><strong className={isDeleting ? "is-running" : deleteError ? "is-error" : deleteResult ? "is-success" : ""}>{isDeleting ? "Running" : deleteError ? "Needs attention" : deleteResult ? "Completed" : "Ready"}</strong></li>
+            </ul>
+            <p className="pdf-tools-status-help">Detailed success and error messages remain inside each operation card.</p>
+          </section>
+
+          <section className="pdf-tools-panel pdf-tools-sidebar-card" aria-labelledby="available-pdf-tools-title">
+            <div className="pdf-tools-section-heading">
+              <span>Available</span>
+              <h2 id="available-pdf-tools-title">Page-operation MVPs</h2>
+            </div>
+            <div className="pdf-tools-capability-list pdf-tools-capability-available">
+              {['Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages'].map((tool) => <span key={tool}>{tool}</span>)}
+            </div>
+          </section>
+
+          <section className="pdf-tools-panel pdf-tools-sidebar-card" aria-labelledby="planned-pdf-tools-title">
+            <div className="pdf-tools-section-heading">
+              <span>Planned</span>
+              <h2 id="planned-pdf-tools-title">Future workspace tools</h2>
+              <p>Visible for planning only. These controls are not available.</p>
+            </div>
+            <div className="pdf-tools-capability-list pdf-tools-capability-planned">
+              {plannedPageTools.map((tool) => <span key={tool}>{tool}</span>)}
+            </div>
+          </section>
+
+          <section className="pdf-tools-panel pdf-tools-sidebar-card pdf-tools-research" aria-labelledby="advanced-pdf-tools-title">
+            <div className="pdf-tools-section-heading">
+              <span>Research · Safety critical</span>
+              <h2 id="advanced-pdf-tools-title">Not implemented</h2>
+            </div>
+            <div className="pdf-tools-capability-list pdf-tools-capability-research">
+              {researchTools.map((tool) => <span key={tool}>{tool}</span>)}
+            </div>
+          </section>
+
+          <section className="pdf-tools-panel pdf-tools-sidebar-card pdf-tools-safety" aria-labelledby="pdf-safety-title">
+            <div className="pdf-tools-section-heading">
+              <span>Important</span>
+              <h2 id="pdf-safety-title">Safety notes</h2>
+            </div>
+            <ul>
+              <li>PDF files stay on this device.</li>
+              <li>Original files are not overwritten by default.</li>
+              <li>Protected PDFs are rejected unless explicitly supported in the future.</li>
+              <li>Delete pages removes whole pages only. It is not redaction.</li>
+              <li>Visual masks are not safe redaction.</li>
+              <li>Redaction must remove underlying content.</li>
+              <li>OCR and direct text editing are not implemented.</li>
+            </ul>
+          </section>
+        </aside>
       </div>
-
-      <section className="pdf-tools-section" aria-labelledby="planned-pdf-tools-title">
-        <div className="pdf-tools-section-heading">
-          <span>Planned</span>
-          <h2 id="planned-pdf-tools-title">Planned PDF tools</h2>
-          <p>These tools are not implemented and cannot be used in the current release.</p>
-        </div>
-        <div className="pdf-tools-feature-grid">
-          {plannedPageTools.map((tool) => (
-            <article className="pdf-tools-feature-card pdf-tools-feature-card-planned" key={tool}>
-              <h3>{tool}</h3>
-              <p>Not implemented yet</p>
-              <button type="button" className="btn btn-disabled" disabled>Planned</button>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="pdf-tools-section pdf-tools-research" aria-labelledby="advanced-pdf-tools-title">
-        <div className="pdf-tools-section-heading">
-          <span>Research · Safety critical</span>
-          <h2 id="advanced-pdf-tools-title">Research topics</h2>
-          <p>These capabilities are not implemented. They require additional safety and document-structure research.</p>
-        </div>
-        <div className="pdf-tools-future-list">
-          {researchTools.map((tool) => <span key={tool}>{tool} · Not available</span>)}
-        </div>
-      </section>
-
-      <section className="pdf-tools-section pdf-tools-safety" aria-labelledby="pdf-safety-title">
-        <div className="pdf-tools-section-heading">
-          <span>Important</span>
-          <h2 id="pdf-safety-title">Safety notes</h2>
-        </div>
-        <ul>
-          <li>Merge, Split, Extract, Rotate, and Delete are page-operation MVPs.</li>
-          <li>Delete pages removes whole pages only. Delete pages is not redaction.</li>
-          <li>Redaction must remove underlying content, not just cover it visually.</li>
-          <li>Direct text editing, OCR, and redaction are not implemented.</li>
-          <li>Reorder, watermark, and page numbers are planned but not implemented.</li>
-          <li>PDF files stay on this device and are processed locally.</li>
-        </ul>
-      </section>
     </div>
   );
 }
