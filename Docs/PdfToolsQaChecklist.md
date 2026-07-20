@@ -26,7 +26,9 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 ## Merge PDFs
 
 - [ ] Select two or more PDF files.
-- [ ] Confirm the numbered list matches the intended merge order.
+- [ ] Confirm the summary list shows merge order, file name, file size, page count, PDF version, and Normal / Protected status for each input.
+- [ ] Confirm Total pages is shown, and an uncounted file is explained without crashing the app.
+- [ ] Confirm a protected input shows a warning before Merge and does not imply decryption or permission bypass.
 - [ ] Select an output PDF and run Merge PDFs.
 - [ ] Confirm the success state reports the input count, total page count, and output file name.
 - [ ] Open the output PDF and confirm all pages are readable and follow the selected file order.

@@ -77,6 +77,12 @@ type OperationInputSummaryState = {
   result: PdfInspectResult | null;
 };
 
+type MergeInputSummaryState = OperationInputSummaryState & {
+  order: number;
+  inputPath?: string;
+  fileName: string;
+};
+
 type PageParseResult =
   | { pages: number[]; error: null }
   | { pages: null; error: string };
@@ -306,6 +312,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const deleteFileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
+  const mergeInspectRunIdRef = useRef(0);
   const isRunningRef = useRef(false);
 
   const [selectedPdfs, setSelectedPdfs] = useState<SelectedPdf[]>([]);
@@ -314,6 +321,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [isMerging, setIsMerging] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mergeInputSummaries, setMergeInputSummaries] = useState<MergeInputSummaryState[]>([]);
+  const [mergeInspectLoading, setMergeInspectLoading] = useState(false);
 
   const [splitInput, setSplitInput] = useState<SelectedPdf | null>(null);
   const [splitOutputDir, setSplitOutputDir] = useState<string | null>(null);
@@ -374,6 +383,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   useEffect(() => {
     return () => {
       runIdRef.current += 1;
+      mergeInspectRunIdRef.current += 1;
       isRunningRef.current = false;
       stopPolling();
     };
@@ -484,6 +494,69 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     );
   };
 
+  const inspectMergePdf = async (selectedPath: string): Promise<PdfInspectResult> => {
+    const jobId = await invoke<string>("execute_tool", {
+      request: {
+        tool_id: PDF_INSPECT_TOOL_ID,
+        input: { input_path: selectedPath },
+        options: {},
+      },
+    });
+
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      const job = await invoke<ToolJob<PdfInspectResult>>("get_job_status", { jobId });
+
+      if (job.status === "queued" || job.status === "running") continue;
+      if (job.status === "succeeded" && job.result) return job.result;
+      throw new Error(job.error ?? "PDF inspection failed");
+    }
+  };
+
+  const inspectMergeInputs = async (pdfs: SelectedPdf[]) => {
+    const runId = mergeInspectRunIdRef.current + 1;
+    mergeInspectRunIdRef.current = runId;
+    const initialSummaries = pdfs.map<MergeInputSummaryState>((pdf, index) => ({
+      order: index + 1,
+      inputPath: pdf.path,
+      fileName: pdf.name,
+      loading: typeof pdf.path === "string",
+      error: pdf.path ? null : "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    }));
+
+    setMergeInputSummaries(initialSummaries);
+    setMergeInspectLoading(initialSummaries.some((summary) => summary.loading));
+
+    for (const summary of initialSummaries) {
+      if (!summary.inputPath) continue;
+
+      try {
+        const result = await inspectMergePdf(summary.inputPath);
+        if (mergeInspectRunIdRef.current !== runId) return;
+        setMergeInputSummaries((current) =>
+          current.map((entry) =>
+            entry.order === summary.order
+              ? { ...entry, fileName: result.file_name, loading: false, error: null, result }
+              : entry,
+          ),
+        );
+      } catch (inspectError) {
+        if (mergeInspectRunIdRef.current !== runId) return;
+        const reason = inspectError instanceof Error ? inspectError.message : null;
+        setMergeInputSummaries((current) =>
+          current.map((entry) =>
+            entry.order === summary.order
+              ? { ...entry, loading: false, error: inspectFailureMessage(reason), result: null }
+              : entry,
+          ),
+        );
+      }
+    }
+
+    if (mergeInspectRunIdRef.current === runId) setMergeInspectLoading(false);
+  };
+
   const selectInspectPdf = async () => {
     if (isRunningRef.current) return;
     setInspectResult(null);
@@ -534,7 +607,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   };
 
   const selectPdfs = async () => {
-    if (isRunningRef.current) return;
+    if (isRunningRef.current || mergeInspectLoading) return;
     setFeedback(null);
     setError(null);
     setMergeResult(null);
@@ -561,6 +634,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
         setSelectedPdfs(pdfs);
         setFeedback(`${pdfs.length} PDF file${pdfs.length === 1 ? "" : "s"} selected.`);
+        void inspectMergeInputs(pdfs);
         return;
       } catch {
         setError("The native PDF picker is unavailable. Desktop file path selection is required to merge PDFs.");
@@ -587,14 +661,19 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       return;
     }
 
-    setSelectedPdfs(selectedFiles.map((file) => ({ name: file.name })));
+    const pdfs = selectedFiles.map((file) => ({ name: file.name }));
+    setSelectedPdfs(pdfs);
+    void inspectMergeInputs(pdfs);
     setError("Desktop file path selection is required to merge PDFs.");
     input.value = "";
   };
 
   const clearSelection = () => {
-    if (isRunningRef.current) return;
+    if (isRunningRef.current || mergeInspectLoading) return;
+    mergeInspectRunIdRef.current += 1;
     setSelectedPdfs([]);
+    setMergeInputSummaries([]);
+    setMergeInspectLoading(false);
     setMergeResult(null);
     setFeedback("PDF selection cleared.");
     setError(null);
@@ -1151,6 +1230,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     selectedPdfs.length > 0 && selectedPdfs.every((pdf) => typeof pdf.path === "string");
   const isAnyOperationRunning =
     isInspecting ||
+    mergeInspectLoading ||
     splitInputSummary.loading ||
     extractInputSummary.loading ||
     rotateInputSummary.loading ||
@@ -1160,6 +1240,16 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     isExtracting ||
     isRotating ||
     isDeleting;
+  const mergeTotalPages = mergeInputSummaries.reduce(
+    (total, summary) => total + (summary.result?.page_count ?? 0),
+    0,
+  );
+  const mergeHasUncountedFiles = mergeInputSummaries.some(
+    (summary) => !summary.loading && summary.result === null,
+  );
+  const mergeHasProtectedPdf = mergeInputSummaries.some(
+    (summary) => Boolean(summary.result && (summary.result.is_encrypted || summary.result.is_protected)),
+  );
   const hasValidSplitPrefix =
     splitOutputPrefix.trim().length > 0 && !/[\\/]/.test(splitOutputPrefix.trim());
   const canMerge =
@@ -1198,9 +1288,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       ? "Select at least two PDF files."
       : !hasDesktopInputPaths
         ? "Select the input PDFs again with the desktop file picker."
-        : !outputPath
-          ? "Select an output PDF."
-          : null;
+        : mergeInspectLoading
+          ? "Wait for the selected PDF summaries to finish."
+          : !outputPath
+            ? "Select an output PDF."
+            : null;
   const splitDisabledReason = !nativeDialogAvailable
     ? "PDF processing is available in the desktop app."
     : !splitInput?.path
@@ -1455,15 +1547,67 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <strong>{selectedPdfs.length}</strong>
           </div>
 
-          {selectedPdfs.length > 0 ? (
-            <ol className="pdf-tools-file-list">
-              {selectedPdfs.map((pdf, index) => (
-                <li key={`${pdf.name}-${index}`}>
-                  <span>{index + 1}</span>
-                  <strong title={pdf.name}>{pdf.name}</strong>
-                </li>
-              ))}
-            </ol>
+          {mergeInputSummaries.length > 0 ? (
+            <div className="pdf-tools-merge-summary" aria-label="Selected PDF merge summary">
+              <ol className="pdf-tools-merge-summary-list">
+                {mergeInputSummaries.map((summary) => {
+                  const result = summary.result;
+                  const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
+
+                  return (
+                    <li
+                      key={`${summary.order}-${summary.fileName}`}
+                      className={summary.error ? "has-error" : isProtected ? "is-protected" : undefined}
+                    >
+                      <div className="pdf-tools-merge-summary-file">
+                        <span aria-label={`Merge order ${summary.order}`}>{summary.order}</span>
+                        <strong title={summary.fileName}>{summary.fileName}</strong>
+                      </div>
+                      {summary.loading && (
+                        <p className="pdf-tools-merge-summary-message is-loading" role="status">
+                          Inspecting PDF summary...
+                        </p>
+                      )}
+                      {summary.error && !summary.loading && (
+                        <p className="pdf-tools-merge-summary-message is-error" role="alert">
+                          Summary unavailable. {summary.error}
+                        </p>
+                      )}
+                      {result && !summary.loading && (
+                        <dl className="pdf-tools-merge-summary-details">
+                          <div><dt>Size</dt><dd>{formatFileSize(result.file_size_bytes)}</dd></div>
+                          <div><dt>Pages</dt><dd>{result.page_count}</dd></div>
+                          <div><dt>PDF version</dt><dd>{result.pdf_version}</dd></div>
+                          <div>
+                            <dt>Status</dt>
+                            <dd>
+                              <span className={`pdf-tools-protection-status ${isProtected ? "is-protected" : "is-normal"}`}>
+                                {isProtected ? "Protected" : "Normal"}
+                              </span>
+                            </dd>
+                          </div>
+                        </dl>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+
+              <dl className="pdf-tools-merge-totals">
+                <div><dt>Files</dt><dd>{mergeInputSummaries.length}</dd></div>
+                <div><dt>Total pages</dt><dd>{mergeInspectLoading ? "Calculating..." : mergeTotalPages}</dd></div>
+              </dl>
+              {mergeHasUncountedFiles && !mergeInspectLoading && (
+                <p className="pdf-tools-merge-count-note">Some files could not be counted.</p>
+              )}
+              {mergeHasProtectedPdf && (
+                <div className="pdf-tools-merge-protected-warning" role="alert">
+                  <strong>One or more selected PDFs appear to be encrypted or permission-protected.</strong>
+                  <span>Protected PDFs can be viewed by some apps, but Merge PDFs does not decrypt PDFs or bypass permissions.</span>
+                  <span>Remove password or permission protection, then try again.</span>
+                </div>
+              )}
+            </div>
           ) : (
             <p className="pdf-tools-empty-selection">No PDFs selected.</p>
           )}
@@ -1513,6 +1657,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         <button type="button" className="btn btn-primary" onClick={mergePdfs} disabled={!canMerge}>
           {isMerging ? "Merging..." : "Merge PDFs"}
         </button>
+        <p className="pdf-tools-merge-guidance">
+          Merge order follows the selected file order. Protected PDFs may be rejected.
+        </p>
         {!canMerge && !isMerging && (
           <p className="pdf-tools-operation-requirements">To enable Merge: {mergeDisabledReason}</p>
         )}
