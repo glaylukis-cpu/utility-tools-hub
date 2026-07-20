@@ -71,6 +71,12 @@ type PdfInspectResult = {
   producer: string | null;
 };
 
+type OperationInputSummaryState = {
+  loading: boolean;
+  error: string | null;
+  result: PdfInspectResult | null;
+};
+
 type PageParseResult =
   | { pages: number[]; error: null }
   | { pages: null; error: string };
@@ -125,6 +131,71 @@ function inspectFailureMessage(reason?: string | null): string {
     (reason ? knownMessages[reason.trim()] : undefined) ??
     "Inspect failed. Confirm the file is a valid PDF and try again. Protected or damaged PDFs may not expose all summary information."
   );
+}
+
+function OperationInputSummary({
+  fileName,
+  summary,
+  guidance,
+}: {
+  fileName?: string;
+  summary: OperationInputSummaryState;
+  guidance: string;
+}) {
+  if (!fileName && !summary.loading && !summary.error && !summary.result) return null;
+
+  const result = summary.result;
+  const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
+
+  return (
+    <div className="pdf-tools-operation-input-summary" aria-label="Input PDF summary">
+      <div className="pdf-tools-operation-summary-heading">
+        <span>Input summary</span>
+        <strong title={result?.file_name ?? fileName}>{result?.file_name ?? fileName}</strong>
+      </div>
+
+      {summary.loading && (
+        <div className="pdf-tools-operation-summary-message is-loading" role="status">
+          Inspecting PDF summary...
+        </div>
+      )}
+      {summary.error && !summary.loading && (
+        <div className="pdf-tools-operation-summary-message is-error" role="alert">
+          <strong>Summary unavailable.</strong>
+          <span>{summary.error}</span>
+        </div>
+      )}
+      {result && !summary.loading && (
+        <>
+          <dl className="pdf-tools-operation-summary-details">
+            <div><dt>Size</dt><dd>{formatFileSize(result.file_size_bytes)}</dd></div>
+            <div><dt>Pages</dt><dd>{result.page_count}</dd></div>
+            <div><dt>PDF version</dt><dd>{result.pdf_version}</dd></div>
+            <div>
+              <dt>Status</dt>
+              <dd>
+                <span className={`pdf-tools-protection-status ${isProtected ? "is-protected" : "is-normal"}`}>
+                  {isProtected ? "Protected" : "Normal"}
+                </span>
+              </dd>
+            </div>
+          </dl>
+          <p className="pdf-tools-operation-summary-guidance">{guidance}</p>
+          {isProtected && (
+            <div className="pdf-tools-operation-summary-warning" role="alert">
+              <strong>Protected PDF</strong>
+              <span>This PDF appears to be encrypted or permission-protected.</span>
+              <span>Page operations may reject it. Utility Tools Hub does not decrypt PDFs or bypass permissions.</span>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function emptyOperationInputSummary(): OperationInputSummaryState {
+  return { loading: false, error: null, result: null };
 }
 
 function mergeFailureMessage(reason?: string | null): string {
@@ -283,6 +354,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [inspectFeedback, setInspectFeedback] = useState<string | null>(null);
   const [inspectError, setInspectError] = useState<string | null>(null);
 
+  const [splitInputSummary, setSplitInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
+  const [extractInputSummary, setExtractInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
+  const [rotateInputSummary, setRotateInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
+  const [deleteInputSummary, setDeleteInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
+
   const nativeDialogAvailable = isTauri();
   const parsedExtractPages = parsePageSelection(extractPagesInput);
   const parsedRotatePages = parsePageSelection(rotatePagesInput);
@@ -390,6 +466,21 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         setInspectFeedback(null);
         setInspectError(inspectFailureMessage(reason));
       },
+    );
+  };
+
+  const inspectOperationInput = async (
+    selectedPath: string,
+    setSummary: (summary: OperationInputSummaryState) => void,
+  ) => {
+    setSummary({ loading: true, error: null, result: null });
+    await executeAdditionalPdfTool<PdfInspectResult>(
+      PDF_INSPECT_TOOL_ID,
+      { input_path: selectedPath },
+      (loading) => setSummary({ loading, error: null, result: null }),
+      (result) => setSummary({ loading: false, error: null, result }),
+      (reason) =>
+        setSummary({ loading: false, error: inspectFailureMessage(reason), result: null }),
     );
   };
 
@@ -635,6 +726,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         if (typeof selectedPath !== "string") return;
         setSplitInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
         setSplitFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        await inspectOperationInput(selectedPath, setSplitInputSummary);
         return;
       } catch {
         setSplitError("The native PDF picker is unavailable. Desktop file path selection is required.");
@@ -651,12 +743,18 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setSplitInput(null);
+      setSplitInputSummary(emptyOperationInputSummary());
       setSplitError("Please select a PDF file.");
       input.value = "";
       return;
     }
 
     setSplitInput({ name: file.name });
+    setSplitInputSummary({
+      loading: false,
+      error: "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    });
     setSplitError("Desktop file path selection is required to split PDFs.");
     input.value = "";
   };
@@ -733,6 +831,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         if (typeof selectedPath !== "string") return;
         setExtractInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
         setExtractFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        await inspectOperationInput(selectedPath, setExtractInputSummary);
         return;
       } catch {
         setExtractError("The native PDF picker is unavailable. Desktop file path selection is required.");
@@ -749,12 +848,18 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setExtractInput(null);
+      setExtractInputSummary(emptyOperationInputSummary());
       setExtractError("Please select a PDF file.");
       input.value = "";
       return;
     }
 
     setExtractInput({ name: file.name });
+    setExtractInputSummary({
+      loading: false,
+      error: "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    });
     setExtractError("Desktop file path selection is required to extract pages.");
     input.value = "";
   };
@@ -837,6 +942,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         if (typeof selectedPath !== "string") return;
         setRotateInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
         setRotateFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        await inspectOperationInput(selectedPath, setRotateInputSummary);
         return;
       } catch {
         setRotateError("The native PDF picker is unavailable. Desktop file path selection is required.");
@@ -853,12 +959,18 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setRotateInput(null);
+      setRotateInputSummary(emptyOperationInputSummary());
       setRotateError("Please select a PDF file.");
       input.value = "";
       return;
     }
 
     setRotateInput({ name: file.name });
+    setRotateInputSummary({
+      loading: false,
+      error: "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    });
     setRotateError("Desktop file path selection is required to rotate pages.");
     input.value = "";
   };
@@ -942,6 +1054,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         if (typeof selectedPath !== "string") return;
         setDeleteInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
         setDeleteFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        await inspectOperationInput(selectedPath, setDeleteInputSummary);
         return;
       } catch {
         setDeleteError("The native PDF picker is unavailable. Desktop file path selection is required.");
@@ -958,12 +1071,18 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setDeleteInput(null);
+      setDeleteInputSummary(emptyOperationInputSummary());
       setDeleteError("Please select a PDF file.");
       input.value = "";
       return;
     }
 
     setDeleteInput({ name: file.name });
+    setDeleteInputSummary({
+      loading: false,
+      error: "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    });
     setDeleteError("Desktop file path selection is required to delete pages.");
     input.value = "";
   };
@@ -1031,7 +1150,16 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const hasDesktopInputPaths =
     selectedPdfs.length > 0 && selectedPdfs.every((pdf) => typeof pdf.path === "string");
   const isAnyOperationRunning =
-    isInspecting || isMerging || isSplitting || isExtracting || isRotating || isDeleting;
+    isInspecting ||
+    splitInputSummary.loading ||
+    extractInputSummary.loading ||
+    rotateInputSummary.loading ||
+    deleteInputSummary.loading ||
+    isMerging ||
+    isSplitting ||
+    isExtracting ||
+    isRotating ||
+    isDeleting;
   const hasValidSplitPrefix =
     splitOutputPrefix.trim().length > 0 && !/[\\/]/.test(splitOutputPrefix.trim());
   const canMerge =
@@ -1453,6 +1581,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           </dl>
 
+          <OperationInputSummary
+            fileName={splitInput?.name}
+            summary={splitInputSummary}
+            guidance="Page count can help estimate the number of output files."
+          />
+
           <label className="pdf-tools-field">
             <span>Output prefix</span>
             <input
@@ -1531,6 +1665,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               </dd>
             </div>
           </dl>
+
+          <OperationInputSummary
+            fileName={extractInput?.name}
+            summary={extractInputSummary}
+            guidance="Page count helps confirm valid page ranges."
+          />
 
           <label className="pdf-tools-field">
             <span>Pages</span>
@@ -1611,6 +1751,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               </dd>
             </div>
           </dl>
+
+          <OperationInputSummary
+            fileName={rotateInput?.name}
+            summary={rotateInputSummary}
+            guidance="Page count helps confirm which pages to rotate."
+          />
 
           <label className="pdf-tools-field">
             <span>Pages</span>
@@ -1705,6 +1851,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               </dd>
             </div>
           </dl>
+
+          <OperationInputSummary
+            fileName={deleteInput?.name}
+            summary={deleteInputSummary}
+            guidance="Page count helps avoid deleting all pages. Delete pages is not redaction."
+          />
 
           <label className="pdf-tools-field">
             <span>Pages</span>

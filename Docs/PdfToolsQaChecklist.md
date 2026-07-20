@@ -20,6 +20,8 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm Title, Author, Creator, and Producer appear only when present, and missing metadata is handled clearly.
 - [ ] Select an encrypted or permission-protected PDF and confirm Protected status and the no-decryption/no-permission-bypass warning.
 - [ ] Confirm invalid or damaged PDFs show a safe error, PDF files stay on this device is visible, and Preview / thumbnails / Reorder remain unavailable.
+- [ ] Select an input in each Split / Extract / Rotate / Delete card and confirm file size, page count, PDF version, and protection status appear automatically.
+- [ ] Confirm protected inputs show an operation-card warning and that all four existing operations can still be executed with supported PDFs.
 
 ## Merge PDFs
 

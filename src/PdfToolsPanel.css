@@ -233,6 +233,97 @@
   padding: 7px 9px;
 }
 
+.pdf-tools-operation-input-summary {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 12px;
+}
+
+.pdf-tools-operation-summary-heading {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.pdf-tools-operation-summary-heading span,
+.pdf-tools-operation-summary-details dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pdf-tools-operation-summary-heading strong {
+  overflow: hidden;
+  color: #1e3a8a;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-tools-operation-summary-message {
+  display: grid;
+  gap: 4px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 9px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pdf-tools-operation-summary-message.is-error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.pdf-tools-operation-summary-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.pdf-tools-operation-summary-details > div {
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px;
+}
+
+.pdf-tools-operation-summary-details dd {
+  overflow-wrap: anywhere;
+  margin: 3px 0 0;
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.pdf-tools-operation-summary-guidance {
+  margin: 0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pdf-tools-operation-summary-warning {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  padding: 10px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .pdf-tools-file-overview {
   display: grid;
   gap: 8px;
