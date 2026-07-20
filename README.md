@@ -3,21 +3,21 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.3.4](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.3.4)
+- **Latest release:** [v0.4.0](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.4.0)
 
 ## Current Status
 
-- Latest release: v0.3.4
+- Latest release: v0.4.0
 - Windows desktop app
 - Excel to HTML Converter is available
 - The Tools catalog is organized into Converters, Editors, and Planned / Pro tools
 - Converter Tools stacks File, Data, and Text converter sections, with each active editor shown inside its category
 - Text Case Converter navigation and Excel → HTML Converter navigation are maintained
-- PDF Tools provides local Merge PDFs, Split PDF, Extract pages, Rotate pages, and Delete pages MVPs with success, error, and loading states
-- v0.3.4 improves Merge PDFs stability and clearly rejects encrypted or permission-protected inputs while keeping normal unprotected PDF merge available
-- Split, Extract, Rotate, and Delete remain available; no decryption, permission bypass, password handling, or new PDF operation was added
+- v0.4.0 is the PDF Workbench foundation release, reorganizing PDF Tools around file, operation, result, and safety areas
+- PDF inspect shows file summaries, single-PDF operation inputs are inspected automatically, and Merge PDFs shows selected-file order, size, page count, PDF version, total pages, and protected-PDF warnings
+- Merge, Split, Extract, Rotate, and Delete remain available; no decryption, permission bypass, or password handling was added
 - PDF page operations use the local Rust core without a Python sidecar or external communication
-- Reorder, watermark, and page numbers remain planned; direct PDF text editing, OCR, and redaction are not implemented
+- Preview, thumbnails, reorder, watermark, page numbers, and overlay writing remain planned; direct PDF text editing, OCR, and redaction are not implemented
 - Delete pages removes whole pages and is not redaction
 - Billing shows a pricing model draft, and Account shows a planned license activation flow
 - Real authentication, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, and external communication are not implemented yet

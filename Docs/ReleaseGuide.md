@@ -175,3 +175,11 @@ git push origin vX.Y.Z
 - Split, Extract, Rotate, and Delete remain available.
 - No decryption, permission bypass, password handling, new PDF operation, or Python sidecar was added.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.4.0 Release Note
+
+- v0.4.0 is the PDF Workbench foundation release.
+- PDF Tools is organized as a Workbench, with PDF file summaries, automatic input summaries for single-PDF operations, and Merge multi-file summaries with order, total pages, and protected-PDF warnings.
+- Merge, Split, Extract, Rotate, and Delete remain available, with processing kept local and no Python sidecar.
+- Preview, thumbnails, reorder, watermark, page numbers, overlay writing, OCR, redaction, and direct PDF text editing are not implemented.
+- Updater verification will be done after the signed build and GitHub Release are created.
