@@ -14,6 +14,13 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Remember that a PDF can open in Windows while still carrying encryption or permission protection internally.
 - [ ] If the merge fails, confirm the UI distinguishes unreadable or unsupported input, protection, an input/output conflict, and an unwritable output without exposing full paths.
 
+## v0.4.0 PDF inspect UI QA
+
+- [ ] Select a normal PDF and confirm file name, readable file size, page count, PDF version, and Normal status are shown without a full path.
+- [ ] Confirm Title, Author, Creator, and Producer appear only when present, and missing metadata is handled clearly.
+- [ ] Select an encrypted or permission-protected PDF and confirm Protected status and the no-decryption/no-permission-bypass warning.
+- [ ] Confirm invalid or damaged PDFs show a safe error, PDF files stay on this device is visible, and Preview / thumbnails / Reorder remain unavailable.
+
 ## Merge PDFs
 
 - [ ] Select two or more PDF files.

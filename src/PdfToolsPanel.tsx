@@ -57,6 +57,20 @@ type PdfDeleteResult = {
   remaining_page_count: number;
 };
 
+type PdfInspectResult = {
+  input_path: string;
+  file_name: string;
+  file_size_bytes: number;
+  pdf_version: string;
+  page_count: number;
+  is_encrypted: boolean;
+  is_protected: boolean;
+  title: string | null;
+  author: string | null;
+  creator: string | null;
+  producer: string | null;
+};
+
 type PageParseResult =
   | { pages: number[]; error: null }
   | { pages: null; error: string };
@@ -83,11 +97,34 @@ const PDF_SPLIT_TOOL_ID = "pdf_split";
 const PDF_EXTRACT_TOOL_ID = "pdf_extract";
 const PDF_ROTATE_TOOL_ID = "pdf_rotate";
 const PDF_DELETE_TOOL_ID = "pdf_delete";
+const PDF_INSPECT_TOOL_ID = "pdf_inspect";
 const POLL_INTERVAL_MS = 500;
 const MAX_EXPANDED_PAGES = 10_000;
 
 function fileNameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() || path;
+}
+
+function formatFileSize(sizeInBytes: number): string {
+  if (!Number.isFinite(sizeInBytes) || sizeInBytes < 0) return "Unknown";
+  if (sizeInBytes < 1024) return `${sizeInBytes} B`;
+  if (sizeInBytes < 1024 ** 2) return `${(sizeInBytes / 1024).toFixed(1)} KB`;
+  if (sizeInBytes < 1024 ** 3) return `${(sizeInBytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(sizeInBytes / 1024 ** 3).toFixed(1)} GB`;
+}
+
+function inspectFailureMessage(reason?: string | null): string {
+  const knownMessages: Record<string, string> = {
+    "every input file must use the .pdf extension": "Select a file with the .pdf extension.",
+    "an input PDF file does not exist": "The selected PDF could not be found. Select it again.",
+    "an input file is not a supported PDF document":
+      "Inspect failed. Confirm the file is a valid PDF and try again.",
+  };
+
+  return (
+    (reason ? knownMessages[reason.trim()] : undefined) ??
+    "Inspect failed. Confirm the file is a valid PDF and try again. Protected or damaged PDFs may not expose all summary information."
+  );
 }
 
 function mergeFailureMessage(reason?: string | null): string {
@@ -190,6 +227,7 @@ function parsePageSelection(value: string): PageParseResult {
 }
 
 export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
+  const inspectFileInputRef = useRef<HTMLInputElement>(null);
   const mergeFileInputRef = useRef<HTMLInputElement>(null);
   const splitFileInputRef = useRef<HTMLInputElement>(null);
   const extractFileInputRef = useRef<HTMLInputElement>(null);
@@ -239,6 +277,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [inspectInput, setInspectInput] = useState<SelectedPdf | null>(null);
+  const [inspectResult, setInspectResult] = useState<PdfInspectResult | null>(null);
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [inspectFeedback, setInspectFeedback] = useState<string | null>(null);
+  const [inspectError, setInspectError] = useState<string | null>(null);
+
   const nativeDialogAvailable = isTauri();
   const parsedExtractPages = parsePageSelection(extractPagesInput);
   const parsedRotatePages = parsePageSelection(rotatePagesInput);
@@ -264,7 +308,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     input: Record<string, unknown>,
     setRunning: (running: boolean) => void,
     onSuccess: (result: T) => void,
-    onFailure: () => void,
+    onFailure: (reason?: string | null) => void,
   ) => {
     if (isRunningRef.current) return;
 
@@ -316,7 +360,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             return;
           }
 
-          onFailure();
+          onFailure(job.error);
         } catch {
           finishWithError();
         }
@@ -328,6 +372,74 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     } catch {
       finishWithError();
     }
+  };
+
+  const inspectPdf = async (selectedPath: string) => {
+    await executeAdditionalPdfTool<PdfInspectResult>(
+      PDF_INSPECT_TOOL_ID,
+      { input_path: selectedPath },
+      setIsInspecting,
+      (result) => {
+        setInspectResult(result);
+        setInspectInput({ name: result.file_name });
+        setInspectFeedback("PDF summary is ready.");
+        setInspectError(null);
+      },
+      (reason) => {
+        setInspectResult(null);
+        setInspectFeedback(null);
+        setInspectError(inspectFailureMessage(reason));
+      },
+    );
+  };
+
+  const selectInspectPdf = async () => {
+    if (isRunningRef.current) return;
+    setInspectResult(null);
+    setInspectFeedback(null);
+    setInspectError(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF to inspect",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+          setInspectError("Select a file with the .pdf extension.");
+          return;
+        }
+
+        setInspectInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
+        await inspectPdf(selectedPath);
+        return;
+      } catch {
+        setInspectError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    inspectFileInputRef.current?.click();
+  };
+
+  const selectBrowserInspectPdf = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setInspectResult(null);
+    setInspectFeedback(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setInspectInput(null);
+      setInspectError("Select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setInspectInput({ name: file.name });
+    setInspectError("Desktop file path selection is required to inspect PDFs.");
+    input.value = "";
   };
 
   const selectPdfs = async () => {
@@ -919,7 +1031,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const hasDesktopInputPaths =
     selectedPdfs.length > 0 && selectedPdfs.every((pdf) => typeof pdf.path === "string");
   const isAnyOperationRunning =
-    isMerging || isSplitting || isExtracting || isRotating || isDeleting;
+    isInspecting || isMerging || isSplitting || isExtracting || isRotating || isDeleting;
   const hasValidSplitPrefix =
     splitOutputPrefix.trim().length > 0 && !/[\\/]/.test(splitOutputPrefix.trim());
   const canMerge =
@@ -1005,6 +1117,20 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           : !deleteOutputPath
             ? "Select an output PDF."
             : null;
+  const inspectMetadata = inspectResult
+    ? [
+        { label: "Title", value: inspectResult.title },
+        { label: "Author", value: inspectResult.author },
+        { label: "Creator", value: inspectResult.creator },
+        { label: "Producer", value: inspectResult.producer },
+      ].filter(
+        (entry): entry is { label: string; value: string } =>
+          typeof entry.value === "string" && entry.value.trim().length > 0,
+      )
+    : [];
+  const inspectedPdfIsProtected = Boolean(
+    inspectResult && (inspectResult.is_encrypted || inspectResult.is_protected),
+  );
 
   return (
     <div className="pdf-tools-page">
@@ -1017,16 +1143,113 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h1>PDF Workbench</h1>
           <p>Local page operations with clear file, operation, result, and safety areas</p>
         </div>
-        <span className="pdf-tools-planned-badge">Merge · Split · Extract · Rotate · Delete MVP</span>
+        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>Merge, Split, Extract, Rotate, and Delete are available as local page-operation MVPs.</strong>
+        <strong>PDF summary inspection and five local page-operation MVPs are available.</strong>
         <span>Preview, reorder, and overlay writing are planned. OCR, redaction, and direct text editing remain research topics.</span>
       </div>
 
       <div className="pdf-tools-workbench-grid">
         <aside className="pdf-tools-workbench-files" aria-label="Selected PDF files">
+          <section className="pdf-tools-panel pdf-tools-sidebar-card pdf-tools-inspect-card" aria-labelledby="pdf-file-summary-title">
+            <div className="pdf-tools-section-heading">
+              <span>File summary</span>
+              <h2 id="pdf-file-summary-title">Inspect PDF</h2>
+              <p>Select one local PDF to inspect its page count, version, and protection status.</p>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={selectInspectPdf}
+              disabled={isAnyOperationRunning}
+            >
+              {isInspecting ? "Inspecting..." : "Select PDF to inspect"}
+            </button>
+            <input
+              ref={inspectFileInputRef}
+              className="pdf-tools-hidden-input"
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={(event) => selectBrowserInspectPdf(event.target.files?.[0], event.currentTarget)}
+            />
+
+            {isInspecting && (
+              <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-inspect-feedback" role="status">
+                <strong>Inspecting PDF...</strong>
+                <span>Reading safe document summary information locally.</span>
+              </div>
+            )}
+            {inspectError && (
+              <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-inspect-feedback" role="alert">
+                <strong>Inspect failed.</strong>
+                <span>{inspectError}</span>
+              </div>
+            )}
+            {!isInspecting && inspectFeedback && inspectResult && (
+              <div className="pdf-tools-feedback pdf-tools-inspect-feedback" role="status">
+                <strong>{inspectFeedback}</strong>
+              </div>
+            )}
+
+            {!inspectResult && !isInspecting && !inspectError && (
+              <div className="pdf-tools-inspect-empty">
+                <strong>No PDF inspected yet.</strong>
+                <span>Select a PDF file to inspect its page count, version, and protection status.</span>
+              </div>
+            )}
+
+            {inspectResult && (
+              <div className="pdf-tools-inspect-result">
+                <div className="pdf-tools-inspect-file-name" title={inspectResult.file_name}>
+                  <span>File</span>
+                  <strong>{inspectResult.file_name}</strong>
+                </div>
+                <dl className="pdf-tools-inspect-summary">
+                  <div><dt>Size</dt><dd>{formatFileSize(inspectResult.file_size_bytes)}</dd></div>
+                  <div><dt>Pages</dt><dd>{inspectResult.page_count}</dd></div>
+                  <div><dt>PDF version</dt><dd>{inspectResult.pdf_version}</dd></div>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>
+                      <span className={`pdf-tools-protection-status ${inspectedPdfIsProtected ? "is-protected" : "is-normal"}`}>
+                        {inspectedPdfIsProtected ? "Protected" : "Normal"}
+                      </span>
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="pdf-tools-metadata">
+                  <h3>Metadata</h3>
+                  {inspectMetadata.length > 0 ? (
+                    <dl>
+                      {inspectMetadata.map((entry) => (
+                        <div key={entry.label}>
+                          <dt>{entry.label}</dt>
+                          <dd>{entry.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p>No metadata found.</p>
+                  )}
+                </div>
+
+                {inspectedPdfIsProtected && (
+                  <div className="pdf-tools-protected-warning" role="alert">
+                    <strong>This PDF appears to be encrypted or permission-protected.</strong>
+                    <span>Protected PDFs can be viewed by some apps but may not be supported for merge or editing operations.</span>
+                    <span>Utility Tools Hub does not decrypt PDFs or bypass permissions.</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="pdf-tools-inspect-local-note">PDF files stay on this device. Full local paths are not shown here.</p>
+          </section>
+
           <section className="pdf-tools-panel pdf-tools-sidebar-card">
             <div className="pdf-tools-section-heading">
               <span>Files</span>
@@ -1034,6 +1257,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <p>Each operation keeps its own file selection in this UI shell.</p>
             </div>
             <dl className="pdf-tools-file-overview">
+              <div><dt>Inspect</dt><dd>{inspectInput?.name ?? "No file selected"}</dd></div>
               <div><dt>Merge</dt><dd>{selectedPdfs.length > 0 ? `${selectedPdfs.length} PDFs selected` : "No files selected"}</dd></div>
               <div><dt>Split</dt><dd>{splitInput?.name ?? "No file selected"}</dd></div>
               <div><dt>Extract</dt><dd>{extractInput?.name ?? "No file selected"}</dd></div>
@@ -1531,6 +1755,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <p>Current status is shown without exposing full local paths.</p>
             </div>
             <ul className="pdf-tools-status-list">
+              <li><span>Inspect</span><strong className={isInspecting ? "is-running" : inspectError ? "is-error" : inspectResult ? "is-success" : ""}>{isInspecting ? "Running" : inspectError ? "Needs attention" : inspectResult ? "Completed" : "Ready"}</strong></li>
               <li><span>Merge</span><strong className={isMerging ? "is-running" : error ? "is-error" : mergeResult ? "is-success" : ""}>{isMerging ? "Running" : error ? "Needs attention" : mergeResult ? "Completed" : "Ready"}</strong></li>
               <li><span>Split</span><strong className={isSplitting ? "is-running" : splitError ? "is-error" : splitResult ? "is-success" : ""}>{isSplitting ? "Running" : splitError ? "Needs attention" : splitResult ? "Completed" : "Ready"}</strong></li>
               <li><span>Extract</span><strong className={isExtracting ? "is-running" : extractError ? "is-error" : extractResult ? "is-success" : ""}>{isExtracting ? "Running" : extractError ? "Needs attention" : extractResult ? "Completed" : "Ready"}</strong></li>
@@ -1546,7 +1771,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <h2 id="available-pdf-tools-title">Page-operation MVPs</h2>
             </div>
             <div className="pdf-tools-capability-list pdf-tools-capability-available">
-              {['Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages'].map((tool) => <span key={tool}>{tool}</span>)}
+              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages'].map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
 
@@ -1580,6 +1805,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <li>PDF files stay on this device.</li>
               <li>Original files are not overwritten by default.</li>
               <li>Protected PDFs are rejected unless explicitly supported in the future.</li>
+              <li>Utility Tools Hub does not decrypt PDFs or bypass permissions.</li>
               <li>Delete pages removes whole pages only. It is not redaction.</li>
               <li>Visual masks are not safe redaction.</li>
               <li>Redaction must remove underlying content.</li>
