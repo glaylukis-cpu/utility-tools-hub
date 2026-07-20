@@ -167,3 +167,11 @@ git push origin vX.Y.Z
 - `Docs/PdfToolsQaChecklist.md` provides repeatable real-file QA steps.
 - No new PDF processing feature was added, the Rust PDF core and bridge were not changed, and no Python sidecar is used.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.3.4 Release Note
+
+- v0.3.4 is a protected PDF merge error and merge stability bugfix release.
+- Merge PDFs clearly rejects encrypted or permission-protected inputs while normal unprotected PDF merge remains supported.
+- Split, Extract, Rotate, and Delete remain available.
+- No decryption, permission bypass, password handling, new PDF operation, or Python sidecar was added.
+- Updater verification will be done after the signed build and GitHub Release are created.
