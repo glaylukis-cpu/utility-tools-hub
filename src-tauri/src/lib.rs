@@ -52,6 +52,7 @@ const PDF_SPLIT_TOOL_ID: &str = "pdf_split";
 const PDF_EXTRACT_TOOL_ID: &str = "pdf_extract";
 const PDF_ROTATE_TOOL_ID: &str = "pdf_rotate";
 const PDF_DELETE_TOOL_ID: &str = "pdf_delete";
+const PDF_INSPECT_TOOL_ID: &str = "pdf_inspect";
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -203,6 +204,20 @@ pub(crate) struct PdfDeleteRequest {
     pages: Vec<usize>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PdfInspectInput {
+    input_path: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfInspectOptions {}
+
+pub(crate) struct PdfInspectRequest {
+    input_path: String,
+}
+
 #[derive(Clone, Copy)]
 enum TextCaseMode {
     Uppercase,
@@ -243,6 +258,7 @@ enum RegisteredTool {
     PdfExtract,
     PdfRotate,
     PdfDelete,
+    PdfInspect,
 }
 
 struct ToolRegistry;
@@ -257,6 +273,7 @@ impl ToolRegistry {
             PDF_EXTRACT_TOOL_ID => Ok(RegisteredTool::PdfExtract),
             PDF_ROTATE_TOOL_ID => Ok(RegisteredTool::PdfRotate),
             PDF_DELETE_TOOL_ID => Ok(RegisteredTool::PdfDelete),
+            PDF_INSPECT_TOOL_ID => Ok(RegisteredTool::PdfInspect),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
         }
     }
@@ -384,6 +401,20 @@ impl RegisteredTool {
                     pages: input.pages,
                 }))
             }
+            RegisteredTool::PdfInspect => {
+                let input: PdfInspectInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfInspectOptions::default()
+                } else {
+                    serde_json::from_value::<PdfInspectOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfInspect(PdfInspectRequest {
+                    input_path: input.input_path,
+                }))
+            }
         }
     }
 }
@@ -396,6 +427,7 @@ enum ValidatedToolRequest {
     PdfExtract(PdfExtractRequest),
     PdfRotate(PdfRotateRequest),
     PdfDelete(PdfDeleteRequest),
+    PdfInspect(PdfInspectRequest),
 }
 
 impl ValidatedToolRequest {
@@ -408,6 +440,7 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::PdfExtract(_) => PDF_EXTRACT_TOOL_ID,
             ValidatedToolRequest::PdfRotate(_) => PDF_ROTATE_TOOL_ID,
             ValidatedToolRequest::PdfDelete(_) => PDF_DELETE_TOOL_ID,
+            ValidatedToolRequest::PdfInspect(_) => PDF_INSPECT_TOOL_ID,
         }
     }
 
@@ -429,6 +462,9 @@ impl ValidatedToolRequest {
             }
             ValidatedToolRequest::PdfDelete(request) => {
                 PdfDeleteHandler.execute(app, request).await
+            }
+            ValidatedToolRequest::PdfInspect(request) => {
+                PdfInspectHandler.execute(app, request).await
             }
         }
     }
@@ -617,6 +653,30 @@ pub(crate) fn run_pdf_delete_bridge(
         request.pages,
     )
     .map_err(|error| error.to_string())
+}
+
+struct PdfInspectHandler;
+
+impl ToolHandler for PdfInspectHandler {
+    type Request = PdfInspectRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result =
+                tauri::async_runtime::spawn_blocking(move || run_pdf_inspect_bridge(request))
+                    .await
+                    .map_err(|_| "PDF inspect task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_inspect_bridge(
+    request: PdfInspectRequest,
+) -> Result<pdf_tools::PdfInspectResult, String> {
+    pdf_tools::inspect_pdf(PathBuf::from(request.input_path)).map_err(|error| error.to_string())
 }
 
 #[derive(Debug, Serialize)]
@@ -1128,6 +1188,14 @@ mod tests {
         assert!(matches!(
             ToolRegistry::resolve(PDF_DELETE_TOOL_ID),
             Ok(RegisteredTool::PdfDelete)
+        ));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_inspect_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_INSPECT_TOOL_ID),
+            Ok(RegisteredTool::PdfInspect)
         ));
     }
 
