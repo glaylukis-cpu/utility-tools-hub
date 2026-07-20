@@ -23,6 +23,17 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Select an input in each Split / Extract / Rotate / Delete card and confirm file size, page count, PDF version, and protection status appear automatically.
 - [ ] Confirm protected inputs show an operation-card warning and that all four existing operations can still be executed with supported PDFs.
 
+## v0.4.1 PDF Workbench QA polish
+
+- [ ] Confirm the three-column Workbench remains readable without horizontal overflow at 1280, 1600, and 1920 px widths, and falls back to one column at mobile width.
+- [ ] Confirm Inspect PDF shows file name, size, page count, PDF version, and Normal / Protected status without exposing a full path.
+- [ ] Confirm the Merge summary shows every selected PDF, merge order, Total pages, and a warning when a protected PDF is included.
+- [ ] Confirm Split, Extract, Rotate, and Delete show their input PDF summaries after selection.
+- [ ] Confirm Delete pages is clearly described as whole-page removal, not redaction.
+- [ ] Confirm Preview, thumbnails, and Reorder remain labeled Planned and unavailable.
+- [ ] Confirm OCR, redaction, and direct PDF text editing remain labeled Research / not implemented.
+- [ ] Run Merge, Split, Extract, Rotate, and Delete with supported real PDF files and confirm their existing execution flows still complete.
+
 ## Merge PDFs
 
 - [ ] Select two or more PDF files.

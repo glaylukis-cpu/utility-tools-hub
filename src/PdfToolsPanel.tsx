@@ -90,10 +90,10 @@ type PageParseResult =
 const plannedPageTools = [
   "Page preview",
   "Reorder pages",
-  "Add page numbers",
-  "Add watermark",
-  "Add text stamp",
-  "Add image stamp",
+  "Page numbers",
+  "Watermark",
+  "Text stamp",
+  "Image stamp",
   "PDF to images",
   "Images to PDF",
 ] as const;
@@ -1689,7 +1689,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <div className="pdf-tools-operation-grid">
         <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-split-title">
           <div className="pdf-tools-section-heading">
-            <span>Available MVP</span>
+            <span>One PDF · All pages</span>
             <h2 id="pdf-split-title">Split PDF</h2>
             <p>Split one PDF into a separate PDF file for each page.</p>
           </div>
@@ -1774,7 +1774,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
         <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-extract-title">
           <div className="pdf-tools-section-heading">
-            <span>Available MVP</span>
+            <span>One PDF · Selected pages</span>
             <h2 id="pdf-extract-title">Extract pages</h2>
             <p>Copy only the selected pages into one new PDF.</p>
           </div>
@@ -1860,7 +1860,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
         <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-rotate-title">
           <div className="pdf-tools-section-heading">
-            <span>Available MVP</span>
+            <span>One PDF · Selected pages</span>
             <h2 id="pdf-rotate-title">Rotate pages</h2>
             <p>Rotate selected pages by 90°, 180°, or 270° and save a new PDF.</p>
           </div>
@@ -1959,7 +1959,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
         <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-delete-title">
           <div className="pdf-tools-section-heading">
-            <span>Available MVP</span>
+            <span>Whole-page removal</span>
             <h2 id="pdf-delete-title">Delete pages</h2>
             <p>Remove selected whole pages and save the remaining pages as a new PDF.</p>
           </div>
@@ -2067,7 +2067,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <section className="pdf-tools-panel pdf-tools-sidebar-card" aria-labelledby="available-pdf-tools-title">
             <div className="pdf-tools-section-heading">
               <span>Available</span>
-              <h2 id="available-pdf-tools-title">Page-operation MVPs</h2>
+              <h2 id="available-pdf-tools-title">Local PDF operations</h2>
             </div>
             <div className="pdf-tools-capability-list pdf-tools-capability-available">
               {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages'].map((tool) => <span key={tool}>{tool}</span>)}
@@ -2078,7 +2078,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <div className="pdf-tools-section-heading">
               <span>Planned</span>
               <h2 id="planned-pdf-tools-title">Future workspace tools</h2>
-              <p>Visible for planning only. These controls are not available.</p>
+              <p>Planning only. Not available in this release.</p>
             </div>
             <div className="pdf-tools-capability-list pdf-tools-capability-planned">
               {plannedPageTools.map((tool) => <span key={tool}>{tool}</span>)}
@@ -2101,13 +2101,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <h2 id="pdf-safety-title">Safety notes</h2>
             </div>
             <ul>
-              <li>PDF files stay on this device.</li>
+              <li>PDF files stay on this device. Full local paths are not shown.</li>
               <li>Original files are not overwritten by default.</li>
-              <li>Protected PDFs are rejected unless explicitly supported in the future.</li>
-              <li>Utility Tools Hub does not decrypt PDFs or bypass permissions.</li>
-              <li>Delete pages removes whole pages only. It is not redaction.</li>
-              <li>Visual masks are not safe redaction.</li>
-              <li>Redaction must remove underlying content.</li>
+              <li>Protected PDFs are rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.</li>
+              <li>Delete pages removes whole pages only; it is not redaction. Visual masks do not remove underlying content.</li>
               <li>OCR and direct text editing are not implemented.</li>
             </ul>
           </section>

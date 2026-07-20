@@ -38,9 +38,9 @@
 
 .pdf-tools-workbench-grid {
   display: grid;
-  grid-template-columns: minmax(175px, 210px) minmax(420px, 1fr) minmax(210px, 250px);
+  grid-template-columns: minmax(175px, 200px) minmax(450px, 1fr) minmax(200px, 230px);
   align-items: start;
-  gap: 18px;
+  gap: 16px;
 }
 
 .pdf-tools-workbench-files,
@@ -78,7 +78,24 @@
 }
 
 .pdf-tools-sidebar-card {
-  padding: 18px;
+  padding: 16px;
+}
+
+.pdf-tools-workbench-sidebar {
+  gap: 12px;
+}
+
+.pdf-tools-workbench-sidebar .pdf-tools-section-heading {
+  margin-bottom: 12px;
+}
+
+.pdf-tools-workbench-sidebar .pdf-tools-section-heading h2 {
+  font-size: 16px;
+}
+
+.pdf-tools-workbench-sidebar .pdf-tools-section-heading p {
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .pdf-tools-inspect-card .btn {
@@ -455,7 +472,7 @@
 .pdf-tools-capability-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
 }
 
 .pdf-tools-capability-list span {
@@ -463,7 +480,7 @@
   border-radius: 999px;
   background: #f8fafc;
   color: #475569;
-  padding: 6px 9px;
+  padding: 5px 8px;
   font-size: 10px;
   font-weight: 650;
 }
@@ -975,15 +992,15 @@
 
 .pdf-tools-safety ul {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
-  padding-left: 20px;
+  padding-left: 18px;
   color: #7c2d12;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1220px) {
   .pdf-tools-workbench-grid {
     grid-template-columns: minmax(210px, 240px) minmax(0, 1fr);
   }
