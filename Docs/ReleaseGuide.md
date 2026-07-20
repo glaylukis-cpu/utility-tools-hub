@@ -183,3 +183,10 @@ git push origin vX.Y.Z
 - Merge, Split, Extract, Rotate, and Delete remain available, with processing kept local and no Python sidecar.
 - Preview, thumbnails, reorder, watermark, page numbers, overlay writing, OCR, redaction, and direct PDF text editing are not implemented.
 - Updater verification will be done after the signed build and GitHub Release are created.
+
+## v0.4.1 Release Note
+
+- v0.4.1 is a PDF Workbench QA polish release.
+- Responsive layout, card density, safety wording, and summary readability are improved.
+- Merge, Split, Extract, Rotate, and Delete remain available, with no new PDF processing feature added.
+- Preview, thumbnails, reorder, OCR, redaction, and direct PDF text editing are still not implemented.

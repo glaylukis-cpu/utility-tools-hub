@@ -3,17 +3,17 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.4.0](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.4.0)
+- **Latest release:** [v0.4.1](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.4.1)
 
 ## Current Status
 
-- Latest release: v0.4.0
+- Latest release: v0.4.1
 - Windows desktop app
 - Excel to HTML Converter is available
 - The Tools catalog is organized into Converters, Editors, and Planned / Pro tools
 - Converter Tools stacks File, Data, and Text converter sections, with each active editor shown inside its category
 - Text Case Converter navigation and Excel → HTML Converter navigation are maintained
-- v0.4.0 is the PDF Workbench foundation release, reorganizing PDF Tools around file, operation, result, and safety areas
+- v0.4.1 is a PDF Workbench QA polish release, improving responsive layout, card density, safety wording, and summary readability without adding new PDF processing
 - PDF inspect shows file summaries, single-PDF operation inputs are inspected automatically, and Merge PDFs shows selected-file order, size, page count, PDF version, total pages, and protected-PDF warnings
 - Merge, Split, Extract, Rotate, and Delete remain available; no decryption, permission bypass, or password handling was added
 - PDF page operations use the local Rust core without a Python sidecar or external communication
