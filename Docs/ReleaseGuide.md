@@ -190,3 +190,10 @@ git push origin vX.Y.Z
 - Responsive layout, card density, safety wording, and summary readability are improved.
 - Merge, Split, Extract, Rotate, and Delete remain available, with no new PDF processing feature added.
 - Preview, thumbnails, reorder, OCR, redaction, and direct PDF text editing are still not implemented.
+
+## v0.4.2 Release Note
+
+- v0.4.2 is a PDF preview research spike that documents implementation options before adding real rendering.
+- It compares Rust-side rendering, PDFium, pdf.js, WebView embed, OS viewer, and lightweight pseudo-preview.
+- Lightweight operation-plan visualization is the recommended next safe step.
+- No PDF rendering, thumbnails, reorder, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
