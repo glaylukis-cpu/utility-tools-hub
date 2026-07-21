@@ -43,6 +43,15 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm Delete pages remains described as whole-page removal, not redaction.
 - [ ] Run Merge, Split, Extract, Rotate, and Delete with supported PDF files and confirm the research-only changes do not alter their existing flows.
 
+## v0.4.3 Operation plan preview
+
+- [ ] Confirm the Merge operation plan shows merge order, per-file page counts and status, and total pages.
+- [ ] Confirm the Split operation plan estimates single-page output files and shows a prefix-based filename example.
+- [ ] Confirm Extract, Rotate, and Delete operation plans show their selected page targets and range-check status.
+- [ ] Confirm Delete shows a strong warning when the plan would remove every page and still states that page deletion is not redaction.
+- [ ] Confirm the Operation plan preview does not claim to render actual PDF pages or thumbnails.
+- [ ] Run Merge, Split, Extract, Rotate, and Delete with supported PDF files and confirm their existing execution flows still work.
+
 ## Merge PDFs
 
 - [ ] Select two or more PDF files.

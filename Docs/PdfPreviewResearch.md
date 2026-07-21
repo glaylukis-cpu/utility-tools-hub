@@ -141,6 +141,8 @@ WebViewの組み込みPDF readerへローカルPDFを渡す方式です。Window
 - Protected状態と実行不可理由を同じ領域に表示する
 - 大量ページ向けに表示上限または仮想化方針を先に決める
 
+v0.4.3 implements the recommended lightweight operation-plan preview. It visualizes page counts, selected ranges, merge order, protected indicators, and operation targets while continuing to render no PDF pages or thumbnails.
+
 ### v0.4.4 or later: Experimental renderer prototype
 
 - pdf.jsとPDFiumを小さな非公開fixtureで比較する
