@@ -197,3 +197,10 @@ git push origin vX.Y.Z
 - It compares Rust-side rendering, PDFium, pdf.js, WebView embed, OS viewer, and lightweight pseudo-preview.
 - Lightweight operation-plan visualization is the recommended next safe step.
 - No PDF rendering, thumbnails, reorder, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
+
+## v0.4.3 Release Note
+
+- v0.4.3 adds lightweight PDF operation-plan preview for merge order, total pages, split output estimates, and selected Extract / Rotate / Delete targets.
+- Delete-all-pages risk and protected-PDF warnings remain visible, and Delete pages remains clearly distinguished from redaction.
+- Existing Inspect, Merge, Split, Extract, Rotate, and Delete operations remain available.
+- This is not PDF rendering. No page rendering, thumbnails, reorder, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
