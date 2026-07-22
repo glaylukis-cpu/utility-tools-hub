@@ -316,3 +316,7 @@ Text watermarkのQA polishと実PDF確認手順を整理します。新しいwat
 **v0.6.1 - PDF Workbench compact layout**
 
 PDF Workbenchはoperation selectorから一度に1つの操作だけを表示し、縦スクロールを減らしてReorderとText watermarkへ直接移動できるようにします。PDF処理ロジック、preview、thumbnails、OCR、redaction、PDF本文編集は追加しません。
+
+**v0.6.2 - Compact layout overflow hotfix**
+
+PDF選択後もfile summary、operation card、左右パネルがWorkbench gridを押し広げないようにし、一度に1つの操作を表示するcompact layoutを維持します。

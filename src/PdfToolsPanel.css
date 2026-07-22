@@ -1,6 +1,23 @@
 .pdf-tools-page {
+  width: 100%;
+  min-width: 0;
   max-width: 1480px;
   margin: 0 auto;
+}
+
+.pdf-tools-page,
+.pdf-tools-page *,
+.pdf-tools-page *::before,
+.pdf-tools-page *::after {
+  box-sizing: border-box;
+}
+
+.pdf-tools-page button,
+.pdf-tools-page input,
+.pdf-tools-page select,
+.pdf-tools-page textarea {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pdf-tools-header {
@@ -9,6 +26,11 @@
   justify-content: space-between;
   gap: 20px;
   margin-top: 24px;
+}
+
+.pdf-tools-header > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pdf-tools-planned-badge {
@@ -21,7 +43,8 @@
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .pdf-tools-notice {
@@ -36,9 +59,19 @@
   font-size: 13px;
 }
 
+.pdf-tools-notice,
+.pdf-tools-notice > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .pdf-tools-workbench-grid {
   display: grid;
-  grid-template-columns: minmax(170px, 195px) minmax(0, 820px) minmax(190px, 215px);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  grid-template-columns: clamp(180px, 16vw, 220px) minmax(0, 1fr) clamp(180px, 16vw, 220px);
   justify-content: center;
   align-items: start;
   gap: 16px;
@@ -48,9 +81,18 @@
 .pdf-tools-workbench-main,
 .pdf-tools-workbench-sidebar {
   display: grid;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   align-content: start;
   gap: 18px;
+}
+
+.pdf-tools-workbench-files > *,
+.pdf-tools-workbench-main > *,
+.pdf-tools-workbench-sidebar > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pdf-tools-workbench-heading {
@@ -80,6 +122,9 @@
 
 .pdf-tools-operation-selector {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
   border: 1px solid #dbe3ef;
@@ -99,6 +144,9 @@
   font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
   cursor: pointer;
 }
 
@@ -126,10 +174,14 @@
 }
 
 .pdf-tools-active-operation {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
 }
 
 .pdf-tools-sidebar-card {
+  min-width: 0;
+  max-width: 100%;
   padding: 14px;
 }
 
@@ -139,7 +191,10 @@
 }
 
 .pdf-tools-active-file {
+  display: -webkit-box;
   overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   border: 1px solid #c7d2fe;
   border-radius: 8px;
@@ -148,12 +203,15 @@
   padding: 9px 10px;
   font-size: 12px;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .pdf-tools-compact-details {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
 }
 
 .pdf-tools-compact-details > summary {
@@ -190,6 +248,8 @@
 }
 
 .pdf-tools-metadata-list dd {
+  min-width: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
   margin: 2px 0 0;
   color: #1e293b;
@@ -277,6 +337,8 @@
 }
 
 .pdf-tools-inspect-file-name strong {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: #312e81;
   font-size: 12px;
@@ -289,6 +351,22 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
+}
+
+.pdf-tools-inspect-summary,
+.pdf-tools-operation-input-summary,
+.pdf-tools-operation-summary-details,
+.pdf-tools-file-overview,
+.pdf-tools-operation-plan,
+.pdf-tools-operation-plan-details,
+.pdf-tools-selection-details,
+.pdf-tools-merge-summary,
+.pdf-tools-merge-summary-list,
+.pdf-tools-merge-summary-details,
+.pdf-tools-merge-totals {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pdf-tools-inspect-summary > div {
@@ -400,6 +478,8 @@
 }
 
 .pdf-tools-operation-summary-heading strong {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: #1e3a8a;
   font-size: 13px;
@@ -416,6 +496,7 @@
   padding: 9px 10px;
   font-size: 11px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .pdf-tools-operation-summary-message.is-error {
@@ -432,6 +513,7 @@
 
 .pdf-tools-operation-summary-details > div {
   min-width: 0;
+  max-width: 100%;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
@@ -451,6 +533,7 @@
   color: #475569;
   font-size: 11px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .pdf-tools-operation-summary-warning {
@@ -463,6 +546,7 @@
   padding: 10px;
   font-size: 11px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .pdf-tools-file-overview {
@@ -486,6 +570,7 @@
 
 .pdf-tools-file-overview > div {
   min-width: 0;
+  max-width: 100%;
   border: 1px solid #e2e8f0;
   border-radius: 9px;
   background: #f8fafc;
@@ -501,6 +586,8 @@
 }
 
 .pdf-tools-file-overview dd {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   margin: 3px 0 0;
   color: #1e293b;
@@ -517,6 +604,8 @@
 }
 
 .pdf-tools-local-notes p {
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   border-left: 3px solid #a5b4fc;
   background: #f8faff;
@@ -524,6 +613,7 @@
   padding: 7px 9px;
   font-size: 11px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .pdf-tools-workbench-files .pdf-tools-local-notes {
@@ -612,6 +702,8 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pdf-tools-operation-plan-heading > div {
@@ -629,8 +721,11 @@
 }
 
 .pdf-tools-operation-plan-heading > div > strong {
+  min-width: 0;
+  max-width: 100%;
   color: #1e293b;
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .pdf-tools-operation-plan-status {
@@ -685,6 +780,7 @@
 
 .pdf-tools-operation-plan-details > div {
   min-width: 0;
+  max-width: 100%;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
@@ -891,13 +987,18 @@
 
 .pdf-tools-operation-grid {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   margin-bottom: 0;
 }
 
 .pdf-tools-operation-card {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
 }
 
 .pdf-tools-watermark-card {
@@ -906,6 +1007,9 @@
 
 .pdf-tools-watermark-fields {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin: 18px 0;
@@ -935,6 +1039,8 @@
 
 .pdf-tools-helper,
 .pdf-tools-warning {
+  min-width: 0;
+  max-width: 100%;
   margin: -4px 0 13px;
   border-left: 3px solid #93c5fd;
   border-radius: 6px;
@@ -943,6 +1049,7 @@
   padding: 9px 11px;
   font-size: 12px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .pdf-tools-warning {
@@ -953,6 +1060,9 @@
 
 .pdf-tools-panel,
 .pdf-tools-section {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid #e9ecef;
   border-radius: 12px;
   background: #ffffff;
@@ -994,8 +1104,18 @@
 
 .pdf-tools-button-row {
   display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.pdf-tools-button-row .btn {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .pdf-tools-selection-summary {
@@ -1010,6 +1130,10 @@
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+  min-width: 0;
+  max-width: 100%;
+  gap: 8px;
+  overflow-wrap: anywhere;
 }
 
 .pdf-tools-selection-summary strong {
@@ -1034,6 +1158,7 @@
 .pdf-tools-merge-summary-list > li {
   display: grid;
   min-width: 0;
+  max-width: 100%;
   gap: 9px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -1072,6 +1197,8 @@
 }
 
 .pdf-tools-merge-summary-file > strong {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: #1e293b;
   font-size: 13px;
@@ -1087,6 +1214,7 @@
   padding: 8px 10px;
   font-size: 11px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .pdf-tools-merge-summary-message.is-error {
@@ -1105,6 +1233,7 @@
 .pdf-tools-merge-summary-details > div,
 .pdf-tools-merge-totals > div {
   min-width: 0;
+  max-width: 100%;
   border-radius: 8px;
   background: #f8fafc;
   padding: 8px;
@@ -1229,6 +1358,7 @@
 
 .pdf-tools-selection-details > div {
   min-width: 0;
+  max-width: 100%;
   border-radius: 9px;
   background: #f8f9fa;
   padding: 11px 12px;
@@ -1243,12 +1373,17 @@
 }
 
 .pdf-tools-selection-details dd {
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   color: #343a40;
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .pdf-tools-path {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1256,6 +1391,9 @@
 
 .pdf-tools-field {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   gap: 7px;
   margin: 14px 0;
   color: #495057;
@@ -1264,9 +1402,12 @@
 }
 
 .pdf-tools-field input,
-.pdf-tools-field select {
+.pdf-tools-field select,
+.pdf-tools-field textarea {
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid #dee2e6;
   border-radius: 9px;
   background: #ffffff;
@@ -1425,7 +1566,7 @@
 
 @media (max-width: 900px) {
   .pdf-tools-workbench-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .pdf-tools-workbench-sidebar {
@@ -1470,8 +1611,10 @@
 
   .pdf-tools-merge-summary-details,
   .pdf-tools-merge-totals,
-  .pdf-tools-operation-plan-details {
-    grid-template-columns: 1fr;
+  .pdf-tools-operation-plan-details,
+  .pdf-tools-inspect-summary,
+  .pdf-tools-operation-summary-details {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .pdf-tools-operation-plan-heading {

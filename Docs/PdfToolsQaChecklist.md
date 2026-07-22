@@ -228,3 +228,12 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm the selected-files and right-side information panels are compact and remain usable at 1280px and mobile widths.
 - [ ] Confirm all existing PDF operations still execute through the existing flow.
 - [ ] Confirm no PDF preview, thumbnails, OCR, redaction, or direct PDF text editing was added.
+
+## v0.6.2 Compact layout overflow hotfix
+
+- [ ] Confirm selecting a PDF does not break the compact layout.
+- [ ] Confirm long PDF file names stay inside their cards.
+- [ ] Confirm the input summary stays inside the active operation card.
+- [ ] Confirm the operation selector stays inside the center column.
+- [ ] Confirm 1280px width has no horizontal overflow.
+- [ ] Confirm all existing PDF operations still execute through the existing flow.
