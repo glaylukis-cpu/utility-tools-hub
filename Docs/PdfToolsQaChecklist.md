@@ -203,3 +203,18 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm `pdf_text_watermark` can execute and write a new PDF with loading, success, and safe error feedback.
 - [ ] Confirm watermarking is described as additive and not redaction or direct PDF text editing.
 - [ ] Confirm image watermark, stamps, real preview, OCR, and redaction remain unimplemented.
+
+## v0.6.0 Step 4 Text watermark QA polish
+
+- [ ] Confirm the Text watermark card and input PDF summary remain visible and readable.
+- [ ] Confirm ASCII text such as `DRAFT`, `CONFIDENTIAL`, and `SAMPLE` is accepted.
+- [ ] Confirm empty, non-ASCII, and over-128-character text shows a clear warning.
+- [ ] Confirm all pages and selected pages (`1`, `1,3,5`, `1-3`, `1,3,5-7`) can be targeted.
+- [ ] Confirm invalid, reversed, zero, negative, non-numeric, and out-of-range page input shows a warning.
+- [ ] Confirm opacity, rotation, and font-size validation appears beside the related field.
+- [ ] Confirm `pdf_text_watermark` writes a new PDF that opens and keeps the source page count.
+- [ ] Confirm all-page and selected-page output contains the requested additive watermark text.
+- [ ] Confirm watermarking is not described as PDF text editing or redaction.
+- [ ] Confirm protected PDFs are warned about or rejected without decryption or permission bypass.
+- [ ] Confirm image watermark, stamps, overlay writing, OCR, and redaction remain unimplemented.
+- [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, and Reorder remain available.

@@ -756,6 +756,12 @@
   margin: 0;
 }
 
+.pdf-tools-watermark-field-group {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+}
+
 .pdf-tools-field-help {
   margin: -12px 0 14px;
   color: #64748b;
@@ -763,12 +769,8 @@
   line-height: 1.45;
 }
 
-.pdf-tools-watermark-field-errors:empty {
-  display: none;
-}
-
-.pdf-tools-watermark-field-errors .pdf-tools-field-error {
-  margin: -8px 0 12px;
+.pdf-tools-watermark-field-group .pdf-tools-field-error {
+  margin: 7px 0 0;
 }
 
 .pdf-tools-helper,

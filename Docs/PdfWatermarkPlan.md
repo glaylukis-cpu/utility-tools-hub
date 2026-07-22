@@ -138,3 +138,7 @@ Step 2 adds the additive `pdf_text_watermark` Rust core and shared execution bri
 ### v0.6.0 Step 3 - Text watermark UI connection
 
 Step 3 connects `pdf_text_watermark` to the PDF Workbench UI so printable ASCII / Latin text can be added to all or selected pages in a new PDF. Image watermark, stamps, real preview, OCR, redaction, and direct text editing are still not added.
+
+### v0.6.0 Step 4 - Text watermark QA polish
+
+Step 4 polishes Text watermark validation and QA checks. Text watermark remains additive; image watermark, stamps, preview, OCR, redaction, and direct text editing are still not added.

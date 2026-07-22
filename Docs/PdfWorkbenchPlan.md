@@ -308,3 +308,7 @@ Additiveなtext watermarkを新しいPDFへ出力するcore / bridgeを追加し
 **v0.6.0 Step 3 - Text watermark UI connection**
 
 `pdf_text_watermark`をPDF Workbench UIへ接続します。Watermarkはadditiveのままで、既存PDF本文の編集やredactionは実装しません。
+
+**v0.6.0 Step 4 - Text watermark QA polish**
+
+Text watermarkのQA polishと実PDF確認手順を整理します。新しいwatermark分類、preview、OCR、redaction、PDF本文編集は追加しません。

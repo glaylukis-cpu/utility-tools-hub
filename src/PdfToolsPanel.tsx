@@ -790,7 +790,7 @@ function TextWatermarkOperationPlan({
         {pagesInput.trim() ? (
           <PlanPageChips pages={parsedPages.pages} />
         ) : (
-          <span className="pdf-tools-operation-plan-empty">All pages will be targeted. The request uses an empty pages array.</span>
+          <span className="pdf-tools-operation-plan-empty">All pages will receive the watermark.</span>
         )}
       </div>
       {textError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Check text:</strong> {textError}</p>}
@@ -3098,17 +3098,18 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               }}
               disabled={isAnyOperationRunning}
               placeholder="DRAFT"
-              aria-describedby="pdf-watermark-text-help"
+              aria-invalid={Boolean(watermarkTextError)}
+              aria-describedby={watermarkTextError ? "pdf-watermark-text-help pdf-watermark-text-error" : "pdf-watermark-text-help"}
             />
           </label>
           <p id="pdf-watermark-text-help" className="pdf-tools-field-help">Printable ASCII only · {watermarkText.length}/128 characters</p>
-          {watermarkTextError && <p className="pdf-tools-field-error">{watermarkTextError}</p>}
+          {watermarkTextError && <p id="pdf-watermark-text-error" className="pdf-tools-field-error">{watermarkTextError}</p>}
 
           <label className="pdf-tools-field">
             <span>Pages (optional)</span>
             <input
               type="text"
-              inputMode="numeric"
+              inputMode="text"
               value={watermarkPagesInput}
               onChange={(event) => {
                 setWatermarkPagesInput(event.currentTarget.value);
@@ -3118,67 +3119,73 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               }}
               disabled={isAnyOperationRunning}
               placeholder="All pages, or 1,3,5-7"
+              aria-invalid={Boolean(parsedWatermarkPages.error)}
+              aria-describedby={parsedWatermarkPages.error ? "pdf-watermark-pages-error" : undefined}
             />
           </label>
-          {parsedWatermarkPages.error && <p className="pdf-tools-field-error">{parsedWatermarkPages.error}</p>}
+          {parsedWatermarkPages.error && <p id="pdf-watermark-pages-error" className="pdf-tools-field-error">{parsedWatermarkPages.error}</p>}
 
           <div className="pdf-tools-watermark-fields">
-            <label className="pdf-tools-field">
-              <span>Opacity</span>
-              <input
-                type="number"
-                min="0.01"
-                max="1"
-                step="0.01"
-                value={watermarkOpacityInput}
-                onChange={(event) => {
-                  setWatermarkOpacityInput(event.currentTarget.value);
-                  setWatermarkResult(null);
-                  setWatermarkFeedback(null);
-                  setWatermarkError(null);
-                }}
-                disabled={isAnyOperationRunning}
-              />
-            </label>
-            <label className="pdf-tools-field">
-              <span>Rotation (degrees)</span>
-              <input
-                type="number"
-                min="-360"
-                max="360"
-                step="1"
-                value={watermarkRotationInput}
-                onChange={(event) => {
-                  setWatermarkRotationInput(event.currentTarget.value);
-                  setWatermarkResult(null);
-                  setWatermarkFeedback(null);
-                  setWatermarkError(null);
-                }}
-                disabled={isAnyOperationRunning}
-              />
-            </label>
-            <label className="pdf-tools-field">
-              <span>Font size (pt)</span>
-              <input
-                type="number"
-                min="8"
-                max="200"
-                step="1"
-                value={watermarkFontSizeInput}
-                onChange={(event) => {
-                  setWatermarkFontSizeInput(event.currentTarget.value);
-                  setWatermarkResult(null);
-                  setWatermarkFeedback(null);
-                  setWatermarkError(null);
-                }}
-                disabled={isAnyOperationRunning}
-              />
-            </label>
-          </div>
-          <div className="pdf-tools-watermark-field-errors" aria-live="polite">
-            {watermarkOpacityError && <p className="pdf-tools-field-error">{watermarkOpacityError}</p>}
-            {watermarkRotationError && <p className="pdf-tools-field-error">{watermarkRotationError}</p>}
-            {watermarkFontSizeError && <p className="pdf-tools-field-error">{watermarkFontSizeError}</p>}
+            <div className="pdf-tools-watermark-field-group">
+              <label className="pdf-tools-field">
+                <span>Opacity</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={watermarkOpacityInput}
+                  onChange={(event) => {
+                    setWatermarkOpacityInput(event.currentTarget.value);
+                    setWatermarkResult(null);
+                    setWatermarkFeedback(null);
+                    setWatermarkError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(watermarkOpacityError)}
+                  aria-describedby={watermarkOpacityError ? "pdf-watermark-opacity-error" : undefined}
+                />
+              </label>
+              {watermarkOpacityError && <p id="pdf-watermark-opacity-error" className="pdf-tools-field-error">{watermarkOpacityError}</p>}
+            </div>
+            <div className="pdf-tools-watermark-field-group">
+              <label className="pdf-tools-field">
+                <span>Rotation (degrees)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={watermarkRotationInput}
+                  onChange={(event) => {
+                    setWatermarkRotationInput(event.currentTarget.value);
+                    setWatermarkResult(null);
+                    setWatermarkFeedback(null);
+                    setWatermarkError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(watermarkRotationError)}
+                  aria-describedby={watermarkRotationError ? "pdf-watermark-rotation-error" : undefined}
+                />
+              </label>
+              {watermarkRotationError && <p id="pdf-watermark-rotation-error" className="pdf-tools-field-error">{watermarkRotationError}</p>}
+            </div>
+            <div className="pdf-tools-watermark-field-group">
+              <label className="pdf-tools-field">
+                <span>Font size (pt)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={watermarkFontSizeInput}
+                  onChange={(event) => {
+                    setWatermarkFontSizeInput(event.currentTarget.value);
+                    setWatermarkResult(null);
+                    setWatermarkFeedback(null);
+                    setWatermarkError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(watermarkFontSizeError)}
+                  aria-describedby={watermarkFontSizeError ? "pdf-watermark-font-size-error" : undefined}
+                />
+              </label>
+              {watermarkFontSizeError && <p id="pdf-watermark-font-size-error" className="pdf-tools-field-error">{watermarkFontSizeError}</p>}
+            </div>
           </div>
 
           <TextWatermarkOperationPlan
