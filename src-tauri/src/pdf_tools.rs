@@ -75,6 +75,28 @@ pub struct PdfTextWatermarkOptions {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PdfPageNumbersResult {
+    pub input_path: String,
+    pub output_path: String,
+    pub pages: Vec<usize>,
+    pub page_count: usize,
+    pub start_number: usize,
+    pub format: String,
+    pub position: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PdfPageNumbersOptions {
+    pub pages: Option<Vec<usize>>,
+    pub start_number: Option<usize>,
+    pub format: Option<String>,
+    pub position: Option<String>,
+    pub margin_x: Option<f32>,
+    pub margin_y: Option<f32>,
+    pub font_size: Option<f32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PdfInspectResult {
     pub input_path: String,
     pub file_name: String,
@@ -109,6 +131,11 @@ pub enum PdfToolError {
     InvalidWatermarkOpacity,
     InvalidWatermarkRotation,
     InvalidWatermarkFontSize,
+    InvalidPageNumberStart,
+    InvalidPageNumberFormat,
+    InvalidPageNumberPosition,
+    InvalidPageNumberMargin,
+    InvalidPageNumberFontSize,
     CannotDeleteAllPages,
     EncryptedPdfUnsupported,
     InvalidPdf,
@@ -147,6 +174,15 @@ impl fmt::Display for PdfToolError {
             }
             Self::InvalidWatermarkFontSize => {
                 "watermark font size must be a finite value from 8 to 200 points"
+            }
+            Self::InvalidPageNumberStart => "page number start must be one or greater",
+            Self::InvalidPageNumberFormat => "the page number format is not supported",
+            Self::InvalidPageNumberPosition => "the page number position is not supported",
+            Self::InvalidPageNumberMargin => {
+                "page number margins must be finite values from 0 to 144 points and fit the page"
+            }
+            Self::InvalidPageNumberFontSize => {
+                "page number font size must be a finite value from 6 to 72 points"
             }
             Self::CannotDeleteAllPages => "at least one page must remain after deletion",
             Self::EncryptedPdfUnsupported => {
@@ -621,6 +657,295 @@ pub fn add_text_watermark(
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PageNumberFormat {
+    Number,
+    PageNumber,
+    PageNumberOfTotal,
+    NumberSlashTotal,
+    DashNumber,
+}
+
+impl PageNumberFormat {
+    fn parse(value: &str) -> Result<Self, PdfToolError> {
+        match value {
+            "number" => Ok(Self::Number),
+            "page-number" => Ok(Self::PageNumber),
+            "page-number-of-total" => Ok(Self::PageNumberOfTotal),
+            "number-slash-total" => Ok(Self::NumberSlashTotal),
+            "dash-number" => Ok(Self::DashNumber),
+            _ => Err(PdfToolError::InvalidPageNumberFormat),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Number => "number",
+            Self::PageNumber => "page-number",
+            Self::PageNumberOfTotal => "page-number-of-total",
+            Self::NumberSlashTotal => "number-slash-total",
+            Self::DashNumber => "dash-number",
+        }
+    }
+
+    fn render(self, number: usize, total: usize) -> String {
+        match self {
+            Self::Number => number.to_string(),
+            Self::PageNumber => format!("Page {number}"),
+            Self::PageNumberOfTotal => format!("Page {number} of {total}"),
+            Self::NumberSlashTotal => format!("{number} / {total}"),
+            Self::DashNumber => format!("- {number} -"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PageNumberPosition {
+    BottomCenter,
+    BottomRight,
+    BottomLeft,
+    TopCenter,
+    TopRight,
+    TopLeft,
+}
+
+impl PageNumberPosition {
+    fn parse(value: &str) -> Result<Self, PdfToolError> {
+        match value {
+            "bottom-center" => Ok(Self::BottomCenter),
+            "bottom-right" => Ok(Self::BottomRight),
+            "bottom-left" => Ok(Self::BottomLeft),
+            "top-center" => Ok(Self::TopCenter),
+            "top-right" => Ok(Self::TopRight),
+            "top-left" => Ok(Self::TopLeft),
+            _ => Err(PdfToolError::InvalidPageNumberPosition),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::BottomCenter => "bottom-center",
+            Self::BottomRight => "bottom-right",
+            Self::BottomLeft => "bottom-left",
+            Self::TopCenter => "top-center",
+            Self::TopRight => "top-right",
+            Self::TopLeft => "top-left",
+        }
+    }
+
+    fn is_top(self) -> bool {
+        matches!(self, Self::TopCenter | Self::TopRight | Self::TopLeft)
+    }
+
+    fn is_left(self) -> bool {
+        matches!(self, Self::BottomLeft | Self::TopLeft)
+    }
+
+    fn is_right(self) -> bool {
+        matches!(self, Self::BottomRight | Self::TopRight)
+    }
+}
+
+pub fn add_page_numbers(
+    input_path: PathBuf,
+    output_path: PathBuf,
+    options: PdfPageNumbersOptions,
+) -> Result<PdfPageNumbersResult, PdfToolError> {
+    const DEFAULT_MARGIN_X: f32 = 36.0;
+    const DEFAULT_MARGIN_Y: f32 = 24.0;
+    const DEFAULT_FONT_SIZE: f32 = 12.0;
+
+    validate_output_path(&output_path)?;
+    if input_path == output_path {
+        return Err(PdfToolError::OutputConflictsWithInput);
+    }
+
+    let start_number = options.start_number.unwrap_or(1);
+    if start_number == 0 {
+        return Err(PdfToolError::InvalidPageNumberStart);
+    }
+
+    let format = PageNumberFormat::parse(options.format.as_deref().unwrap_or("number"))?;
+    let position =
+        PageNumberPosition::parse(options.position.as_deref().unwrap_or("bottom-center"))?;
+
+    let margin_x = options.margin_x.unwrap_or(DEFAULT_MARGIN_X);
+    let margin_y = options.margin_y.unwrap_or(DEFAULT_MARGIN_Y);
+    if !margin_x.is_finite()
+        || !margin_y.is_finite()
+        || !(0.0..=144.0).contains(&margin_x)
+        || !(0.0..=144.0).contains(&margin_y)
+    {
+        return Err(PdfToolError::InvalidPageNumberMargin);
+    }
+
+    let font_size = options.font_size.unwrap_or(DEFAULT_FONT_SIZE);
+    if !font_size.is_finite() || !(6.0..=72.0).contains(&font_size) {
+        return Err(PdfToolError::InvalidPageNumberFontSize);
+    }
+
+    let mut document = load_pdf_document(&input_path)?;
+    let available_pages = document.get_pages();
+    let page_count = available_pages.len();
+    let mut pages = match options.pages {
+        Some(pages) if !pages.is_empty() => pages,
+        _ => (1..=page_count).collect(),
+    };
+    pages.sort_unstable();
+    let selected_page_ids = validate_selected_pages(&pages, &available_pages)?;
+
+    let font_id = document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+        "Encoding" => "WinAnsiEncoding",
+    });
+
+    for (sequence_index, page_id) in selected_page_ids.into_iter().enumerate() {
+        let display_number = start_number
+            .checked_add(sequence_index)
+            .ok_or(PdfToolError::InvalidPageNumberStart)?;
+        let text = format.render(display_number, page_count);
+
+        materialize_inherited_page_attributes(&mut document, page_id)?;
+        let (lower_left_x, lower_left_y, upper_right_x, upper_right_y) =
+            resolved_page_box(&document, page_id)?;
+        let font_name = install_page_number_font(&mut document, page_id, font_id)?;
+        let content = page_number_content(
+            &text,
+            &font_name,
+            position,
+            margin_x,
+            margin_y,
+            font_size,
+            lower_left_x,
+            lower_left_y,
+            upper_right_x,
+            upper_right_y,
+        )?;
+        document
+            .add_page_contents(page_id, content)
+            .map_err(|_| PdfToolError::InvalidPdf)?;
+    }
+
+    document
+        .save(&output_path)
+        .map_err(|_| PdfToolError::SaveFailed)?;
+
+    Ok(PdfPageNumbersResult {
+        input_path: input_path.to_string_lossy().into_owned(),
+        output_path: output_path.to_string_lossy().into_owned(),
+        pages,
+        page_count,
+        start_number,
+        format: format.as_str().to_string(),
+        position: position.as_str().to_string(),
+    })
+}
+
+fn install_page_number_font(
+    document: &mut Document,
+    page_id: ObjectId,
+    font_id: ObjectId,
+) -> Result<Vec<u8>, PdfToolError> {
+    let resources_object = document
+        .get_object(page_id)
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .as_dict()
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .get(b"Resources")
+        .ok()
+        .cloned();
+    let mut resources = match resources_object {
+        Some(object) => resolved_dictionary(document, &object)?,
+        None => Dictionary::new(),
+    };
+
+    let mut fonts = match resources.get(b"Font") {
+        Ok(object) => resolved_dictionary(document, object)?,
+        Err(_) => Dictionary::new(),
+    };
+    let font_name = unique_resource_name(&fonts, b"UTHPageNumberFont");
+    fonts.set(font_name.clone(), Object::Reference(font_id));
+    resources.set("Font", Object::Dictionary(fonts));
+
+    document
+        .get_object_mut(page_id)
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .as_dict_mut()
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .set("Resources", Object::Dictionary(resources));
+
+    Ok(font_name)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn page_number_content(
+    text: &str,
+    font_name: &[u8],
+    position: PageNumberPosition,
+    margin_x: f32,
+    margin_y: f32,
+    font_size: f32,
+    lower_left_x: f32,
+    lower_left_y: f32,
+    upper_right_x: f32,
+    upper_right_y: f32,
+) -> Result<Vec<u8>, PdfToolError> {
+    let estimated_width = text.len() as f32 * font_size * 0.5;
+    let page_width = upper_right_x - lower_left_x;
+    let text_x = if position.is_left() {
+        lower_left_x + margin_x
+    } else if position.is_right() {
+        upper_right_x - margin_x - estimated_width
+    } else {
+        lower_left_x + (page_width - estimated_width) / 2.0
+    };
+    let text_y = if position.is_top() {
+        upper_right_y - margin_y - font_size
+    } else {
+        lower_left_y + margin_y
+    };
+
+    if text_x < lower_left_x
+        || text_y < lower_left_y
+        || text_x + estimated_width > upper_right_x
+        || text_y + font_size > upper_right_y
+    {
+        return Err(PdfToolError::InvalidPageNumberMargin);
+    }
+
+    // Coordinates use the effective CropBox/MediaBox. Existing page rotation is
+    // preserved; viewer-facing rotation placement requires a later QA/polish step.
+    Content {
+        operations: vec![
+            Operation::new("q", vec![]),
+            Operation::new("BT", vec![]),
+            Operation::new(
+                "Tf",
+                vec![Object::Name(font_name.to_vec()), Object::Real(font_size)],
+            ),
+            Operation::new("g", vec![Object::Real(0.15)]),
+            Operation::new(
+                "Tm",
+                vec![
+                    Object::Real(1.0),
+                    Object::Real(0.0),
+                    Object::Real(0.0),
+                    Object::Real(1.0),
+                    Object::Real(text_x),
+                    Object::Real(text_y),
+                ],
+            ),
+            Operation::new("Tj", vec![Object::string_literal(text)]),
+            Operation::new("ET", vec![]),
+            Operation::new("Q", vec![]),
+        ],
+    }
+    .encode()
+    .map_err(|_| PdfToolError::InvalidPdf)
+}
+
 fn validate_watermark_text(text: &str) -> Result<(), PdfToolError> {
     if text.trim().is_empty() {
         return Err(PdfToolError::EmptyWatermarkText);
@@ -1013,9 +1338,10 @@ mod tests {
     use super::*;
     use crate::{
         run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_inspect_bridge,
-        run_pdf_merge_bridge, run_pdf_reorder_bridge, run_pdf_rotate_bridge, run_pdf_split_bridge,
-        run_pdf_text_watermark_bridge, PdfDeleteRequest, PdfExtractRequest, PdfInspectRequest,
-        PdfMergeRequest, PdfReorderRequest, PdfRotateRequest, PdfSplitRequest,
+        run_pdf_merge_bridge, run_pdf_page_numbers_bridge, run_pdf_reorder_bridge,
+        run_pdf_rotate_bridge, run_pdf_split_bridge, run_pdf_text_watermark_bridge,
+        PdfDeleteRequest, PdfExtractRequest, PdfInspectRequest, PdfMergeRequest,
+        PdfPageNumbersRequest, PdfReorderRequest, PdfRotateRequest, PdfSplitRequest,
         PdfTextWatermarkRequest,
     };
     use lopdf::Stream;
@@ -1927,6 +2253,317 @@ mod tests {
     }
 
     #[test]
+    fn adds_page_numbers_to_all_pages_and_preserves_source() {
+        let directory = TestDirectory::new();
+        let input = directory.path("page-numbers-all-input.pdf");
+        let output = directory.path("page-numbers-all-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+
+        let result = add_page_numbers(
+            input.clone(),
+            output.clone(),
+            PdfPageNumbersOptions::default(),
+        )
+        .expect("page numbers should be added to all pages");
+
+        let source = Document::load(&input).expect("source PDF should remain readable");
+        let numbered = Document::load(&output).expect("numbered PDF should be readable");
+        assert_eq!(source.get_pages().len(), 3);
+        assert_eq!(numbered.get_pages().len(), 3);
+        assert_eq!(result.pages, vec![1, 2, 3]);
+        assert_eq!(result.page_count, 3);
+        assert_eq!(result.start_number, 1);
+        assert_eq!(result.format, "number");
+        assert_eq!(result.position, "bottom-center");
+        assert_eq!(page_text_strings(&numbered, 1), vec!["1"]);
+        assert_eq!(page_text_strings(&numbered, 2), vec!["2"]);
+        assert_eq!(page_text_strings(&numbered, 3), vec!["3"]);
+        assert!(page_text_strings(&source, 1).is_empty());
+
+        let empty_pages_output = directory.path("page-numbers-empty-pages-output.pdf");
+        let empty_pages_result = add_page_numbers(
+            input,
+            empty_pages_output,
+            PdfPageNumbersOptions {
+                pages: Some(Vec::new()),
+                ..PdfPageNumbersOptions::default()
+            },
+        )
+        .expect("an empty page list should target all pages");
+        assert_eq!(empty_pages_result.pages, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn adds_page_numbers_to_selected_pages_in_document_order() {
+        let directory = TestDirectory::new();
+        let input = directory.path("page-numbers-selected-input.pdf");
+        let output = directory.path("page-numbers-selected-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+
+        let result = add_page_numbers(
+            input,
+            output.clone(),
+            PdfPageNumbersOptions {
+                pages: Some(vec![3, 1]),
+                start_number: Some(10),
+                format: Some("page-number".to_string()),
+                position: Some("top-right".to_string()),
+                ..PdfPageNumbersOptions::default()
+            },
+        )
+        .expect("selected pages should be numbered");
+
+        let numbered = Document::load(output).expect("numbered PDF should load");
+        assert_eq!(result.pages, vec![1, 3]);
+        assert_eq!(result.start_number, 10);
+        assert_eq!(result.format, "page-number");
+        assert_eq!(result.position, "top-right");
+        assert_eq!(page_text_strings(&numbered, 1), vec!["Page 10"]);
+        assert!(page_text_strings(&numbered, 2).is_empty());
+        assert_eq!(page_text_strings(&numbered, 3), vec!["Page 11"]);
+    }
+
+    #[test]
+    fn page_numbers_supports_every_format() {
+        let directory = TestDirectory::new();
+        let input = directory.path("page-number-formats-input.pdf");
+        create_single_page_pdf(&input);
+        let cases = [
+            ("number", "1"),
+            ("page-number", "Page 1"),
+            ("page-number-of-total", "Page 1 of 1"),
+            ("number-slash-total", "1 / 1"),
+            ("dash-number", "- 1 -"),
+        ];
+
+        for (index, (format, expected)) in cases.into_iter().enumerate() {
+            let output = directory.path(&format!("page-number-format-{index}.pdf"));
+            let result = add_page_numbers(
+                input.clone(),
+                output.clone(),
+                PdfPageNumbersOptions {
+                    format: Some(format.to_string()),
+                    ..PdfPageNumbersOptions::default()
+                },
+            )
+            .expect("supported format should succeed");
+            let numbered = Document::load(output).expect("formatted output should load");
+            assert_eq!(result.format, format);
+            assert_eq!(page_text_strings(&numbered, 1), vec![expected]);
+        }
+    }
+
+    #[test]
+    fn page_numbers_supports_every_position() {
+        let directory = TestDirectory::new();
+        let input = directory.path("page-number-positions-input.pdf");
+        create_single_page_pdf(&input);
+        let positions = [
+            "bottom-center",
+            "bottom-right",
+            "bottom-left",
+            "top-center",
+            "top-right",
+            "top-left",
+        ];
+
+        for (index, position) in positions.into_iter().enumerate() {
+            let result = add_page_numbers(
+                input.clone(),
+                directory.path(&format!("page-number-position-{index}.pdf")),
+                PdfPageNumbersOptions {
+                    position: Some(position.to_string()),
+                    ..PdfPageNumbersOptions::default()
+                },
+            )
+            .expect("supported position should succeed");
+            assert_eq!(result.position, position);
+        }
+    }
+
+    #[test]
+    fn page_numbers_rejects_unsupported_format_and_position() {
+        let directory = TestDirectory::new();
+        let input = directory.path("page-number-choice-input.pdf");
+        create_single_page_pdf(&input);
+
+        let format_error = add_page_numbers(
+            input.clone(),
+            directory.path("unsupported-format.pdf"),
+            PdfPageNumbersOptions {
+                format: Some("roman".to_string()),
+                ..PdfPageNumbersOptions::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(format_error, PdfToolError::InvalidPageNumberFormat);
+
+        let position_error = add_page_numbers(
+            input,
+            directory.path("unsupported-position.pdf"),
+            PdfPageNumbersOptions {
+                position: Some("middle-center".to_string()),
+                ..PdfPageNumbersOptions::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(position_error, PdfToolError::InvalidPageNumberPosition);
+    }
+
+    #[test]
+    fn page_numbers_validates_pages_and_start_number() {
+        let directory = TestDirectory::new();
+        let input = directory.path("page-number-selection-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+        let cases = [
+            (Some(vec![0]), None, PdfToolError::InvalidPageNumber),
+            (Some(vec![4]), None, PdfToolError::PageOutOfRange),
+            (Some(vec![1, 1]), None, PdfToolError::DuplicatePage),
+            (None, Some(0), PdfToolError::InvalidPageNumberStart),
+        ];
+
+        for (index, (pages, start_number, expected)) in cases.into_iter().enumerate() {
+            let error = add_page_numbers(
+                input.clone(),
+                directory.path(&format!("invalid-page-number-{index}.pdf")),
+                PdfPageNumbersOptions {
+                    pages,
+                    start_number,
+                    ..PdfPageNumbersOptions::default()
+                },
+            )
+            .unwrap_err();
+            assert_eq!(error, expected);
+        }
+    }
+
+    #[test]
+    fn page_numbers_validates_margins_and_font_size() {
+        let directory = TestDirectory::new();
+        let input = directory.path("page-number-style-input.pdf");
+        create_single_page_pdf(&input);
+
+        for (index, (margin_x, margin_y)) in
+            [(-1.0, 24.0), (145.0, 24.0), (36.0, -1.0), (36.0, f32::NAN)]
+                .into_iter()
+                .enumerate()
+        {
+            let error = add_page_numbers(
+                input.clone(),
+                directory.path(&format!("invalid-margin-{index}.pdf")),
+                PdfPageNumbersOptions {
+                    margin_x: Some(margin_x),
+                    margin_y: Some(margin_y),
+                    ..PdfPageNumbersOptions::default()
+                },
+            )
+            .unwrap_err();
+            assert_eq!(error, PdfToolError::InvalidPageNumberMargin);
+        }
+
+        for (index, font_size) in [5.9, 72.1, f32::INFINITY].into_iter().enumerate() {
+            let error = add_page_numbers(
+                input.clone(),
+                directory.path(&format!("invalid-font-size-{index}.pdf")),
+                PdfPageNumbersOptions {
+                    font_size: Some(font_size),
+                    ..PdfPageNumbersOptions::default()
+                },
+            )
+            .unwrap_err();
+            assert_eq!(error, PdfToolError::InvalidPageNumberFontSize);
+        }
+    }
+
+    #[test]
+    fn page_numbers_rejects_invalid_paths_and_source_overwrite() {
+        let directory = TestDirectory::new();
+        let input = directory.path("page-number-path-input.pdf");
+        create_single_page_pdf(&input);
+
+        let cases = [
+            (
+                directory.path("input.txt"),
+                directory.path("output.pdf"),
+                PdfToolError::InvalidInputExtension,
+            ),
+            (
+                input.clone(),
+                directory.path("output.txt"),
+                PdfToolError::InvalidOutputExtension,
+            ),
+            (
+                directory.path("missing.pdf"),
+                directory.path("missing-output.pdf"),
+                PdfToolError::InputNotFound,
+            ),
+            (
+                input.clone(),
+                directory.path("missing-directory").join("output.pdf"),
+                PdfToolError::OutputDirectoryNotFound,
+            ),
+            (
+                input.clone(),
+                input.clone(),
+                PdfToolError::OutputConflictsWithInput,
+            ),
+        ];
+
+        for (input_path, output_path, expected) in cases {
+            let error = add_page_numbers(input_path, output_path, PdfPageNumbersOptions::default())
+                .unwrap_err();
+            assert_eq!(error, expected);
+        }
+    }
+
+    #[test]
+    fn page_numbers_rejects_a_protected_pdf_without_decrypting_it() {
+        let directory = TestDirectory::new();
+        let input = directory.path("protected-page-number-input.pdf");
+        let output = directory.path("protected-page-number-output.pdf");
+        create_single_page_pdf(&input);
+
+        let mut protected_document = Document::load(&input).expect("fixture should load");
+        let encryption_id = protected_document.add_object(dictionary! {
+            "Filter" => "Standard",
+            "V" => 1,
+        });
+        protected_document.trailer.set("Encrypt", encryption_id);
+        protected_document
+            .save(&input)
+            .expect("protected marker should be saved");
+
+        let error =
+            add_page_numbers(input, output.clone(), PdfPageNumbersOptions::default()).unwrap_err();
+        assert_eq!(error, PdfToolError::EncryptedPdfUnsupported);
+        assert!(!output.exists());
+    }
+
+    #[test]
+    fn page_numbers_bridge_writes_a_new_pdf() {
+        let directory = TestDirectory::new();
+        let input = directory.path("page-number-bridge-input.pdf");
+        let output = directory.path("page-number-bridge-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+
+        let result = run_pdf_page_numbers_bridge(pdf_page_numbers_request(
+            input,
+            output.clone(),
+            Some(vec![3, 1]),
+        ))
+        .expect("page numbers bridge should succeed");
+
+        let numbered = Document::load(&output).expect("bridge output PDF should load");
+        assert!(output.is_file());
+        assert_eq!(numbered.get_pages().len(), 3);
+        assert_eq!(result.pages, vec![1, 3]);
+        assert_eq!(result.start_number, 5);
+        assert_eq!(result.format, "page-number-of-total");
+        assert_eq!(page_text_strings(&numbered, 1), vec!["Page 5 of 3"]);
+        assert_eq!(page_text_strings(&numbered, 3), vec!["Page 6 of 3"]);
+    }
+
+    #[test]
     fn adds_text_watermark_to_all_pages_and_preserves_source() {
         let directory = TestDirectory::new();
         let input = directory.path("watermark-input.pdf");
@@ -2648,6 +3285,24 @@ mod tests {
         }
     }
 
+    fn pdf_page_numbers_request(
+        input_path: PathBuf,
+        output_path: PathBuf,
+        pages: Option<Vec<usize>>,
+    ) -> PdfPageNumbersRequest {
+        PdfPageNumbersRequest {
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: output_path.to_string_lossy().into_owned(),
+            pages,
+            start_number: Some(5),
+            format: Some("page-number-of-total".to_string()),
+            position: Some("bottom-center".to_string()),
+            margin_x: Some(36.0),
+            margin_y: Some(24.0),
+            font_size: Some(12.0),
+        }
+    }
+
     fn pdf_merge_request(input_paths: Vec<PathBuf>, output_path: PathBuf) -> PdfMergeRequest {
         PdfMergeRequest {
             input_paths: input_paths
@@ -2666,6 +3321,29 @@ mod tests {
         haystack
             .windows(needle.len())
             .any(|window| window == needle)
+    }
+
+    fn page_text_strings(document: &Document, page_number: u32) -> Vec<String> {
+        let page_id = document.get_pages()[&page_number];
+        let bytes = document
+            .get_page_content(page_id)
+            .expect("page content should load");
+        let content = Content::decode(&bytes).expect("page content should decode");
+        content
+            .operations
+            .into_iter()
+            .filter_map(|operation| {
+                if operation.operator != "Tj" {
+                    return None;
+                }
+                match operation.operands.first() {
+                    Some(Object::String(bytes, _)) => {
+                        Some(String::from_utf8_lossy(bytes).into_owned())
+                    }
+                    _ => None,
+                }
+            })
+            .collect()
     }
 
     fn create_single_page_pdf_with_content(path: &Path, content: &[u8]) {

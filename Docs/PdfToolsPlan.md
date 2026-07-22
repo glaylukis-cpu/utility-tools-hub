@@ -111,3 +111,7 @@ PDF Workbench now uses an operation selector and shows only the active operation
 ## v0.7.0 Page numbers foundation planning
 
 Page numbers remains in the planning stage. `Docs/PdfPageNumbersPlan.md` defines additive numbering, formats, selected-page and start-number semantics, six positioning anchors, margins, font size, staged Rust / `lopdf` risks, and the boundary from direct text editing and redaction; no PDF processing, Rust, bridge, UI, rendering, or dependency change is added in this step.
+
+## v0.7.0 Page numbers core / bridge
+
+The additive `pdf_page_numbers` core and shared execution bridge can write validated page numbers to all or selected pages in a new PDF. Existing PDF text and page numbers are not edited or removed; UI, preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.

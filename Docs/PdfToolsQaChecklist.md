@@ -246,3 +246,13 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm existing page numbers are not claimed to be removed or replaced.
 - [ ] Confirm OCR, redaction, and direct PDF text editing remain unimplemented.
 - [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark still work.
+
+## v0.7.0 Step 2 Page numbers core / bridge
+
+- [ ] Confirm `pdf_page_numbers` writes a new readable PDF without overwriting the source.
+- [ ] Confirm all pages and selected pages are validated and numbered in PDF page order.
+- [ ] Confirm start number and every supported page-number format are validated.
+- [ ] Confirm all six positions, bounded margins, and bounded font size are validated.
+- [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
+- [ ] Confirm Page numbers is additive and is not described as redaction or direct text editing.
+- [ ] Confirm existing page numbers are not removed and the Page numbers UI is still unimplemented.

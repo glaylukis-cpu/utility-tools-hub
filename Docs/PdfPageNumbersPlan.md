@@ -211,6 +211,8 @@ Each stage requires focused unit tests where practical and real, non-sensitive P
 
 ## 13. Next implementation step
 
-**v0.7.0 Step 2 - Page numbers core / bridge proposal**
+**v0.7.0 Step 2 - Page numbers core / bridge**
 
-The next step should specify and test a narrow Rust / `lopdf` core for unprotected PDFs: all pages, start number `1`, one printable ASCII numeric format, one conservative position, bounded font size and margins, and new-file output. The bridge and request shape should be introduced only with focused validation and regression tests. No UI, real rendering, thumbnails, OCR, redaction, direct PDF text editing, decryption, or permission bypass should be included in that core step.
+Step 2 adds the additive `pdf_page_numbers` Rust / `lopdf` core and shared execution bridge for all or selected pages, validated formats and positions, start number, margins, font size, and new-file output. It does not edit existing PDF text or remove existing page numbers; UI, preview, OCR, redaction, and direct text editing are not added. Placement uses each page's effective CropBox / MediaBox, while viewer-facing rotation polish remains a later QA step.
+
+The next implementation step is a focused Page numbers UI connection with input summary, operation plan, output selection, loading, success, and safe error feedback.

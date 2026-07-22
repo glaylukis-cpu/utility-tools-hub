@@ -54,6 +54,7 @@ const PDF_ROTATE_TOOL_ID: &str = "pdf_rotate";
 const PDF_DELETE_TOOL_ID: &str = "pdf_delete";
 const PDF_REORDER_TOOL_ID: &str = "pdf_reorder";
 const PDF_TEXT_WATERMARK_TOOL_ID: &str = "pdf_text_watermark";
+const PDF_PAGE_NUMBERS_TOOL_ID: &str = "pdf_page_numbers";
 const PDF_INSPECT_TOOL_ID: &str = "pdf_inspect";
 
 #[derive(Debug, Deserialize)]
@@ -256,6 +257,43 @@ pub(crate) struct PdfTextWatermarkRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct PdfPageNumbersInput {
+    input_path: String,
+    output_path: String,
+    #[serde(default)]
+    pages: Option<Vec<usize>>,
+    #[serde(default)]
+    start_number: Option<usize>,
+    #[serde(default)]
+    format: Option<String>,
+    #[serde(default)]
+    position: Option<String>,
+    #[serde(default)]
+    margin_x: Option<f32>,
+    #[serde(default)]
+    margin_y: Option<f32>,
+    #[serde(default)]
+    font_size: Option<f32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfPageNumbersRequestOptions {}
+
+pub(crate) struct PdfPageNumbersRequest {
+    input_path: String,
+    output_path: String,
+    pages: Option<Vec<usize>>,
+    start_number: Option<usize>,
+    format: Option<String>,
+    position: Option<String>,
+    margin_x: Option<f32>,
+    margin_y: Option<f32>,
+    font_size: Option<f32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PdfInspectInput {
     input_path: String,
 }
@@ -310,6 +348,7 @@ enum RegisteredTool {
     PdfDelete,
     PdfReorder,
     PdfTextWatermark,
+    PdfPageNumbers,
     PdfInspect,
 }
 
@@ -327,6 +366,7 @@ impl ToolRegistry {
             PDF_DELETE_TOOL_ID => Ok(RegisteredTool::PdfDelete),
             PDF_REORDER_TOOL_ID => Ok(RegisteredTool::PdfReorder),
             PDF_TEXT_WATERMARK_TOOL_ID => Ok(RegisteredTool::PdfTextWatermark),
+            PDF_PAGE_NUMBERS_TOOL_ID => Ok(RegisteredTool::PdfPageNumbers),
             PDF_INSPECT_TOOL_ID => Ok(RegisteredTool::PdfInspect),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
         }
@@ -493,6 +533,30 @@ impl RegisteredTool {
                     },
                 ))
             }
+            RegisteredTool::PdfPageNumbers => {
+                let input: PdfPageNumbersInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfPageNumbersRequestOptions::default()
+                } else {
+                    serde_json::from_value::<PdfPageNumbersRequestOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfPageNumbers(
+                    PdfPageNumbersRequest {
+                        input_path: input.input_path,
+                        output_path: input.output_path,
+                        pages: input.pages,
+                        start_number: input.start_number,
+                        format: input.format,
+                        position: input.position,
+                        margin_x: input.margin_x,
+                        margin_y: input.margin_y,
+                        font_size: input.font_size,
+                    },
+                ))
+            }
             RegisteredTool::PdfInspect => {
                 let input: PdfInspectInput = serde_json::from_value(request.input)
                     .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
@@ -521,6 +585,7 @@ enum ValidatedToolRequest {
     PdfDelete(PdfDeleteRequest),
     PdfReorder(PdfReorderRequest),
     PdfTextWatermark(PdfTextWatermarkRequest),
+    PdfPageNumbers(PdfPageNumbersRequest),
     PdfInspect(PdfInspectRequest),
 }
 
@@ -536,6 +601,7 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::PdfDelete(_) => PDF_DELETE_TOOL_ID,
             ValidatedToolRequest::PdfReorder(_) => PDF_REORDER_TOOL_ID,
             ValidatedToolRequest::PdfTextWatermark(_) => PDF_TEXT_WATERMARK_TOOL_ID,
+            ValidatedToolRequest::PdfPageNumbers(_) => PDF_PAGE_NUMBERS_TOOL_ID,
             ValidatedToolRequest::PdfInspect(_) => PDF_INSPECT_TOOL_ID,
         }
     }
@@ -564,6 +630,9 @@ impl ValidatedToolRequest {
             }
             ValidatedToolRequest::PdfTextWatermark(request) => {
                 PdfTextWatermarkHandler.execute(app, request).await
+            }
+            ValidatedToolRequest::PdfPageNumbers(request) => {
+                PdfPageNumbersHandler.execute(app, request).await
             }
             ValidatedToolRequest::PdfInspect(request) => {
                 PdfInspectHandler.execute(app, request).await
@@ -816,6 +885,43 @@ pub(crate) fn run_pdf_text_watermark_bridge(
             pages: request.pages,
             opacity: request.opacity,
             rotation_degrees: request.rotation_degrees,
+            font_size: request.font_size,
+        },
+    )
+    .map_err(|error| error.to_string())
+}
+
+struct PdfPageNumbersHandler;
+
+impl ToolHandler for PdfPageNumbersHandler {
+    type Request = PdfPageNumbersRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result =
+                tauri::async_runtime::spawn_blocking(move || run_pdf_page_numbers_bridge(request))
+                    .await
+                    .map_err(|_| "PDF page numbers task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_page_numbers_bridge(
+    request: PdfPageNumbersRequest,
+) -> Result<pdf_tools::PdfPageNumbersResult, String> {
+    pdf_tools::add_page_numbers(
+        PathBuf::from(request.input_path),
+        PathBuf::from(request.output_path),
+        pdf_tools::PdfPageNumbersOptions {
+            pages: request.pages,
+            start_number: request.start_number,
+            format: request.format,
+            position: request.position,
+            margin_x: request.margin_x,
+            margin_y: request.margin_y,
             font_size: request.font_size,
         },
     )
@@ -1403,6 +1509,49 @@ mod tests {
         assert_eq!(request.opacity, Some(0.18));
         assert_eq!(request.rotation_degrees, Some(-35.0));
         assert_eq!(request.font_size, Some(48.0));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_page_numbers_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_PAGE_NUMBERS_TOOL_ID),
+            Ok(RegisteredTool::PdfPageNumbers)
+        ));
+    }
+
+    #[test]
+    fn registry_parses_pdf_page_numbers_request() {
+        let tool = ToolRegistry::resolve(PDF_PAGE_NUMBERS_TOOL_ID)
+            .expect("page numbers tool should resolve");
+        let request = ToolRequest {
+            tool_id: PDF_PAGE_NUMBERS_TOOL_ID.to_string(),
+            input: serde_json::json!({
+                "input_path": "input.pdf",
+                "output_path": "numbered.pdf",
+                "pages": [3, 1],
+                "start_number": 10,
+                "format": "page-number-of-total",
+                "position": "bottom-center",
+                "margin_x": 36.0,
+                "margin_y": 24.0,
+                "font_size": 12.0
+            }),
+            options: serde_json::json!({}),
+        };
+
+        let validated = tool
+            .parse_request(request)
+            .expect("page numbers request should parse");
+        let ValidatedToolRequest::PdfPageNumbers(request) = validated else {
+            panic!("expected a page numbers request");
+        };
+        assert_eq!(request.pages, Some(vec![3, 1]));
+        assert_eq!(request.start_number, Some(10));
+        assert_eq!(request.format.as_deref(), Some("page-number-of-total"));
+        assert_eq!(request.position.as_deref(), Some("bottom-center"));
+        assert_eq!(request.margin_x, Some(36.0));
+        assert_eq!(request.margin_y, Some(24.0));
+        assert_eq!(request.font_size, Some(12.0));
     }
 
     #[test]
