@@ -177,3 +177,11 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm protected PDFs are warned about or rejected without decryption or permission bypass.
 - [ ] Confirm drag-and-drop reorder, thumbnails, and real PDF rendering remain unimplemented.
 - [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, and Reorder remain available.
+
+## v0.6.0 Step 1 Watermark planning
+
+- [ ] Confirm `Docs/PdfWatermarkPlan.md` exists.
+- [ ] Confirm watermark is described as additive overlay content, not direct PDF text editing.
+- [ ] Confirm visual masks are not described as safe redaction.
+- [ ] Confirm OCR, redaction, and direct PDF text editing remain unimplemented.
+- [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, and Reorder still work.

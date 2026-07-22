@@ -296,3 +296,7 @@ Merge PDFsの各入力へ`pdf_inspect`を実行し、選択順、サイズ、ペ
 **v0.5.0 Step 3 - PDF reorder QA polish**
 
 Reorder pages UIと全ページ順序のvalidation、operation plan、実PDF確認手順を整理します。Drag-and-drop reorder、thumbnails、実PDF renderingは引き続き追加しません。
+
+**v0.6.0 Step 1 - PDF watermark foundation planning**
+
+Text watermark、image watermark、stamp、overlay writingと安全境界を設計文書で整理します。Watermark実装、PDF rendering、OCR、redaction、PDF本文編集はまだ追加しません。

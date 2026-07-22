@@ -91,3 +91,7 @@ PDF Workbench now connects to `pdf_reorder`, validates a complete page order, an
 ## v0.5.0 PDF reorder foundation release
 
 The PDF reorder core, command bridge, Reorder pages UI, input summary, full-page-order validation, operation plan, and page-order warnings are prepared as the v0.5.0 foundation. Existing PDF operations remain available, processing stays local, and real PDF rendering, thumbnails, drag-and-drop reorder, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.6.0 Watermark foundation planning
+
+Watermark remains in the planning stage. `Docs/PdfWatermarkPlan.md` defines additive text and image watermarks, stamps, overlay writing, implementation risks, and the boundary from direct text editing and safe redaction; no PDF processing or UI implementation is added in this step.
