@@ -204,3 +204,10 @@ git push origin vX.Y.Z
 - Delete-all-pages risk and protected-PDF warnings remain visible, and Delete pages remains clearly distinguished from redaction.
 - Existing Inspect, Merge, Split, Extract, Rotate, and Delete operations remain available.
 - This is not PDF rendering. No page rendering, thumbnails, reorder, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
+
+## v0.4.4 Release Note
+
+- v0.4.4 is a PDF operation-plan preview QA polish release.
+- It improves page-range readability, selected-page chips, warnings, and delete-all-pages risk messaging.
+- Existing Inspect, Merge, Split, Extract, Rotate, and Delete operations remain available.
+- This is not PDF rendering. No page rendering, thumbnails, reorder, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
