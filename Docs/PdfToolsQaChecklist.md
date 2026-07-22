@@ -150,3 +150,10 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] HTML Editor opens and its existing editing, project, and export flows are unchanged.
 - [ ] Account, Billing, Settings, and Updater panels still open.
 - [ ] Tools navigation and Back to Tools behavior remain intact.
+
+## v0.5.0 Step 1 PDF reorder core / bridge
+
+- [ ] Confirm `pdf_reorder` can reorder pages using a complete page order.
+- [ ] Confirm empty, invalid, duplicate, missing, and out-of-range page orders are rejected.
+- [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
+- [ ] Confirm reorder UI, drag-and-drop, thumbnails, and real PDF rendering are not implemented yet.

@@ -79,3 +79,7 @@ v0.3.3 focuses on clearer guidance, validation reasons, operation status, safety
 ## v0.3.4 Merge bugfix
 
 v0.3.4 is a protected PDF merge error and merge stability bugfix release. Normal unprotected PDF merge remains supported, while encrypted or permission-protected inputs are clearly rejected without decryption, permission bypass, or password handling. Split, Extract, Rotate, and Delete remain available; no new PDF operation is added, no Python sidecar is used, and updater verification will follow the signed build and GitHub Release.
+
+## v0.5.0 PDF reorder core / bridge foundation
+
+The local `pdf_reorder` core and bridge can write a new PDF using a complete specified page order. UI connection, drag-and-drop, thumbnails, and real PDF rendering are not implemented yet.

@@ -52,6 +52,7 @@ const PDF_SPLIT_TOOL_ID: &str = "pdf_split";
 const PDF_EXTRACT_TOOL_ID: &str = "pdf_extract";
 const PDF_ROTATE_TOOL_ID: &str = "pdf_rotate";
 const PDF_DELETE_TOOL_ID: &str = "pdf_delete";
+const PDF_REORDER_TOOL_ID: &str = "pdf_reorder";
 const PDF_INSPECT_TOOL_ID: &str = "pdf_inspect";
 
 #[derive(Debug, Deserialize)]
@@ -206,6 +207,24 @@ pub(crate) struct PdfDeleteRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct PdfReorderInput {
+    input_path: String,
+    output_path: String,
+    page_order: Vec<usize>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfReorderOptions {}
+
+pub(crate) struct PdfReorderRequest {
+    input_path: String,
+    output_path: String,
+    page_order: Vec<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PdfInspectInput {
     input_path: String,
 }
@@ -258,6 +277,7 @@ enum RegisteredTool {
     PdfExtract,
     PdfRotate,
     PdfDelete,
+    PdfReorder,
     PdfInspect,
 }
 
@@ -273,6 +293,7 @@ impl ToolRegistry {
             PDF_EXTRACT_TOOL_ID => Ok(RegisteredTool::PdfExtract),
             PDF_ROTATE_TOOL_ID => Ok(RegisteredTool::PdfRotate),
             PDF_DELETE_TOOL_ID => Ok(RegisteredTool::PdfDelete),
+            PDF_REORDER_TOOL_ID => Ok(RegisteredTool::PdfReorder),
             PDF_INSPECT_TOOL_ID => Ok(RegisteredTool::PdfInspect),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
         }
@@ -401,6 +422,22 @@ impl RegisteredTool {
                     pages: input.pages,
                 }))
             }
+            RegisteredTool::PdfReorder => {
+                let input: PdfReorderInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfReorderOptions::default()
+                } else {
+                    serde_json::from_value::<PdfReorderOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfReorder(PdfReorderRequest {
+                    input_path: input.input_path,
+                    output_path: input.output_path,
+                    page_order: input.page_order,
+                }))
+            }
             RegisteredTool::PdfInspect => {
                 let input: PdfInspectInput = serde_json::from_value(request.input)
                     .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
@@ -427,6 +464,7 @@ enum ValidatedToolRequest {
     PdfExtract(PdfExtractRequest),
     PdfRotate(PdfRotateRequest),
     PdfDelete(PdfDeleteRequest),
+    PdfReorder(PdfReorderRequest),
     PdfInspect(PdfInspectRequest),
 }
 
@@ -440,6 +478,7 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::PdfExtract(_) => PDF_EXTRACT_TOOL_ID,
             ValidatedToolRequest::PdfRotate(_) => PDF_ROTATE_TOOL_ID,
             ValidatedToolRequest::PdfDelete(_) => PDF_DELETE_TOOL_ID,
+            ValidatedToolRequest::PdfReorder(_) => PDF_REORDER_TOOL_ID,
             ValidatedToolRequest::PdfInspect(_) => PDF_INSPECT_TOOL_ID,
         }
     }
@@ -462,6 +501,9 @@ impl ValidatedToolRequest {
             }
             ValidatedToolRequest::PdfDelete(request) => {
                 PdfDeleteHandler.execute(app, request).await
+            }
+            ValidatedToolRequest::PdfReorder(request) => {
+                PdfReorderHandler.execute(app, request).await
             }
             ValidatedToolRequest::PdfInspect(request) => {
                 PdfInspectHandler.execute(app, request).await
@@ -651,6 +693,35 @@ pub(crate) fn run_pdf_delete_bridge(
         PathBuf::from(request.input_path),
         PathBuf::from(request.output_path),
         request.pages,
+    )
+    .map_err(|error| error.to_string())
+}
+
+struct PdfReorderHandler;
+
+impl ToolHandler for PdfReorderHandler {
+    type Request = PdfReorderRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result =
+                tauri::async_runtime::spawn_blocking(move || run_pdf_reorder_bridge(request))
+                    .await
+                    .map_err(|_| "PDF reorder task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_reorder_bridge(
+    request: PdfReorderRequest,
+) -> Result<pdf_tools::PdfReorderResult, String> {
+    pdf_tools::reorder_pdf_pages(
+        PathBuf::from(request.input_path),
+        PathBuf::from(request.output_path),
+        request.page_order,
     )
     .map_err(|error| error.to_string())
 }
@@ -1188,6 +1259,14 @@ mod tests {
         assert!(matches!(
             ToolRegistry::resolve(PDF_DELETE_TOOL_ID),
             Ok(RegisteredTool::PdfDelete)
+        ));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_reorder_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_REORDER_TOOL_ID),
+            Ok(RegisteredTool::PdfReorder)
         ));
     }
 

@@ -47,6 +47,14 @@ pub struct PdfDeleteResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PdfReorderResult {
+    pub input_path: String,
+    pub output_path: String,
+    pub page_order: Vec<usize>,
+    pub page_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PdfInspectResult {
     pub input_path: String,
     pub file_name: String,
@@ -74,6 +82,7 @@ pub enum PdfToolError {
     InvalidPageNumber,
     PageOutOfRange,
     DuplicatePage,
+    IncompletePageOrder,
     InvalidRotationAngle,
     CannotDeleteAllPages,
     EncryptedPdfUnsupported,
@@ -97,6 +106,9 @@ impl fmt::Display for PdfToolError {
             Self::InvalidPageNumber => "page numbers must be one or greater",
             Self::PageOutOfRange => "a selected page is outside the input PDF page range",
             Self::DuplicatePage => "duplicate page numbers are not supported",
+            Self::IncompletePageOrder => {
+                "the page order must include every input PDF page exactly once"
+            }
             Self::InvalidRotationAngle => "the rotation angle must be 90, 180, or 270 degrees",
             Self::CannotDeleteAllPages => "at least one page must remain after deletion",
             Self::EncryptedPdfUnsupported => {
@@ -453,6 +465,39 @@ pub fn delete_pdf_pages(
     })
 }
 
+/// Writes a new PDF whose pages follow the supplied complete one-based page order.
+/// The input PDF is never overwritten.
+pub fn reorder_pdf_pages(
+    input_path: PathBuf,
+    output_path: PathBuf,
+    page_order: Vec<usize>,
+) -> Result<PdfReorderResult, PdfToolError> {
+    validate_output_path(&output_path)?;
+    if input_path == output_path {
+        return Err(PdfToolError::OutputConflictsWithInput);
+    }
+
+    let input_document = load_pdf_document(&input_path)?;
+    let available_pages = input_document.get_pages();
+    let ordered_page_ids = validate_selected_pages(&page_order, &available_pages)?;
+    let page_count = available_pages.len();
+    if ordered_page_ids.len() != page_count {
+        return Err(PdfToolError::IncompletePageOrder);
+    }
+
+    let mut output_document = document_with_selected_pages(input_document, &ordered_page_ids)?;
+    output_document
+        .save(&output_path)
+        .map_err(|_| PdfToolError::SaveFailed)?;
+
+    Ok(PdfReorderResult {
+        input_path: input_path.to_string_lossy().into_owned(),
+        output_path: output_path.to_string_lossy().into_owned(),
+        page_order,
+        page_count,
+    })
+}
+
 fn load_pdf_document(input_path: &Path) -> Result<Document, PdfToolError> {
     if !has_pdf_extension(input_path) {
         return Err(PdfToolError::InvalidInputExtension);
@@ -656,8 +701,9 @@ mod tests {
     use super::*;
     use crate::{
         run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_inspect_bridge,
-        run_pdf_merge_bridge, run_pdf_rotate_bridge, run_pdf_split_bridge, PdfDeleteRequest,
-        PdfExtractRequest, PdfInspectRequest, PdfMergeRequest, PdfRotateRequest, PdfSplitRequest,
+        run_pdf_merge_bridge, run_pdf_reorder_bridge, run_pdf_rotate_bridge, run_pdf_split_bridge,
+        PdfDeleteRequest, PdfExtractRequest, PdfInspectRequest, PdfMergeRequest, PdfReorderRequest,
+        PdfRotateRequest, PdfSplitRequest,
     };
     use lopdf::Stream;
     use std::fs;
@@ -1406,6 +1452,168 @@ mod tests {
     }
 
     #[test]
+    fn reorders_all_pages_in_the_requested_order() {
+        let directory = TestDirectory::new();
+        let input = directory.path("reorder-input.pdf");
+        let output = directory.path("reordered.pdf");
+        let page_contents: [&[u8]; 3] = [
+            b"q 1 0 0 1 10 10 cm Q",
+            b"q 1 0 0 1 20 20 cm Q",
+            b"q 1 0 0 1 30 30 cm Q",
+        ];
+        create_pdf_with_page_contents(&input, &page_contents);
+
+        let result = reorder_pdf_pages(input.clone(), output.clone(), vec![3, 1, 2])
+            .expect("reorder should succeed");
+        let output_document = Document::load(&output).expect("reordered PDF should load");
+        let output_pages = output_document.get_pages();
+        let input_document = Document::load(&input).expect("input PDF should remain readable");
+        let input_pages = input_document.get_pages();
+
+        assert!(output.is_file());
+        assert_eq!(result.input_path, input.to_string_lossy());
+        assert_eq!(result.output_path, output.to_string_lossy());
+        assert_eq!(result.page_order, vec![3, 1, 2]);
+        assert_eq!(result.page_count, 3);
+        assert_eq!(output_pages.len(), 3);
+        assert_eq!(
+            output_document
+                .get_page_content(output_pages[&1])
+                .expect("first reordered page content should load"),
+            page_contents[2]
+        );
+        assert_eq!(
+            output_document
+                .get_page_content(output_pages[&2])
+                .expect("second reordered page content should load"),
+            page_contents[0]
+        );
+        assert_eq!(
+            output_document
+                .get_page_content(output_pages[&3])
+                .expect("third reordered page content should load"),
+            page_contents[1]
+        );
+        assert_eq!(input_pages.len(), 3);
+        assert_eq!(
+            input_document
+                .get_page_content(input_pages[&1])
+                .expect("original first page content should load"),
+            page_contents[0]
+        );
+    }
+
+    #[test]
+    fn reorder_rejects_invalid_page_orders() {
+        let directory = TestDirectory::new();
+        let input = directory.path("reorder-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+
+        let cases = [
+            (vec![], PdfToolError::EmptyPageSelection),
+            (vec![0, 1, 2], PdfToolError::InvalidPageNumber),
+            (vec![1, 2, 4], PdfToolError::PageOutOfRange),
+            (vec![1, 2, 2], PdfToolError::DuplicatePage),
+            (vec![1, 2], PdfToolError::IncompletePageOrder),
+        ];
+        for (page_order, expected_error) in cases {
+            let error =
+                reorder_pdf_pages(input.clone(), directory.path("reordered.pdf"), page_order)
+                    .unwrap_err();
+            assert_eq!(error, expected_error);
+        }
+    }
+
+    #[test]
+    fn reorder_rejects_non_pdf_extensions() {
+        let directory = TestDirectory::new();
+        let invalid_input = directory.path("reorder-input.txt");
+        create_pdf_with_page_contents(&invalid_input, &[b"q Q", b"q Q"]);
+
+        let input_error =
+            reorder_pdf_pages(invalid_input, directory.path("reordered.pdf"), vec![2, 1])
+                .unwrap_err();
+        assert_eq!(input_error, PdfToolError::InvalidInputExtension);
+
+        let input = directory.path("reorder-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+        let output_error =
+            reorder_pdf_pages(input, directory.path("reordered.txt"), vec![2, 1]).unwrap_err();
+        assert_eq!(output_error, PdfToolError::InvalidOutputExtension);
+    }
+
+    #[test]
+    fn reorder_rejects_missing_paths_and_input_overwrite() {
+        let directory = TestDirectory::new();
+        let missing_input_error = reorder_pdf_pages(
+            directory.path("missing.pdf"),
+            directory.path("reordered.pdf"),
+            vec![1],
+        )
+        .unwrap_err();
+        assert_eq!(missing_input_error, PdfToolError::InputNotFound);
+
+        let input = directory.path("reorder-input.pdf");
+        create_single_page_pdf(&input);
+        let missing_output_error = reorder_pdf_pages(
+            input.clone(),
+            directory.path("missing-output").join("reordered.pdf"),
+            vec![1],
+        )
+        .unwrap_err();
+        assert_eq!(missing_output_error, PdfToolError::OutputDirectoryNotFound);
+
+        let overwrite_error = reorder_pdf_pages(input.clone(), input, vec![1]).unwrap_err();
+        assert_eq!(overwrite_error, PdfToolError::OutputConflictsWithInput);
+    }
+
+    #[test]
+    fn reorder_rejects_a_protected_pdf_without_decrypting_it() {
+        let directory = TestDirectory::new();
+        let input = directory.path("protected-reorder-input.pdf");
+        let output = directory.path("reordered.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+
+        let mut protected_document = Document::load(&input).expect("fixture should load");
+        let encryption_id = protected_document.add_object(dictionary! {
+            "Filter" => "Standard",
+            "V" => 1,
+        });
+        protected_document.trailer.set("Encrypt", encryption_id);
+        protected_document
+            .save(&input)
+            .expect("protected marker should be saved");
+
+        let error = reorder_pdf_pages(input, output.clone(), vec![2, 1]).unwrap_err();
+
+        assert_eq!(error, PdfToolError::EncryptedPdfUnsupported);
+        assert!(!output.exists());
+    }
+
+    #[test]
+    fn reorder_bridge_reorders_all_pages() {
+        let directory = TestDirectory::new();
+        let input = directory.path("reorder-bridge-input.pdf");
+        let output = directory.path("reorder-bridge-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q 1 0 0 1 2 2 cm Q", b"q Q"]);
+
+        let result =
+            run_pdf_reorder_bridge(pdf_reorder_request(input, output.clone(), vec![3, 1, 2]))
+                .expect("reorder bridge should succeed");
+
+        assert!(output.is_file());
+        assert_eq!(result.page_order, vec![3, 1, 2]);
+        assert_eq!(result.page_count, 3);
+        assert_eq!(
+            Document::load(output)
+                .expect("bridge output PDF should load")
+                .get_pages()
+                .len(),
+            3
+        );
+    }
+
+    #[test]
     fn split_bridge_splits_a_three_page_pdf() {
         let directory = TestDirectory::new();
         let input = directory.path("split-bridge-input.pdf");
@@ -1775,6 +1983,18 @@ mod tests {
             input_path: input_path.to_string_lossy().into_owned(),
             output_path: output_path.to_string_lossy().into_owned(),
             pages,
+        }
+    }
+
+    fn pdf_reorder_request(
+        input_path: PathBuf,
+        output_path: PathBuf,
+        page_order: Vec<usize>,
+    ) -> PdfReorderRequest {
+        PdfReorderRequest {
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: output_path.to_string_lossy().into_owned(),
+            page_order,
         }
     }
 
