@@ -134,3 +134,7 @@ In a separate implementation task, define a narrow Rust request/result contract 
 ### v0.6.0 Step 2 - Text watermark core / bridge
 
 Step 2 adds the additive `pdf_text_watermark` Rust core and shared execution bridge without editing existing PDF text. UI, image watermark, stamps, preview, OCR, redaction, and direct text editing are not added yet.
+
+### v0.6.0 Step 3 - Text watermark UI connection
+
+Step 3 connects `pdf_text_watermark` to the PDF Workbench UI so printable ASCII / Latin text can be added to all or selected pages in a new PDF. Image watermark, stamps, real preview, OCR, redaction, and direct text editing are still not added.

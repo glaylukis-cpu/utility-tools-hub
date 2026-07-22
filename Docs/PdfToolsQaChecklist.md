@@ -193,3 +193,13 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
 - [ ] Confirm watermarking is additive and is not described as redaction or direct text editing.
 - [ ] Confirm watermark UI, image watermark, stamps, preview, OCR, and redaction remain unimplemented.
+
+## v0.6.0 Step 3 Text watermark UI connection
+
+- [ ] Confirm the Text watermark card appears in PDF Workbench and displays the selected input PDF summary.
+- [ ] Confirm printable ASCII text such as `DRAFT` can be entered and non-ASCII text shows an unsupported warning.
+- [ ] Confirm an empty page field targets all pages and selected-page formats such as `1,3,5-7` are validated.
+- [ ] Confirm opacity, rotation, and font-size warnings prevent invalid execution.
+- [ ] Confirm `pdf_text_watermark` can execute and write a new PDF with loading, success, and safe error feedback.
+- [ ] Confirm watermarking is described as additive and not redaction or direct PDF text editing.
+- [ ] Confirm image watermark, stamps, real preview, OCR, and redaction remain unimplemented.

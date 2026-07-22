@@ -99,3 +99,7 @@ Watermark remains in the planning stage. `Docs/PdfWatermarkPlan.md` defines addi
 ## v0.6.0 Text watermark core / bridge
 
 The additive `pdf_text_watermark` core and shared execution bridge can write printable ASCII text to all or selected pages in a new PDF. UI connection, image watermark, stamps, preview, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.6.0 Text watermark UI connection
+
+PDF Workbench now connects to `pdf_text_watermark` with input summary, all-page or selected-page targeting, style validation, operation plan, and local new-PDF output. Image watermark, stamps, real preview, OCR, redaction, and direct PDF text editing remain unimplemented.

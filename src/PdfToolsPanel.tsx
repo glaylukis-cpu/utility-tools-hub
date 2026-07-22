@@ -64,6 +64,14 @@ type PdfReorderResult = {
   page_count: number;
 };
 
+type PdfTextWatermarkResult = {
+  input_path: string;
+  output_path: string;
+  text: string;
+  pages: number[];
+  page_count: number;
+};
+
 type PdfInspectResult = {
   input_path: string;
   file_name: string;
@@ -109,11 +117,12 @@ type PageOrderParseResult = {
 };
 
 const plannedPageTools = [
+  "Image watermark",
+  "Text stamp",
   "Drag-and-drop reorder",
   "Real PDF page preview",
   "Page thumbnails",
   "Page numbers",
-  "Watermark",
   "Overlay writing",
 ] as const;
 
@@ -129,6 +138,7 @@ const PDF_EXTRACT_TOOL_ID = "pdf_extract";
 const PDF_ROTATE_TOOL_ID = "pdf_rotate";
 const PDF_DELETE_TOOL_ID = "pdf_delete";
 const PDF_REORDER_TOOL_ID = "pdf_reorder";
+const PDF_TEXT_WATERMARK_TOOL_ID = "pdf_text_watermark";
 const PDF_INSPECT_TOOL_ID = "pdf_inspect";
 const POLL_INTERVAL_MS = 500;
 const MAX_EXPANDED_PAGES = 10_000;
@@ -286,6 +296,34 @@ function reorderFailureMessage(reason?: string | null): string {
   );
 }
 
+function watermarkFailureMessage(reason?: string | null): string {
+  const knownMessages: Record<string, string> = {
+    "every input file must use the .pdf extension": "The input file must use the .pdf extension.",
+    "the output file must use the .pdf extension": "The output file must use the .pdf extension.",
+    "an input PDF file does not exist": "The selected PDF could not be found. Select it again.",
+    "the output directory does not exist": "The selected output folder no longer exists. Choose the output PDF again.",
+    "the output file must differ from every input file": "The output PDF must be different from the input PDF.",
+    "watermark text must not be empty": "Enter watermark text such as DRAFT or CONFIDENTIAL.",
+    "watermark text currently supports printable ASCII characters only":
+      "Text watermark currently supports printable ASCII / Latin text only. Japanese text requires future font embedding support.",
+    "watermark opacity must be greater than 0 and no greater than 1": "Opacity must be greater than 0 and no greater than 1.",
+    "watermark rotation must be a finite value from -360 to 360 degrees": "Rotation must be between -360 and 360 degrees.",
+    "watermark font size must be a finite value from 8 to 200 points": "Font size must be between 8 and 200 points.",
+    "page numbers must be one or greater": "Page numbers must be whole numbers greater than zero.",
+    "a selected page is outside the input PDF page range": "The page selection contains a page outside the input PDF range.",
+    "duplicate page numbers are not supported": "Enter each target page only once.",
+    "encrypted or permission-protected PDF files are not supported yet":
+      "Protected PDFs are not supported. Utility Tools Hub does not decrypt PDFs or bypass permissions.",
+    "an input file is not a supported PDF document": "The input file is not a supported PDF document.",
+    "the output PDF could not be saved": "The output PDF could not be saved. Choose a writable location and try again.",
+  };
+
+  return (
+    (reason ? knownMessages[reason.trim()] : undefined) ??
+    "Text watermark failed. Check the input PDF, watermark settings, and writable output location, then try again."
+  );
+}
+
 function parsePageSelection(value: string): PageParseResult {
   const trimmedValue = value.trim();
   if (!trimmedValue) {
@@ -365,6 +403,26 @@ function parsePageSelectionForPlan(value: string, pageCount?: number | null): Pa
   }
 
   return { pages, error: null };
+}
+
+function parseOptionalPageSelection(value: string, pageCount?: number | null): PagePlanParseResult {
+  if (!value.trim()) return { pages: [], error: null };
+  return parsePageSelectionForPlan(value, pageCount);
+}
+
+function watermarkTextValidationMessage(value: string): string | null {
+  if (!value.trim()) return "Text is required.";
+  if (value.length > 128) return "Watermark text must be 128 characters or fewer.";
+  if (!/^[\x20-\x7e]+$/.test(value)) {
+    return "Non-ASCII text is not supported yet. Japanese text requires future font embedding support.";
+  }
+  return null;
+}
+
+function parseFiniteNumber(value: string): number | null {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function parsePageOrder(value: string, pageCount?: number | null): PageOrderParseResult {
@@ -661,6 +719,97 @@ function ReorderOperationPlan({
   );
 }
 
+function TextWatermarkOperationPlan({
+  summary,
+  text,
+  pagesInput,
+  opacityInput,
+  rotationInput,
+  fontSizeInput,
+  outputPath,
+}: {
+  summary: OperationInputSummaryState;
+  text: string;
+  pagesInput: string;
+  opacityInput: string;
+  rotationInput: string;
+  fontSizeInput: string;
+  outputPath: string | null;
+}) {
+  const result = summary.result;
+  const pageCount = result?.page_count ?? null;
+  const parsedPages = parseOptionalPageSelection(pagesInput, pageCount);
+  const textError = watermarkTextValidationMessage(text);
+  const opacity = parseFiniteNumber(opacityInput);
+  const rotation = parseFiniteNumber(rotationInput);
+  const fontSize = parseFiniteNumber(fontSizeInput);
+  const opacityError = opacity === null || opacity <= 0 || opacity > 1
+    ? "Opacity must be greater than 0 and no greater than 1."
+    : null;
+  const rotationError = rotation === null || rotation < -360 || rotation > 360
+    ? "Rotation must be between -360 and 360 degrees."
+    : null;
+  const fontSizeError = fontSize === null || fontSize < 8 || fontSize > 200
+    ? "Font size must be between 8 and 200 points."
+    : null;
+  const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
+  const isValid = Boolean(
+    result &&
+      outputPath &&
+      !textError &&
+      !parsedPages.error &&
+      !opacityError &&
+      !rotationError &&
+      !fontSizeError &&
+      !isProtected,
+  );
+
+  return (
+    <div className="pdf-tools-operation-plan" aria-label="Text watermark operation plan preview">
+      <div className="pdf-tools-operation-plan-heading">
+        <div>
+          <span>Lightweight plan</span>
+          <strong>Text watermark</strong>
+        </div>
+        <span className={`pdf-tools-operation-plan-status ${isValid ? "is-valid" : "is-check"}`}>
+          {isValid ? "Valid" : "Needs check"}
+        </span>
+      </div>
+      <p className="pdf-tools-operation-plan-note">Planning aid only — not a real PDF preview. PDF pages, watermark placement, and thumbnails are not rendered.</p>
+      <dl className="pdf-tools-operation-plan-details">
+        <div><dt>Input pages</dt><dd>{pageCount ?? "Unknown"}</dd></div>
+        <div><dt>Target pages</dt><dd>{pagesInput.trim() || "All pages"}</dd></div>
+        <div><dt>Watermark text</dt><dd>{text.trim() || "Not set"}</dd></div>
+        <div><dt>Opacity</dt><dd>{opacity ?? "Invalid"}</dd></div>
+        <div><dt>Rotation</dt><dd>{rotation !== null ? `${rotation}°` : "Invalid"}</dd></div>
+        <div><dt>Font size</dt><dd>{fontSize !== null ? `${fontSize} pt` : "Invalid"}</dd></div>
+        <div><dt>Output</dt><dd>{outputPath ? `New PDF · ${fileNameFromPath(outputPath)}` : "New PDF not selected"}</dd></div>
+      </dl>
+      <div className="pdf-tools-operation-plan-targets">
+        <span>Selected page targets</span>
+        {pagesInput.trim() ? (
+          <PlanPageChips pages={parsedPages.pages} />
+        ) : (
+          <span className="pdf-tools-operation-plan-empty">All pages will be targeted. The request uses an empty pages array.</span>
+        )}
+      </div>
+      {textError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Check text:</strong> {textError}</p>}
+      {parsedPages.error && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Check page selection:</strong> {parsedPages.error}</p>}
+      {opacityError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid opacity:</strong> {opacityError}</p>}
+      {rotationError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid rotation:</strong> {rotationError}</p>}
+      {fontSizeError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid font size:</strong> {fontSizeError}</p>}
+      {isProtected && (
+        <p className="pdf-tools-operation-plan-warning is-protected" role="alert">
+          <strong>Protected PDF:</strong> This operation may be rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.
+        </p>
+      )}
+      <p className="pdf-tools-operation-plan-safety">
+        <strong>Additive only · Not redaction:</strong> Text watermark adds a new content layer. It does not edit or replace existing PDF text and cannot safely hide content.
+      </p>
+    </div>
+  );
+}
+
 export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const inspectFileInputRef = useRef<HTMLInputElement>(null);
   const mergeFileInputRef = useRef<HTMLInputElement>(null);
@@ -669,6 +818,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const rotateFileInputRef = useRef<HTMLInputElement>(null);
   const deleteFileInputRef = useRef<HTMLInputElement>(null);
   const reorderFileInputRef = useRef<HTMLInputElement>(null);
+  const watermarkFileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
   const mergeInspectRunIdRef = useRef(0);
@@ -724,6 +874,18 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [reorderFeedback, setReorderFeedback] = useState<string | null>(null);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
+  const [watermarkInput, setWatermarkInput] = useState<SelectedPdf | null>(null);
+  const [watermarkText, setWatermarkText] = useState("DRAFT");
+  const [watermarkPagesInput, setWatermarkPagesInput] = useState("");
+  const [watermarkOpacityInput, setWatermarkOpacityInput] = useState("0.18");
+  const [watermarkRotationInput, setWatermarkRotationInput] = useState("-35");
+  const [watermarkFontSizeInput, setWatermarkFontSizeInput] = useState("48");
+  const [watermarkOutputPath, setWatermarkOutputPath] = useState<string | null>(null);
+  const [watermarkResult, setWatermarkResult] = useState<PdfTextWatermarkResult | null>(null);
+  const [isWatermarking, setIsWatermarking] = useState(false);
+  const [watermarkFeedback, setWatermarkFeedback] = useState<string | null>(null);
+  const [watermarkError, setWatermarkError] = useState<string | null>(null);
+
   const [inspectInput, setInspectInput] = useState<SelectedPdf | null>(null);
   const [inspectResult, setInspectResult] = useState<PdfInspectResult | null>(null);
   const [isInspecting, setIsInspecting] = useState(false);
@@ -735,6 +897,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [rotateInputSummary, setRotateInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [deleteInputSummary, setDeleteInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [reorderInputSummary, setReorderInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
+  const [watermarkInputSummary, setWatermarkInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
 
   const nativeDialogAvailable = isTauri();
   const parsedExtractPages = parsePageSelection(extractPagesInput);
@@ -744,6 +907,23 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     reorderPageOrderInput,
     reorderInputSummary.result?.page_count ?? null,
   );
+  const parsedWatermarkPages = parseOptionalPageSelection(
+    watermarkPagesInput,
+    watermarkInputSummary.result?.page_count ?? null,
+  );
+  const watermarkTextError = watermarkTextValidationMessage(watermarkText);
+  const watermarkOpacity = parseFiniteNumber(watermarkOpacityInput);
+  const watermarkRotation = parseFiniteNumber(watermarkRotationInput);
+  const watermarkFontSize = parseFiniteNumber(watermarkFontSizeInput);
+  const watermarkOpacityError = watermarkOpacity === null || watermarkOpacity <= 0 || watermarkOpacity > 1
+    ? "Opacity must be greater than 0 and no greater than 1."
+    : null;
+  const watermarkRotationError = watermarkRotation === null || watermarkRotation < -360 || watermarkRotation > 360
+    ? "Rotation must be between -360 and 360 degrees."
+    : null;
+  const watermarkFontSizeError = watermarkFontSize === null || watermarkFontSize < 8 || watermarkFontSize > 200
+    ? "Font size must be between 8 and 200 points."
+    : null;
 
   const stopPolling = () => {
     if (pollTimerRef.current !== null) {
@@ -1713,6 +1893,143 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     );
   };
 
+  const selectWatermarkInput = async () => {
+    if (isRunningRef.current) return;
+    setWatermarkFeedback(null);
+    setWatermarkError(null);
+    setWatermarkResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF for text watermark",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+          setWatermarkError("Select a file with the .pdf extension.");
+          return;
+        }
+
+        setWatermarkInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
+        setWatermarkFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        await inspectOperationInput(selectedPath, setWatermarkInputSummary);
+        return;
+      } catch {
+        setWatermarkError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    watermarkFileInputRef.current?.click();
+  };
+
+  const selectBrowserWatermarkInput = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setWatermarkFeedback(null);
+    setWatermarkResult(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setWatermarkInput(null);
+      setWatermarkInputSummary(emptyOperationInputSummary());
+      setWatermarkError("Please select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setWatermarkInput({ name: file.name });
+    setWatermarkInputSummary({
+      loading: false,
+      error: "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    });
+    setWatermarkError("Desktop file path selection is required to add a text watermark.");
+    input.value = "";
+  };
+
+  const selectWatermarkOutputPdf = async () => {
+    if (!nativeDialogAvailable || isRunningRef.current) return;
+    setWatermarkFeedback(null);
+    setWatermarkError(null);
+    setWatermarkResult(null);
+
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await save({
+        defaultPath: "watermarked-document.pdf",
+        title: "Select text-watermark output PDF",
+        filters: [{ name: "PDF document", extensions: ["pdf"] }],
+      });
+      if (!selectedPath) return;
+      if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+        setWatermarkError("The output file must use the .pdf extension.");
+        return;
+      }
+
+      setWatermarkOutputPath(selectedPath);
+      setWatermarkFeedback(`Output selected: ${fileNameFromPath(selectedPath)}`);
+    } catch {
+      setWatermarkError("The text-watermark output PDF could not be selected.");
+    }
+  };
+
+  const addTextWatermark = async () => {
+    if (isRunningRef.current) return;
+    if (
+      !watermarkInput?.path ||
+      !watermarkInputSummary.result ||
+      !watermarkOutputPath ||
+      watermarkTextError ||
+      parsedWatermarkPages.error ||
+      watermarkOpacityError ||
+      watermarkRotationError ||
+      watermarkFontSizeError ||
+      watermarkOpacity === null ||
+      watermarkRotation === null ||
+      watermarkFontSize === null
+    ) {
+      setWatermarkError(
+        watermarkTextError ??
+          parsedWatermarkPages.error ??
+          watermarkOpacityError ??
+          watermarkRotationError ??
+          watermarkFontSizeError ??
+          "Select a desktop PDF and output PDF, then review the watermark plan.",
+      );
+      return;
+    }
+
+    setWatermarkResult(null);
+    setWatermarkFeedback(null);
+    setWatermarkError(null);
+
+    await executeAdditionalPdfTool<PdfTextWatermarkResult>(
+      PDF_TEXT_WATERMARK_TOOL_ID,
+      {
+        input_path: watermarkInput.path,
+        output_path: watermarkOutputPath,
+        text: watermarkText.trim(),
+        pages: parsedWatermarkPages.pages,
+        opacity: watermarkOpacity,
+        rotation_degrees: watermarkRotation,
+        font_size: watermarkFontSize,
+      },
+      setIsWatermarking,
+      (result) => {
+        setWatermarkResult(result);
+        setWatermarkFeedback("Text watermark completed successfully.");
+        setWatermarkError(null);
+      },
+      (reason) => {
+        setWatermarkResult(null);
+        setWatermarkFeedback(null);
+        setWatermarkError(watermarkFailureMessage(reason));
+      },
+    );
+  };
+
   const hasDesktopInputPaths =
     selectedPdfs.length > 0 && selectedPdfs.every((pdf) => typeof pdf.path === "string");
   const isAnyOperationRunning =
@@ -1723,12 +2040,14 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     rotateInputSummary.loading ||
     deleteInputSummary.loading ||
     reorderInputSummary.loading ||
+    watermarkInputSummary.loading ||
     isMerging ||
     isSplitting ||
     isExtracting ||
     isRotating ||
     isDeleting ||
-    isReordering;
+    isReordering ||
+    isWatermarking;
   const mergeTotalPages = mergeInputSummaries.reduce(
     (total, summary) => total + (summary.result?.page_count ?? 0),
     0,
@@ -1776,6 +2095,17 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     typeof reorderInput?.path === "string" &&
     reorderOutputPath !== null &&
     parsedReorderPageOrder.isValid &&
+    !isAnyOperationRunning;
+  const canWatermark =
+    nativeDialogAvailable &&
+    typeof watermarkInput?.path === "string" &&
+    watermarkInputSummary.result !== null &&
+    watermarkOutputPath !== null &&
+    watermarkTextError === null &&
+    parsedWatermarkPages.error === null &&
+    watermarkOpacityError === null &&
+    watermarkRotationError === null &&
+    watermarkFontSizeError === null &&
     !isAnyOperationRunning;
   const mergeDisabledReason = !nativeDialogAvailable
     ? "PDF processing is available in the desktop app."
@@ -1847,6 +2177,27 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               : !reorderOutputPath
                 ? "Select an output PDF."
                 : null;
+  const watermarkDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : !watermarkInput?.path
+      ? "Select one input PDF."
+      : watermarkInputSummary.loading
+        ? "Wait for the input PDF summary to finish."
+        : !watermarkInputSummary.result
+          ? "A valid input PDF summary is required."
+          : watermarkTextError
+            ? watermarkTextError
+            : parsedWatermarkPages.error
+              ? parsedWatermarkPages.error
+              : watermarkOpacityError
+                ? watermarkOpacityError
+                : watermarkRotationError
+                  ? watermarkRotationError
+                  : watermarkFontSizeError
+                    ? watermarkFontSizeError
+                    : !watermarkOutputPath
+                      ? "Select an output PDF."
+                      : null;
   const inspectMetadata = inspectResult
     ? [
         { label: "Title", value: inspectResult.title },
@@ -1873,12 +2224,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h1>PDF Workbench</h1>
           <p>Local page operations with clear file, operation, result, and safety areas</p>
         </div>
-        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete · Reorder</span>
+        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete · Reorder · Text watermark</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>PDF summary inspection and six local page-operation MVPs are available.</strong>
-        <span>Drag-and-drop reorder, real page preview, thumbnails, and overlay writing are planned. OCR, redaction, and direct text editing remain research topics.</span>
+        <strong>PDF summary inspection, local page operations, and additive text watermark are available.</strong>
+        <span>Image watermark, stamps, real page preview, thumbnails, and overlay writing are planned. OCR, redaction, and direct text editing remain research topics.</span>
       </div>
 
       <div className="pdf-tools-workbench-grid">
@@ -1994,6 +2345,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <div><dt>Rotate</dt><dd>{rotateInput?.name ?? "No file selected"}</dd></div>
               <div><dt>Delete</dt><dd>{deleteInput?.name ?? "No file selected"}</dd></div>
               <div><dt>Reorder</dt><dd>{reorderInput?.name ?? "No file selected"}</dd></div>
+              <div><dt>Text watermark</dt><dd>{watermarkInput?.name ?? "No file selected"}</dd></div>
             </dl>
             <div className="pdf-tools-local-notes">
               <p>PDF files stay on this device.</p>
@@ -2684,6 +3036,179 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+
+        <section className="pdf-tools-panel pdf-tools-operation-card pdf-tools-watermark-card" aria-labelledby="pdf-text-watermark-title">
+          <div className="pdf-tools-section-heading">
+            <span>Additive text · All or selected pages</span>
+            <h2 id="pdf-text-watermark-title">Text watermark</h2>
+            <p>Add text such as DRAFT or CONFIDENTIAL to a new PDF.</p>
+          </div>
+          <p className="pdf-tools-helper">Printable ASCII / Latin text only for now. Leave Pages empty to target all pages.</p>
+          <p className="pdf-tools-warning"><strong>Additive only · Not redaction:</strong> This adds a new text layer. It does not edit or replace existing PDF text and cannot safely hide content.</p>
+
+          <div className="pdf-tools-button-row">
+            <button type="button" className="btn btn-outline" onClick={selectWatermarkInput} disabled={isAnyOperationRunning}>
+              Select input PDF
+            </button>
+            <button
+              type="button"
+              className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
+              onClick={selectWatermarkOutputPdf}
+              disabled={!nativeDialogAvailable || isAnyOperationRunning}
+            >
+              {nativeDialogAvailable ? "Select output PDF" : "Output PDF (Desktop only)"}
+            </button>
+          </div>
+          <input
+            ref={watermarkFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) =>
+              selectBrowserWatermarkInput(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+
+          <dl className="pdf-tools-selection-details">
+            <div><dt>Input PDF</dt><dd>{watermarkInput?.name ?? "Not selected"}</dd></div>
+            <div>
+              <dt>Output PDF</dt>
+              <dd className="pdf-tools-path">
+                {watermarkOutputPath ? fileNameFromPath(watermarkOutputPath) : "Not selected"}
+              </dd>
+            </div>
+          </dl>
+
+          <OperationInputSummary
+            fileName={watermarkInput?.name}
+            summary={watermarkInputSummary}
+            guidance="Page count checks selected targets. Protected PDFs may be rejected."
+          />
+
+          <label className="pdf-tools-field">
+            <span>Watermark text</span>
+            <input
+              type="text"
+              value={watermarkText}
+              onChange={(event) => {
+                setWatermarkText(event.currentTarget.value);
+                setWatermarkResult(null);
+                setWatermarkFeedback(null);
+                setWatermarkError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="DRAFT"
+              aria-describedby="pdf-watermark-text-help"
+            />
+          </label>
+          <p id="pdf-watermark-text-help" className="pdf-tools-field-help">Printable ASCII only · {watermarkText.length}/128 characters</p>
+          {watermarkTextError && <p className="pdf-tools-field-error">{watermarkTextError}</p>}
+
+          <label className="pdf-tools-field">
+            <span>Pages (optional)</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={watermarkPagesInput}
+              onChange={(event) => {
+                setWatermarkPagesInput(event.currentTarget.value);
+                setWatermarkResult(null);
+                setWatermarkFeedback(null);
+                setWatermarkError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="All pages, or 1,3,5-7"
+            />
+          </label>
+          {parsedWatermarkPages.error && <p className="pdf-tools-field-error">{parsedWatermarkPages.error}</p>}
+
+          <div className="pdf-tools-watermark-fields">
+            <label className="pdf-tools-field">
+              <span>Opacity</span>
+              <input
+                type="number"
+                min="0.01"
+                max="1"
+                step="0.01"
+                value={watermarkOpacityInput}
+                onChange={(event) => {
+                  setWatermarkOpacityInput(event.currentTarget.value);
+                  setWatermarkResult(null);
+                  setWatermarkFeedback(null);
+                  setWatermarkError(null);
+                }}
+                disabled={isAnyOperationRunning}
+              />
+            </label>
+            <label className="pdf-tools-field">
+              <span>Rotation (degrees)</span>
+              <input
+                type="number"
+                min="-360"
+                max="360"
+                step="1"
+                value={watermarkRotationInput}
+                onChange={(event) => {
+                  setWatermarkRotationInput(event.currentTarget.value);
+                  setWatermarkResult(null);
+                  setWatermarkFeedback(null);
+                  setWatermarkError(null);
+                }}
+                disabled={isAnyOperationRunning}
+              />
+            </label>
+            <label className="pdf-tools-field">
+              <span>Font size (pt)</span>
+              <input
+                type="number"
+                min="8"
+                max="200"
+                step="1"
+                value={watermarkFontSizeInput}
+                onChange={(event) => {
+                  setWatermarkFontSizeInput(event.currentTarget.value);
+                  setWatermarkResult(null);
+                  setWatermarkFeedback(null);
+                  setWatermarkError(null);
+                }}
+                disabled={isAnyOperationRunning}
+              />
+            </label>
+          </div>
+          <div className="pdf-tools-watermark-field-errors" aria-live="polite">
+            {watermarkOpacityError && <p className="pdf-tools-field-error">{watermarkOpacityError}</p>}
+            {watermarkRotationError && <p className="pdf-tools-field-error">{watermarkRotationError}</p>}
+            {watermarkFontSizeError && <p className="pdf-tools-field-error">{watermarkFontSizeError}</p>}
+          </div>
+
+          <TextWatermarkOperationPlan
+            summary={watermarkInputSummary}
+            text={watermarkText}
+            pagesInput={watermarkPagesInput}
+            opacityInput={watermarkOpacityInput}
+            rotationInput={watermarkRotationInput}
+            fontSizeInput={watermarkFontSizeInput}
+            outputPath={watermarkOutputPath}
+          />
+
+          <button type="button" className="btn btn-primary" onClick={addTextWatermark} disabled={!canWatermark}>
+            {isWatermarking ? "Adding watermark..." : "Add watermark"}
+          </button>
+          {!canWatermark && !isWatermarking && (
+            <p className="pdf-tools-operation-requirements">To enable Text watermark: {watermarkDisabledReason}</p>
+          )}
+
+          {isWatermarking && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Adding the text watermark to a new PDF...</div>}
+          {watermarkError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{watermarkError}</div>}
+          {!watermarkError && !isWatermarking && watermarkFeedback && (
+            <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
+              <strong>{watermarkFeedback}</strong>
+              {watermarkResult && (
+                <span>{watermarkResult.pages.length} target page{watermarkResult.pages.length === 1 ? "" : "s"} · Text: {watermarkResult.text} · {watermarkResult.page_count} total pages · Output: {fileNameFromPath(watermarkResult.output_path)}</span>
+              )}
+            </div>
+          )}
+        </section>
           </div>
         </main>
 
@@ -2702,6 +3227,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <li><span>Rotate</span><strong className={isRotating ? "is-running" : rotateError ? "is-error" : rotateResult ? "is-success" : ""}>{isRotating ? "Running" : rotateError ? "Needs attention" : rotateResult ? "Completed" : "Ready"}</strong></li>
               <li><span>Delete</span><strong className={isDeleting ? "is-running" : deleteError ? "is-error" : deleteResult ? "is-success" : ""}>{isDeleting ? "Running" : deleteError ? "Needs attention" : deleteResult ? "Completed" : "Ready"}</strong></li>
               <li><span>Reorder</span><strong className={isReordering ? "is-running" : reorderError ? "is-error" : reorderResult ? "is-success" : ""}>{isReordering ? "Running" : reorderError ? "Needs attention" : reorderResult ? "Completed" : "Ready"}</strong></li>
+              <li><span>Text watermark</span><strong className={isWatermarking ? "is-running" : watermarkError ? "is-error" : watermarkResult ? "is-success" : ""}>{isWatermarking ? "Running" : watermarkError ? "Needs attention" : watermarkResult ? "Completed" : "Ready"}</strong></li>
             </ul>
             <p className="pdf-tools-status-help">Detailed success and error messages remain inside each operation card.</p>
           </section>
@@ -2712,7 +3238,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <h2 id="available-pdf-tools-title">Local PDF operations</h2>
             </div>
             <div className="pdf-tools-capability-list pdf-tools-capability-available">
-              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages'].map((tool) => <span key={tool}>{tool}</span>)}
+              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark'].map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
 

@@ -740,6 +740,37 @@
   min-width: 0;
 }
 
+.pdf-tools-watermark-card {
+  grid-column: 1 / -1;
+}
+
+.pdf-tools-watermark-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.pdf-tools-watermark-fields .pdf-tools-field {
+  min-width: 0;
+  margin: 0;
+}
+
+.pdf-tools-field-help {
+  margin: -12px 0 14px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pdf-tools-watermark-field-errors:empty {
+  display: none;
+}
+
+.pdf-tools-watermark-field-errors .pdf-tools-field-error {
+  margin: -8px 0 12px;
+}
+
 .pdf-tools-helper,
 .pdf-tools-warning {
   margin: -6px 0 16px;
@@ -1284,5 +1315,9 @@
 
   .pdf-tools-operation-plan-chips {
     gap: 4px;
+  }
+
+  .pdf-tools-watermark-fields {
+    grid-template-columns: 1fr;
   }
 }
