@@ -83,3 +83,7 @@ v0.3.4 is a protected PDF merge error and merge stability bugfix release. Normal
 ## v0.5.0 PDF reorder core / bridge foundation
 
 The local `pdf_reorder` core and bridge can write a new PDF using a complete specified page order. UI connection, drag-and-drop, thumbnails, and real PDF rendering are not implemented yet.
+
+## v0.5.0 PDF reorder UI connection
+
+PDF Workbench now connects to `pdf_reorder`, validates a complete page order, and saves the reordered pages as a new PDF. Drag-and-drop reorder, thumbnails, and real PDF rendering remain unimplemented.

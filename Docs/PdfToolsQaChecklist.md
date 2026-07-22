@@ -129,7 +129,7 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 
 ## Safety notes
 
-- [ ] Confirm Merge, Split, Extract, Rotate, and Delete are labeled as page-operation MVPs.
+- [ ] Confirm Merge, Split, Extract, Rotate, Delete, and Reorder are labeled as page-operation MVPs.
 - [ ] Confirm Delete pages is described as whole-page removal, not redaction.
 - [ ] Confirm safe redaction is labeled Research / Safety critical and unavailable.
 - [ ] Confirm OCR-assisted workflow is labeled Research / Safety critical and unavailable.
@@ -138,8 +138,8 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 
 ## Planned tools
 
-- [ ] Confirm Reorder pages is Planned and disabled.
-- [ ] Confirm page numbers, watermark, text stamp, image stamp, PDF to images, and Images to PDF are Planned and disabled.
+- [ ] Confirm Reorder pages is Available while drag-and-drop reorder remains Planned.
+- [ ] Confirm real PDF page preview, thumbnails, page numbers, watermark, and overlay writing are Planned and disabled.
 - [ ] Confirm none of the planned or research items appear available or clickable.
 
 ## Regression checks
@@ -157,3 +157,12 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm empty, invalid, duplicate, missing, and out-of-range page orders are rejected.
 - [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
 - [ ] Confirm reorder UI, drag-and-drop, thumbnails, and real PDF rendering are not implemented yet.
+
+## v0.5.0 Step 2 PDF reorder UI connection
+
+- [ ] Confirm Reorder pages UI appears in PDF Workbench.
+- [ ] Confirm the Reorder input PDF summary is displayed.
+- [ ] Confirm a full page order such as `3,1,2` is accepted.
+- [ ] Confirm missing, duplicate, invalid, and out-of-range page orders show warnings.
+- [ ] Confirm `pdf_reorder` can execute and write a new PDF.
+- [ ] Confirm drag-and-drop reorder, thumbnails, and real PDF rendering are not implemented.

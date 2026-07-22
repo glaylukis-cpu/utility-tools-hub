@@ -57,6 +57,13 @@ type PdfDeleteResult = {
   remaining_page_count: number;
 };
 
+type PdfReorderResult = {
+  input_path: string;
+  output_path: string;
+  page_order: number[];
+  page_count: number;
+};
+
 type PdfInspectResult = {
   input_path: string;
   file_name: string;
@@ -92,15 +99,22 @@ type PagePlanParseResult = {
   error: string | null;
 };
 
+type PageOrderParseResult = {
+  pageOrder: number[];
+  invalidEntries: boolean;
+  duplicatePages: number[];
+  outOfRangePages: number[];
+  missingPages: number[];
+  isValid: boolean;
+};
+
 const plannedPageTools = [
-  "Page preview",
-  "Reorder pages",
+  "Drag-and-drop reorder",
+  "Real PDF page preview",
+  "Page thumbnails",
   "Page numbers",
   "Watermark",
-  "Text stamp",
-  "Image stamp",
-  "PDF to images",
-  "Images to PDF",
+  "Overlay writing",
 ] as const;
 
 const researchTools = [
@@ -114,6 +128,7 @@ const PDF_SPLIT_TOOL_ID = "pdf_split";
 const PDF_EXTRACT_TOOL_ID = "pdf_extract";
 const PDF_ROTATE_TOOL_ID = "pdf_rotate";
 const PDF_DELETE_TOOL_ID = "pdf_delete";
+const PDF_REORDER_TOOL_ID = "pdf_reorder";
 const PDF_INSPECT_TOOL_ID = "pdf_inspect";
 const POLL_INTERVAL_MS = 500;
 const MAX_EXPANDED_PAGES = 10_000;
@@ -246,6 +261,31 @@ function deleteFailureMessage(): string {
   return "Delete failed. Check the 1-based page selection, keep at least one page, and choose a writable output location.";
 }
 
+function reorderFailureMessage(reason?: string | null): string {
+  const knownMessages: Record<string, string> = {
+    "every input file must use the .pdf extension": "The input file must use the .pdf extension.",
+    "the output file must use the .pdf extension": "The output file must use the .pdf extension.",
+    "an input PDF file does not exist": "The selected PDF could not be found. Select it again.",
+    "the output directory does not exist": "The selected output folder no longer exists. Choose the output PDF again.",
+    "the output file must differ from every input file": "The output PDF must be different from the input PDF.",
+    "at least one page must be selected": "Enter the full page order before running Reorder pages.",
+    "page numbers must be one or greater": "Page order values must be whole numbers greater than zero.",
+    "a selected page is outside the input PDF page range": "The page order contains a page outside the input PDF range.",
+    "duplicate page numbers are not supported": "Each page must appear exactly once in the page order.",
+    "the page order must include every input PDF page exactly once":
+      "The page order must include every input PDF page exactly once.",
+    "encrypted or permission-protected PDF files are not supported yet":
+      "Protected PDFs may be rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.",
+    "an input file is not a supported PDF document": "The input file is not a supported PDF document.",
+    "the output PDF could not be saved": "The output PDF could not be saved. Choose a writable location and try again.",
+  };
+
+  return (
+    (reason ? knownMessages[reason.trim()] : undefined) ??
+    "Reorder failed. Check the full page order, input PDF, and writable output location, then try again."
+  );
+}
+
 function parsePageSelection(value: string): PageParseResult {
   const trimmedValue = value.trim();
   if (!trimmedValue) {
@@ -327,6 +367,70 @@ function parsePageSelectionForPlan(value: string, pageCount?: number | null): Pa
   return { pages, error: null };
 }
 
+function parsePageOrder(value: string, pageCount?: number | null): PageOrderParseResult {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return {
+      pageOrder: [],
+      invalidEntries: false,
+      duplicatePages: [],
+      outOfRangePages: [],
+      missingPages: [],
+      isValid: false,
+    };
+  }
+
+  const pageOrder: number[] = [];
+  let invalidEntries = false;
+
+  for (const part of trimmedValue.split(",")) {
+    const token = part.trim();
+    if (!/^\d+$/.test(token)) {
+      invalidEntries = true;
+      continue;
+    }
+
+    const page = Number(token);
+    if (!Number.isSafeInteger(page) || page < 1) {
+      invalidEntries = true;
+      continue;
+    }
+    pageOrder.push(page);
+  }
+
+  const seenPages = new Set<number>();
+  const duplicatePages = [...new Set(pageOrder.filter((page) => {
+    if (seenPages.has(page)) return true;
+    seenPages.add(page);
+    return false;
+  }))];
+  const hasPageCount = typeof pageCount === "number" && pageCount > 0;
+  const outOfRangePages = hasPageCount
+    ? [...new Set(pageOrder.filter((page) => page > pageCount))]
+    : [];
+  const includedPages = new Set(pageOrder);
+  const missingPages = hasPageCount
+    ? Array.from({ length: pageCount }, (_, index) => index + 1).filter((page) => !includedPages.has(page))
+    : [];
+  const isValid = Boolean(
+    hasPageCount &&
+      !invalidEntries &&
+      duplicatePages.length === 0 &&
+      outOfRangePages.length === 0 &&
+      missingPages.length === 0 &&
+      pageOrder.length === pageCount,
+  );
+
+  return {
+    pageOrder,
+    invalidEntries,
+    duplicatePages,
+    outOfRangePages,
+    missingPages,
+    isValid,
+  };
+}
+
 function PlanPageChips({
   pages,
   emptyLabel = "Enter pages to preview targets.",
@@ -343,7 +447,7 @@ function PlanPageChips({
 
   return (
     <div className="pdf-tools-operation-plan-chips" aria-label={`${pages.length} selected pages`}>
-      {visiblePages.map((page) => <span key={page}>{page}</span>)}
+      {visiblePages.map((page, index) => <span key={`${page}-${index}`}>{page}</span>)}
       {hiddenPageCount > 0 && <span className="is-more">+{hiddenPageCount} more</span>}
     </div>
   );
@@ -478,6 +582,80 @@ function PageOperationPlan({
   );
 }
 
+function ReorderOperationPlan({
+  pageOrderInput,
+  summary,
+}: {
+  pageOrderInput: string;
+  summary: OperationInputSummaryState;
+}) {
+  const result = summary.result;
+  const pageCount = result?.page_count ?? null;
+  const parsed = parsePageOrder(pageOrderInput, pageCount);
+  const hasInput = pageOrderInput.trim().length > 0;
+  const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
+  const status = parsed.isValid && !isProtected ? "Valid" : "Needs check";
+
+  return (
+    <div className="pdf-tools-operation-plan" aria-label="Reorder operation plan preview">
+      <div className="pdf-tools-operation-plan-heading">
+        <div>
+          <span>Lightweight plan</span>
+          <strong>Reorder pages</strong>
+        </div>
+        <span className={`pdf-tools-operation-plan-status ${status === "Valid" ? "is-valid" : "is-check"}`}>
+          {status}
+        </span>
+      </div>
+      <p className="pdf-tools-operation-plan-note">Planning aid only — not a PDF preview. PDF pages and thumbnails are not rendered.</p>
+      <dl className="pdf-tools-operation-plan-details">
+        <div><dt>Input pages</dt><dd>{pageCount ?? "Unknown"}</dd></div>
+        <div><dt>Output</dt><dd>New PDF</dd></div>
+      </dl>
+      <div className="pdf-tools-operation-plan-targets">
+        <span>New page order</span>
+        <PlanPageChips pages={parsed.pageOrder} emptyLabel="Enter the full page order." />
+        {parsed.pageOrder.length > 0 && (
+          <small className="pdf-tools-operation-plan-sequence">
+            New order: {parsed.pageOrder.join(" → ")}
+          </small>
+        )}
+      </div>
+      {pageCount === null && (
+        <p className="pdf-tools-operation-plan-warning" role="alert">
+          Select a valid PDF to validate the full page order.
+        </p>
+      )}
+      {hasInput && parsed.invalidEntries && (
+        <p className="pdf-tools-operation-plan-warning" role="alert">Invalid entries found. Use comma-separated whole page numbers only.</p>
+      )}
+      {parsed.missingPages.length > 0 && (
+        <p className="pdf-tools-operation-plan-warning" role="alert">
+          <strong>Missing pages:</strong> {parsed.missingPages.join(", ")}
+        </p>
+      )}
+      {parsed.duplicatePages.length > 0 && (
+        <p className="pdf-tools-operation-plan-warning" role="alert">
+          <strong>Duplicate pages:</strong> {parsed.duplicatePages.join(", ")}
+        </p>
+      )}
+      {parsed.outOfRangePages.length > 0 && (
+        <p className="pdf-tools-operation-plan-warning" role="alert">
+          <strong>Out-of-range pages:</strong> {parsed.outOfRangePages.join(", ")}
+        </p>
+      )}
+      {isProtected && (
+        <p className="pdf-tools-operation-plan-warning is-protected" role="alert">
+          <strong>Protected PDF:</strong> This operation may be rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.
+        </p>
+      )}
+      <p className="pdf-tools-operation-plan-safety">
+        Reorder pages changes whole-page order only. It does not edit PDF text or page content.
+      </p>
+    </div>
+  );
+}
+
 export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const inspectFileInputRef = useRef<HTMLInputElement>(null);
   const mergeFileInputRef = useRef<HTMLInputElement>(null);
@@ -485,6 +663,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const extractFileInputRef = useRef<HTMLInputElement>(null);
   const rotateFileInputRef = useRef<HTMLInputElement>(null);
   const deleteFileInputRef = useRef<HTMLInputElement>(null);
+  const reorderFileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
   const mergeInspectRunIdRef = useRef(0);
@@ -532,6 +711,14 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [reorderInput, setReorderInput] = useState<SelectedPdf | null>(null);
+  const [reorderPageOrderInput, setReorderPageOrderInput] = useState("");
+  const [reorderOutputPath, setReorderOutputPath] = useState<string | null>(null);
+  const [reorderResult, setReorderResult] = useState<PdfReorderResult | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
+  const [reorderFeedback, setReorderFeedback] = useState<string | null>(null);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+
   const [inspectInput, setInspectInput] = useState<SelectedPdf | null>(null);
   const [inspectResult, setInspectResult] = useState<PdfInspectResult | null>(null);
   const [isInspecting, setIsInspecting] = useState(false);
@@ -542,11 +729,16 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [extractInputSummary, setExtractInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [rotateInputSummary, setRotateInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [deleteInputSummary, setDeleteInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
+  const [reorderInputSummary, setReorderInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
 
   const nativeDialogAvailable = isTauri();
   const parsedExtractPages = parsePageSelection(extractPagesInput);
   const parsedRotatePages = parsePageSelection(rotatePagesInput);
   const parsedDeletePages = parsePageSelection(deletePagesInput);
+  const parsedReorderPageOrder = parsePageOrder(
+    reorderPageOrderInput,
+    reorderInputSummary.result?.page_count ?? null,
+  );
 
   const stopPolling = () => {
     if (pollTimerRef.current !== null) {
@@ -1401,6 +1593,121 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     );
   };
 
+  const selectReorderInput = async () => {
+    if (isRunningRef.current) return;
+    setReorderFeedback(null);
+    setReorderError(null);
+    setReorderResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF to reorder pages in",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+          setReorderError("Select a file with the .pdf extension.");
+          return;
+        }
+        setReorderInput({ name: fileNameFromPath(selectedPath), path: selectedPath });
+        setReorderFeedback(`Input selected: ${fileNameFromPath(selectedPath)}`);
+        await inspectOperationInput(selectedPath, setReorderInputSummary);
+        return;
+      } catch {
+        setReorderError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    reorderFileInputRef.current?.click();
+  };
+
+  const selectBrowserReorderInput = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setReorderFeedback(null);
+    setReorderResult(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setReorderInput(null);
+      setReorderInputSummary(emptyOperationInputSummary());
+      setReorderError("Please select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setReorderInput({ name: file.name });
+    setReorderInputSummary({
+      loading: false,
+      error: "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    });
+    setReorderError("Desktop file path selection is required to reorder pages.");
+    input.value = "";
+  };
+
+  const selectReorderOutputPdf = async () => {
+    if (!nativeDialogAvailable || isRunningRef.current) return;
+    setReorderFeedback(null);
+    setReorderError(null);
+    setReorderResult(null);
+
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await save({
+        defaultPath: "reordered-pages.pdf",
+        title: "Select reordered output PDF",
+        filters: [{ name: "PDF document", extensions: ["pdf"] }],
+      });
+      if (!selectedPath) return;
+      if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+        setReorderError("The output file must use the .pdf extension.");
+        return;
+      }
+
+      setReorderOutputPath(selectedPath);
+      setReorderFeedback(`Output selected: ${fileNameFromPath(selectedPath)}`);
+    } catch {
+      setReorderError("The reordered output PDF could not be selected.");
+    }
+  };
+
+  const reorderPdfPages = async () => {
+    if (isRunningRef.current) return;
+    if (!reorderInput?.path || !reorderOutputPath || !parsedReorderPageOrder.isValid) {
+      setReorderError(
+        "Select a desktop PDF and output PDF, then enter every input page exactly once.",
+      );
+      return;
+    }
+
+    setReorderResult(null);
+    setReorderFeedback(null);
+    setReorderError(null);
+
+    await executeAdditionalPdfTool<PdfReorderResult>(
+      PDF_REORDER_TOOL_ID,
+      {
+        input_path: reorderInput.path,
+        output_path: reorderOutputPath,
+        page_order: parsedReorderPageOrder.pageOrder,
+      },
+      setIsReordering,
+      (result) => {
+        setReorderResult(result);
+        setReorderFeedback("Reorder completed successfully.");
+        setReorderError(null);
+      },
+      (reason) => {
+        setReorderResult(null);
+        setReorderFeedback(null);
+        setReorderError(reorderFailureMessage(reason));
+      },
+    );
+  };
+
   const hasDesktopInputPaths =
     selectedPdfs.length > 0 && selectedPdfs.every((pdf) => typeof pdf.path === "string");
   const isAnyOperationRunning =
@@ -1410,11 +1717,13 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     extractInputSummary.loading ||
     rotateInputSummary.loading ||
     deleteInputSummary.loading ||
+    reorderInputSummary.loading ||
     isMerging ||
     isSplitting ||
     isExtracting ||
     isRotating ||
-    isDeleting;
+    isDeleting ||
+    isReordering;
   const mergeTotalPages = mergeInputSummaries.reduce(
     (total, summary) => total + (summary.result?.page_count ?? 0),
     0,
@@ -1456,6 +1765,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     typeof deleteInput?.path === "string" &&
     deleteOutputPath !== null &&
     parsedDeletePages.pages !== null &&
+    !isAnyOperationRunning;
+  const canReorder =
+    nativeDialogAvailable &&
+    typeof reorderInput?.path === "string" &&
+    reorderOutputPath !== null &&
+    parsedReorderPageOrder.isValid &&
     !isAnyOperationRunning;
   const mergeDisabledReason = !nativeDialogAvailable
     ? "PDF processing is available in the desktop app."
@@ -1512,6 +1827,21 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           : !deleteOutputPath
             ? "Select an output PDF."
             : null;
+  const reorderDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : !reorderInput?.path
+      ? "Select one input PDF."
+      : reorderInputSummary.loading
+        ? "Wait for the input PDF summary to finish."
+        : !reorderInputSummary.result
+          ? "A valid input PDF summary is required."
+          : !reorderPageOrderInput.trim()
+            ? "Enter the full page order, such as 3,1,2."
+            : !parsedReorderPageOrder.isValid
+              ? "Include every input page exactly once with comma-separated page numbers."
+              : !reorderOutputPath
+                ? "Select an output PDF."
+                : null;
   const inspectMetadata = inspectResult
     ? [
         { label: "Title", value: inspectResult.title },
@@ -1538,12 +1868,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h1>PDF Workbench</h1>
           <p>Local page operations with clear file, operation, result, and safety areas</p>
         </div>
-        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete</span>
+        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete · Reorder</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>PDF summary inspection and five local page-operation MVPs are available.</strong>
-        <span>Preview, reorder, and overlay writing are planned. OCR, redaction, and direct text editing remain research topics.</span>
+        <strong>PDF summary inspection and six local page-operation MVPs are available.</strong>
+        <span>Drag-and-drop reorder, real page preview, thumbnails, and overlay writing are planned. OCR, redaction, and direct text editing remain research topics.</span>
       </div>
 
       <div className="pdf-tools-workbench-grid">
@@ -1658,6 +1988,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <div><dt>Extract</dt><dd>{extractInput?.name ?? "No file selected"}</dd></div>
               <div><dt>Rotate</dt><dd>{rotateInput?.name ?? "No file selected"}</dd></div>
               <div><dt>Delete</dt><dd>{deleteInput?.name ?? "No file selected"}</dd></div>
+              <div><dt>Reorder</dt><dd>{reorderInput?.name ?? "No file selected"}</dd></div>
             </dl>
             <div className="pdf-tools-local-notes">
               <p>PDF files stay on this device.</p>
@@ -2256,6 +2587,98 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+
+        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-reorder-title">
+          <div className="pdf-tools-section-heading">
+            <span>One PDF · Full page order</span>
+            <h2 id="pdf-reorder-title">Reorder pages</h2>
+            <p>Choose a PDF, enter the full page order, and save a new PDF.</p>
+          </div>
+          <p className="pdf-tools-helper">Page order example: 3,1,2. Reorder requires every page exactly once.</p>
+          <p className="pdf-tools-warning"><strong>Whole pages only:</strong> Reorder changes page sequence. It does not edit PDF text or page content.</p>
+
+          <div className="pdf-tools-button-row">
+            <button type="button" className="btn btn-outline" onClick={selectReorderInput} disabled={isAnyOperationRunning}>
+              Select input PDF
+            </button>
+            <button
+              type="button"
+              className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
+              onClick={selectReorderOutputPdf}
+              disabled={!nativeDialogAvailable || isAnyOperationRunning}
+            >
+              {nativeDialogAvailable ? "Select output PDF" : "Output PDF (Desktop only)"}
+            </button>
+          </div>
+          <input
+            ref={reorderFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) =>
+              selectBrowserReorderInput(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+
+          <dl className="pdf-tools-selection-details">
+            <div><dt>Input PDF</dt><dd>{reorderInput?.name ?? "Not selected"}</dd></div>
+            <div>
+              <dt>Output PDF</dt>
+              <dd className="pdf-tools-path">
+                {reorderOutputPath ? fileNameFromPath(reorderOutputPath) : "Not selected"}
+              </dd>
+            </div>
+          </dl>
+
+          <OperationInputSummary
+            fileName={reorderInput?.name}
+            summary={reorderInputSummary}
+            guidance="Page count is required to validate that every page appears exactly once."
+          />
+
+          <label className="pdf-tools-field">
+            <span>Page order</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={reorderPageOrderInput}
+              onChange={(event) => {
+                setReorderPageOrderInput(event.currentTarget.value);
+                setReorderResult(null);
+                setReorderFeedback(null);
+                setReorderError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="3,1,2"
+            />
+          </label>
+          {reorderPageOrderInput.trim() && reorderInputSummary.result && !parsedReorderPageOrder.isValid && (
+            <p className="pdf-tools-field-error">Enter every page exactly once using comma-separated page numbers.</p>
+          )}
+
+          <ReorderOperationPlan
+            pageOrderInput={reorderPageOrderInput}
+            summary={reorderInputSummary}
+          />
+
+          <button type="button" className="btn btn-primary" onClick={reorderPdfPages} disabled={!canReorder}>
+            {isReordering ? "Reordering..." : "Reorder pages"}
+          </button>
+          {!canReorder && !isReordering && (
+            <p className="pdf-tools-operation-requirements">To enable Reorder: {reorderDisabledReason}</p>
+          )}
+
+          {isReordering && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Writing the reordered pages to a new PDF...</div>}
+          {reorderError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{reorderError}</div>}
+          {!reorderError && !isReordering && reorderFeedback && (
+            <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
+              <strong>{reorderFeedback}</strong>
+              {reorderResult && (
+                <span>Order {reorderResult.page_order.join(" → ")} · {reorderResult.page_count} pages · Output: {fileNameFromPath(reorderResult.output_path)}</span>
+              )}
+            </div>
+          )}
+        </section>
           </div>
         </main>
 
@@ -2273,6 +2696,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <li><span>Extract</span><strong className={isExtracting ? "is-running" : extractError ? "is-error" : extractResult ? "is-success" : ""}>{isExtracting ? "Running" : extractError ? "Needs attention" : extractResult ? "Completed" : "Ready"}</strong></li>
               <li><span>Rotate</span><strong className={isRotating ? "is-running" : rotateError ? "is-error" : rotateResult ? "is-success" : ""}>{isRotating ? "Running" : rotateError ? "Needs attention" : rotateResult ? "Completed" : "Ready"}</strong></li>
               <li><span>Delete</span><strong className={isDeleting ? "is-running" : deleteError ? "is-error" : deleteResult ? "is-success" : ""}>{isDeleting ? "Running" : deleteError ? "Needs attention" : deleteResult ? "Completed" : "Ready"}</strong></li>
+              <li><span>Reorder</span><strong className={isReordering ? "is-running" : reorderError ? "is-error" : reorderResult ? "is-success" : ""}>{isReordering ? "Running" : reorderError ? "Needs attention" : reorderResult ? "Completed" : "Ready"}</strong></li>
             </ul>
             <p className="pdf-tools-status-help">Detailed success and error messages remain inside each operation card.</p>
           </section>
@@ -2283,7 +2707,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <h2 id="available-pdf-tools-title">Local PDF operations</h2>
             </div>
             <div className="pdf-tools-capability-list pdf-tools-capability-available">
-              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages'].map((tool) => <span key={tool}>{tool}</span>)}
+              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages'].map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
 

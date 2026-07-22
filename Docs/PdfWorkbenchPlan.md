@@ -288,3 +288,7 @@ Merge PDFsの各入力へ`pdf_inspect`を実行し、選択順、サイズ、ペ
 **v0.5.0 Step 1 - PDF reorder core and bridge**
 
 `pdf_reorder`は全ページの指定順を検証し、新しいPDFへその順序で書き出します。UI、drag-and-drop、thumbnails、実PDF renderingはまだ追加しません。
+
+**v0.5.0 Step 2 - PDF reorder UI connection**
+
+`pdf_reorder`をPDF Workbench UIへ接続し、全ページ順序を入力して新しいPDFへ保存できるようにします。Drag-and-drop reorder、thumbnails、実PDF renderingは引き続き追加しません。

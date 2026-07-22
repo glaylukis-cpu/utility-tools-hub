@@ -563,6 +563,12 @@
   gap: 6px;
 }
 
+.pdf-tools-operation-plan-sequence {
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-weight: 700;
+}
+
 .pdf-tools-operation-plan-chips {
   display: flex;
   flex-wrap: wrap;
