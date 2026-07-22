@@ -3,22 +3,22 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.4.4](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.4.4)
+- **Latest release:** [v0.5.0](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.5.0)
 
 ## Current Status
 
-- Latest release: v0.4.4
+- Latest release: v0.5.0
 - Windows desktop app
 - Excel to HTML Converter is available
 - The Tools catalog is organized into Converters, Editors, and Planned / Pro tools
 - Converter Tools stacks File, Data, and Text converter sections, with each active editor shown inside its category
 - Text Case Converter navigation and Excel → HTML Converter navigation are maintained
-- v0.4.4 polishes PDF operation-plan preview page ranges, selected-page chips, warnings, and delete-all-pages risk messaging
-- The operation-plan preview is not PDF rendering; no page rendering, thumbnails, reorder, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added in v0.4.4
+- v0.5.0 adds the PDF reorder foundation, including the local core and bridge, Reorder pages UI, input summary, and operation-plan display
+- Complete page orders such as `3,1,2` can be validated and written to a new PDF, with missing, duplicate, invalid, and out-of-range page warnings
 - PDF inspect shows file summaries, single-PDF operation inputs are inspected automatically, and Merge PDFs shows selected-file order, size, page count, PDF version, total pages, and protected-PDF warnings
-- Merge, Split, Extract, Rotate, and Delete remain available; no decryption, permission bypass, or password handling was added
+- Merge, Split, Extract, Rotate, Delete, and Reorder remain available; no decryption, permission bypass, or password handling was added
 - PDF page operations use the local Rust core without a Python sidecar or external communication
-- Preview, thumbnails, reorder, watermark, page numbers, and overlay writing remain planned; direct PDF text editing, OCR, and redaction are not implemented
+- Real PDF preview, thumbnails, drag-and-drop reorder, watermark, page numbers, and overlay writing remain planned; direct PDF text editing, OCR, and redaction are not implemented
 - Delete pages removes whole pages and is not redaction
 - Billing shows a pricing model draft, and Account shows a planned license activation flow
 - Real authentication, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, and external communication are not implemented yet

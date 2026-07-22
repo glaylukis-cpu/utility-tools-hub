@@ -87,3 +87,7 @@ The local `pdf_reorder` core and bridge can write a new PDF using a complete spe
 ## v0.5.0 PDF reorder UI connection
 
 PDF Workbench now connects to `pdf_reorder`, validates a complete page order, and saves the reordered pages as a new PDF. Drag-and-drop reorder, thumbnails, and real PDF rendering remain unimplemented.
+
+## v0.5.0 PDF reorder foundation release
+
+The PDF reorder core, command bridge, Reorder pages UI, input summary, full-page-order validation, operation plan, and page-order warnings are prepared as the v0.5.0 foundation. Existing PDF operations remain available, processing stays local, and real PDF rendering, thumbnails, drag-and-drop reorder, OCR, redaction, and direct PDF text editing remain unimplemented.

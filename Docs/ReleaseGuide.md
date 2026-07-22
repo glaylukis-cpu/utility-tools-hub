@@ -211,3 +211,10 @@ git push origin vX.Y.Z
 - It improves page-range readability, selected-page chips, warnings, and delete-all-pages risk messaging.
 - Existing Inspect, Merge, Split, Extract, Rotate, and Delete operations remain available.
 - This is not PDF rendering. No page rendering, thumbnails, reorder, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
+
+## v0.5.0 Release Note
+
+- v0.5.0 adds the PDF reorder foundation with the local `pdf_reorder` core and bridge plus the PDF Workbench Reorder pages UI.
+- Complete page orders are validated, summarized, and shown in the lightweight operation plan before a new PDF is written.
+- Missing, duplicate, invalid, and out-of-range page warnings are included; existing Inspect, Merge, Split, Extract, Rotate, and Delete operations remain available.
+- This is not PDF rendering. No page rendering, thumbnails, drag-and-drop reorder, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.

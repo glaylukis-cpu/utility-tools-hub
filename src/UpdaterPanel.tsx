@@ -3,7 +3,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import type { Update } from "@tauri-apps/plugin-updater";
 import "./UpdaterPanel.css";
 
-const FALLBACK_VERSION = "0.4.4";
+const FALLBACK_VERSION = "0.5.0";
 
 type UpdateMessage = {
   kind: "info" | "success" | "error";
