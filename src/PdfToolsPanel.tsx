@@ -116,6 +116,30 @@ type PageOrderParseResult = {
   isValid: boolean;
 };
 
+type PdfWorkbenchOperation =
+  | "inspect"
+  | "merge"
+  | "split"
+  | "extract"
+  | "rotate"
+  | "delete"
+  | "reorder"
+  | "textWatermark";
+
+const pdfWorkbenchOperations: ReadonlyArray<{
+  id: PdfWorkbenchOperation;
+  label: string;
+}> = [
+  { id: "inspect", label: "Inspect" },
+  { id: "merge", label: "Merge" },
+  { id: "split", label: "Split" },
+  { id: "extract", label: "Extract" },
+  { id: "rotate", label: "Rotate" },
+  { id: "delete", label: "Delete" },
+  { id: "reorder", label: "Reorder" },
+  { id: "textWatermark", label: "Text watermark" },
+];
+
 const plannedPageTools = [
   "Image watermark",
   "Text stamp",
@@ -823,6 +847,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const runIdRef = useRef(0);
   const mergeInspectRunIdRef = useRef(0);
   const isRunningRef = useRef(false);
+
+  const [selectedOperation, setSelectedOperation] = useState<PdfWorkbenchOperation>("inspect");
 
   const [selectedPdfs, setSelectedPdfs] = useState<SelectedPdf[]>([]);
   const [outputPath, setOutputPath] = useState<string | null>(null);
@@ -2212,6 +2238,44 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const inspectedPdfIsProtected = Boolean(
     inspectResult && (inspectResult.is_encrypted || inspectResult.is_protected),
   );
+  const selectedOperationLabel = pdfWorkbenchOperations.find(
+    (operation) => operation.id === selectedOperation,
+  )?.label ?? "Inspect";
+  const activeSelection = selectedOperation === "inspect"
+    ? inspectInput?.name ?? "No file selected"
+    : selectedOperation === "merge"
+      ? selectedPdfs.length > 0
+        ? `${selectedPdfs.length} PDFs selected`
+        : "No files selected"
+      : selectedOperation === "split"
+        ? splitInput?.name ?? "No file selected"
+        : selectedOperation === "extract"
+          ? extractInput?.name ?? "No file selected"
+          : selectedOperation === "rotate"
+            ? rotateInput?.name ?? "No file selected"
+            : selectedOperation === "delete"
+              ? deleteInput?.name ?? "No file selected"
+              : selectedOperation === "reorder"
+                ? reorderInput?.name ?? "No file selected"
+                : watermarkInput?.name ?? "No file selected";
+  const operationStatuses: ReadonlyArray<{
+    id: PdfWorkbenchOperation;
+    label: string;
+    status: string;
+    className: string;
+  }> = [
+    { id: "inspect", label: "Inspect", status: isInspecting ? "Running" : inspectError ? "Needs attention" : inspectResult ? "Completed" : "Ready", className: isInspecting ? "is-running" : inspectError ? "is-error" : inspectResult ? "is-success" : "" },
+    { id: "merge", label: "Merge", status: isMerging ? "Running" : error ? "Needs attention" : mergeResult ? "Completed" : "Ready", className: isMerging ? "is-running" : error ? "is-error" : mergeResult ? "is-success" : "" },
+    { id: "split", label: "Split", status: isSplitting ? "Running" : splitError ? "Needs attention" : splitResult ? "Completed" : "Ready", className: isSplitting ? "is-running" : splitError ? "is-error" : splitResult ? "is-success" : "" },
+    { id: "extract", label: "Extract", status: isExtracting ? "Running" : extractError ? "Needs attention" : extractResult ? "Completed" : "Ready", className: isExtracting ? "is-running" : extractError ? "is-error" : extractResult ? "is-success" : "" },
+    { id: "rotate", label: "Rotate", status: isRotating ? "Running" : rotateError ? "Needs attention" : rotateResult ? "Completed" : "Ready", className: isRotating ? "is-running" : rotateError ? "is-error" : rotateResult ? "is-success" : "" },
+    { id: "delete", label: "Delete", status: isDeleting ? "Running" : deleteError ? "Needs attention" : deleteResult ? "Completed" : "Ready", className: isDeleting ? "is-running" : deleteError ? "is-error" : deleteResult ? "is-success" : "" },
+    { id: "reorder", label: "Reorder", status: isReordering ? "Running" : reorderError ? "Needs attention" : reorderResult ? "Completed" : "Ready", className: isReordering ? "is-running" : reorderError ? "is-error" : reorderResult ? "is-success" : "" },
+    { id: "textWatermark", label: "Text watermark", status: isWatermarking ? "Running" : watermarkError ? "Needs attention" : watermarkResult ? "Completed" : "Ready", className: isWatermarking ? "is-running" : watermarkError ? "is-error" : watermarkResult ? "is-success" : "" },
+  ];
+  const activeOperationStatus = operationStatuses.find(
+    (operation) => operation.id === selectedOperation,
+  ) ?? operationStatuses[0];
 
   return (
     <div className="pdf-tools-page">
@@ -2228,8 +2292,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>PDF summary inspection, local page operations, and additive text watermark are available.</strong>
-        <span>Image watermark, stamps, real page preview, thumbnails, and overlay writing are planned. OCR, redaction, and direct text editing remain research topics.</span>
+        <strong>PDF Workbench supports local page operations and additive text watermarking.</strong>
+        <span>Preview, thumbnails, OCR, redaction, and direct text editing are not implemented.</span>
       </div>
 
       <div className="pdf-tools-workbench-grid">
@@ -2333,24 +2397,27 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
           <section className="pdf-tools-panel pdf-tools-sidebar-card">
             <div className="pdf-tools-section-heading">
-              <span>Files</span>
-              <h2>Selected files</h2>
-              <p>Each operation keeps its own file selection in this UI shell.</p>
+              <span>Active selection</span>
+              <h2>{selectedOperationLabel}</h2>
             </div>
-            <dl className="pdf-tools-file-overview">
-              <div><dt>Inspect</dt><dd>{inspectInput?.name ?? "No file selected"}</dd></div>
-              <div><dt>Merge</dt><dd>{selectedPdfs.length > 0 ? `${selectedPdfs.length} PDFs selected` : "No files selected"}</dd></div>
-              <div><dt>Split</dt><dd>{splitInput?.name ?? "No file selected"}</dd></div>
-              <div><dt>Extract</dt><dd>{extractInput?.name ?? "No file selected"}</dd></div>
-              <div><dt>Rotate</dt><dd>{rotateInput?.name ?? "No file selected"}</dd></div>
-              <div><dt>Delete</dt><dd>{deleteInput?.name ?? "No file selected"}</dd></div>
-              <div><dt>Reorder</dt><dd>{reorderInput?.name ?? "No file selected"}</dd></div>
-              <div><dt>Text watermark</dt><dd>{watermarkInput?.name ?? "No file selected"}</dd></div>
-            </dl>
+            <p className="pdf-tools-active-file" title={activeSelection}>{activeSelection}</p>
+            <details className="pdf-tools-compact-details">
+              <summary>All selected files</summary>
+              <dl className="pdf-tools-file-overview">
+                <div><dt>Inspect</dt><dd>{inspectInput?.name ?? "None"}</dd></div>
+                <div><dt>Merge</dt><dd>{selectedPdfs.length > 0 ? `${selectedPdfs.length} PDFs` : "None"}</dd></div>
+                <div><dt>Split</dt><dd>{splitInput?.name ?? "None"}</dd></div>
+                <div><dt>Extract</dt><dd>{extractInput?.name ?? "None"}</dd></div>
+                <div><dt>Rotate</dt><dd>{rotateInput?.name ?? "None"}</dd></div>
+                <div><dt>Delete</dt><dd>{deleteInput?.name ?? "None"}</dd></div>
+                <div><dt>Reorder</dt><dd>{reorderInput?.name ?? "None"}</dd></div>
+                <div><dt>Watermark</dt><dd>{watermarkInput?.name ?? "None"}</dd></div>
+              </dl>
+            </details>
             <div className="pdf-tools-local-notes">
               <p>PDF files stay on this device.</p>
               <p>Original files are not overwritten by default.</p>
-              <p>Encrypted or permission-protected PDFs are not supported.</p>
+              <p>Protected PDFs are not supported.</p>
             </div>
           </section>
 
@@ -2376,18 +2443,98 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
 
         <main className="pdf-tools-workbench-main" aria-label="PDF page operations">
           <div className="pdf-tools-workbench-heading">
-            <span>Operations</span>
-            <h2>Page operations</h2>
-            <p>Select inputs and outputs inside each operation card.</p>
+            <span>Operation</span>
+            <h2>Choose one task</h2>
+            <p>Switching tasks keeps existing file selections and input values.</p>
           </div>
 
-          <div className="pdf-tools-workflow-grid">
+          <div className="pdf-tools-operation-selector" role="tablist" aria-label="PDF operation selector">
+            {pdfWorkbenchOperations.map((operation) => (
+              <button
+                key={operation.id}
+                type="button"
+                role="tab"
+                className={`pdf-tools-operation-tab${selectedOperation === operation.id ? " is-active" : ""}`}
+                aria-selected={selectedOperation === operation.id}
+                aria-controls={`pdf-operation-${operation.id}`}
+                onClick={() => setSelectedOperation(operation.id)}
+                disabled={isAnyOperationRunning}
+              >
+                {operation.label}
+              </button>
+            ))}
+          </div>
+
+          {selectedOperation === "inspect" && (
+            <section
+              id="pdf-operation-inspect"
+              role="tabpanel"
+              className="pdf-tools-panel pdf-tools-operation-card pdf-tools-active-operation"
+              aria-labelledby="pdf-active-inspect-title"
+            >
+              <div className="pdf-tools-section-heading">
+                <span>File summary</span>
+                <h2 id="pdf-active-inspect-title">Inspect PDF</h2>
+                <p>Inspect page count, PDF version, metadata, and protection status locally.</p>
+              </div>
+              <button type="button" className="btn btn-primary" onClick={selectInspectPdf} disabled={isAnyOperationRunning}>
+                {isInspecting ? "Inspecting..." : "Select PDF to inspect"}
+              </button>
+
+              {isInspecting && (
+                <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">
+                  Reading safe document summary information locally...
+                </div>
+              )}
+              {inspectError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{inspectError}</div>}
+              {!isInspecting && inspectFeedback && inspectResult && (
+                <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status"><strong>{inspectFeedback}</strong></div>
+              )}
+              {!inspectResult && !isInspecting && !inspectError && (
+                <div className="pdf-tools-inspect-empty">
+                  <strong>No PDF inspected yet.</strong>
+                  <span>Select a local PDF to show its summary. Full local paths are not displayed.</span>
+                </div>
+              )}
+              {inspectResult && (
+                <div className="pdf-tools-inspect-result">
+                  <div className="pdf-tools-inspect-file-name" title={inspectResult.file_name}>
+                    <span>File</span><strong>{inspectResult.file_name}</strong>
+                  </div>
+                  <dl className="pdf-tools-inspect-summary">
+                    <div><dt>Size</dt><dd>{formatFileSize(inspectResult.file_size_bytes)}</dd></div>
+                    <div><dt>Pages</dt><dd>{inspectResult.page_count}</dd></div>
+                    <div><dt>PDF version</dt><dd>{inspectResult.pdf_version}</dd></div>
+                    <div><dt>Status</dt><dd><span className={`pdf-tools-protection-status ${inspectedPdfIsProtected ? "is-protected" : "is-normal"}`}>{inspectedPdfIsProtected ? "Protected" : "Normal"}</span></dd></div>
+                  </dl>
+                  {inspectMetadata.length > 0 && (
+                    <details className="pdf-tools-compact-details">
+                      <summary>Metadata</summary>
+                      <dl className="pdf-tools-metadata-list">
+                        {inspectMetadata.map((entry) => <div key={entry.label}><dt>{entry.label}</dt><dd>{entry.value}</dd></div>)}
+                      </dl>
+                    </details>
+                  )}
+                  {inspectedPdfIsProtected && (
+                    <div className="pdf-tools-protected-warning" role="alert">
+                      <strong>This PDF appears encrypted or permission-protected.</strong>
+                      <span>Utility Tools Hub does not decrypt PDFs or bypass permissions.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {selectedOperation === "merge" && (
+            <div id="pdf-operation-merge" role="tabpanel" className="pdf-tools-active-operation">
+              <div className="pdf-tools-workflow-grid">
         <section className="pdf-tools-panel" aria-labelledby="pdf-input-title">
           <div className="pdf-tools-section-heading">
             <span>Merge · Step 1</span>
             <h2 id="pdf-input-title">Input PDFs</h2>
             <p>Select two or more local PDFs to combine into one PDF.</p>
-          </div>
+              </div>
           <p className="pdf-tools-helper">Page order follows the numbered file order shown below.</p>
 
           <div className="pdf-tools-button-row">
@@ -2565,9 +2712,12 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           )}
         </div>
           )}
+            </div>
+          )}
 
           <div className="pdf-tools-operation-grid">
-        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-split-title">
+        {selectedOperation === "split" && (
+        <section id="pdf-operation-split" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-split-title">
           <div className="pdf-tools-section-heading">
             <span>One PDF · All pages</span>
             <h2 id="pdf-split-title">Split PDF</h2>
@@ -2653,8 +2803,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+        )}
 
-        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-extract-title">
+        {selectedOperation === "extract" && (
+        <section id="pdf-operation-extract" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-extract-title">
           <div className="pdf-tools-section-heading">
             <span>One PDF · Selected pages</span>
             <h2 id="pdf-extract-title">Extract pages</h2>
@@ -2745,8 +2897,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+        )}
 
-        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-rotate-title">
+        {selectedOperation === "rotate" && (
+        <section id="pdf-operation-rotate" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-rotate-title">
           <div className="pdf-tools-section-heading">
             <span>One PDF · Selected pages</span>
             <h2 id="pdf-rotate-title">Rotate pages</h2>
@@ -2851,8 +3005,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+        )}
 
-        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-delete-title">
+        {selectedOperation === "delete" && (
+        <section id="pdf-operation-delete" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-delete-title">
           <div className="pdf-tools-section-heading">
             <span>Whole-page removal</span>
             <h2 id="pdf-delete-title">Delete pages</h2>
@@ -2944,8 +3100,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+        )}
 
-        <section className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-reorder-title">
+        {selectedOperation === "reorder" && (
+        <section id="pdf-operation-reorder" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-reorder-title">
           <div className="pdf-tools-section-heading">
             <span>One PDF · Full page order</span>
             <h2 id="pdf-reorder-title">Reorder pages</h2>
@@ -3036,8 +3194,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+        )}
 
-        <section className="pdf-tools-panel pdf-tools-operation-card pdf-tools-watermark-card" aria-labelledby="pdf-text-watermark-title">
+        {selectedOperation === "textWatermark" && (
+        <section id="pdf-operation-textWatermark" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card pdf-tools-watermark-card" aria-labelledby="pdf-text-watermark-title">
           <div className="pdf-tools-section-heading">
             <span>Additive text · All or selected pages</span>
             <h2 id="pdf-text-watermark-title">Text watermark</h2>
@@ -3216,6 +3376,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           )}
         </section>
+        )}
           </div>
         </main>
 
@@ -3227,19 +3388,22 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <p>Current status is shown without exposing full local paths.</p>
             </div>
             <ul className="pdf-tools-status-list">
-              <li><span>Inspect</span><strong className={isInspecting ? "is-running" : inspectError ? "is-error" : inspectResult ? "is-success" : ""}>{isInspecting ? "Running" : inspectError ? "Needs attention" : inspectResult ? "Completed" : "Ready"}</strong></li>
-              <li><span>Merge</span><strong className={isMerging ? "is-running" : error ? "is-error" : mergeResult ? "is-success" : ""}>{isMerging ? "Running" : error ? "Needs attention" : mergeResult ? "Completed" : "Ready"}</strong></li>
-              <li><span>Split</span><strong className={isSplitting ? "is-running" : splitError ? "is-error" : splitResult ? "is-success" : ""}>{isSplitting ? "Running" : splitError ? "Needs attention" : splitResult ? "Completed" : "Ready"}</strong></li>
-              <li><span>Extract</span><strong className={isExtracting ? "is-running" : extractError ? "is-error" : extractResult ? "is-success" : ""}>{isExtracting ? "Running" : extractError ? "Needs attention" : extractResult ? "Completed" : "Ready"}</strong></li>
-              <li><span>Rotate</span><strong className={isRotating ? "is-running" : rotateError ? "is-error" : rotateResult ? "is-success" : ""}>{isRotating ? "Running" : rotateError ? "Needs attention" : rotateResult ? "Completed" : "Ready"}</strong></li>
-              <li><span>Delete</span><strong className={isDeleting ? "is-running" : deleteError ? "is-error" : deleteResult ? "is-success" : ""}>{isDeleting ? "Running" : deleteError ? "Needs attention" : deleteResult ? "Completed" : "Ready"}</strong></li>
-              <li><span>Reorder</span><strong className={isReordering ? "is-running" : reorderError ? "is-error" : reorderResult ? "is-success" : ""}>{isReordering ? "Running" : reorderError ? "Needs attention" : reorderResult ? "Completed" : "Ready"}</strong></li>
-              <li><span>Text watermark</span><strong className={isWatermarking ? "is-running" : watermarkError ? "is-error" : watermarkResult ? "is-success" : ""}>{isWatermarking ? "Running" : watermarkError ? "Needs attention" : watermarkResult ? "Completed" : "Ready"}</strong></li>
+              <li><span>{activeOperationStatus.label}</span><strong className={activeOperationStatus.className}>{activeOperationStatus.status}</strong></li>
             </ul>
-            <p className="pdf-tools-status-help">Detailed success and error messages remain inside each operation card.</p>
+            <details className="pdf-tools-compact-details pdf-tools-status-details">
+              <summary>All operation statuses</summary>
+              <ul className="pdf-tools-status-list">
+                {operationStatuses.map((operation) => (
+                  <li key={operation.id}><span>{operation.label}</span><strong className={operation.className}>{operation.status}</strong></li>
+                ))}
+              </ul>
+            </details>
+            <p className="pdf-tools-status-help">Detailed messages remain inside the active operation.</p>
           </section>
 
-          <section className="pdf-tools-panel pdf-tools-sidebar-card" aria-labelledby="available-pdf-tools-title">
+          <details className="pdf-tools-panel pdf-tools-compact-details pdf-tools-sidebar-disclosure">
+            <summary>Available operations</summary>
+          <section className="pdf-tools-sidebar-card" aria-labelledby="available-pdf-tools-title">
             <div className="pdf-tools-section-heading">
               <span>Available</span>
               <h2 id="available-pdf-tools-title">Local PDF operations</h2>
@@ -3248,8 +3412,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark'].map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
+          </details>
 
-          <section className="pdf-tools-panel pdf-tools-sidebar-card" aria-labelledby="planned-pdf-tools-title">
+          <details className="pdf-tools-panel pdf-tools-compact-details pdf-tools-sidebar-disclosure">
+            <summary>Planned tools</summary>
+          <section className="pdf-tools-sidebar-card" aria-labelledby="planned-pdf-tools-title">
             <div className="pdf-tools-section-heading">
               <span>Planned</span>
               <h2 id="planned-pdf-tools-title">Future workspace tools</h2>
@@ -3259,8 +3426,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               {plannedPageTools.map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
+          </details>
 
-          <section className="pdf-tools-panel pdf-tools-sidebar-card pdf-tools-research" aria-labelledby="advanced-pdf-tools-title">
+          <details className="pdf-tools-panel pdf-tools-compact-details pdf-tools-sidebar-disclosure pdf-tools-research">
+            <summary>Research · Safety critical</summary>
+          <section className="pdf-tools-sidebar-card" aria-labelledby="advanced-pdf-tools-title">
             <div className="pdf-tools-section-heading">
               <span>Research · Safety critical</span>
               <h2 id="advanced-pdf-tools-title">Not implemented</h2>
@@ -3269,8 +3439,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               {researchTools.map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
+          </details>
 
-          <section className="pdf-tools-panel pdf-tools-sidebar-card pdf-tools-safety" aria-labelledby="pdf-safety-title">
+          <details className="pdf-tools-panel pdf-tools-compact-details pdf-tools-sidebar-disclosure pdf-tools-safety">
+            <summary>Safety notes</summary>
+          <section className="pdf-tools-sidebar-card" aria-labelledby="pdf-safety-title">
             <div className="pdf-tools-section-heading">
               <span>Important</span>
               <h2 id="pdf-safety-title">Safety notes</h2>
@@ -3283,6 +3456,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <li>OCR and direct text editing are not implemented.</li>
             </ul>
           </section>
+          </details>
         </aside>
       </div>
     </div>

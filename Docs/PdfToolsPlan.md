@@ -103,3 +103,7 @@ The additive `pdf_text_watermark` core and shared execution bridge can write pri
 ## v0.6.0 Text watermark UI connection
 
 PDF Workbench now connects to `pdf_text_watermark` with input summary, all-page or selected-page targeting, style validation, operation plan, and local new-PDF output. Image watermark, stamps, real preview, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.6.1 Compact Workbench layout
+
+PDF Workbench now uses an operation selector and shows only the active operation card. File selections and field state remain in memory while switching operations; PDF processing, preview, thumbnails, OCR, redaction, and direct text editing are unchanged.

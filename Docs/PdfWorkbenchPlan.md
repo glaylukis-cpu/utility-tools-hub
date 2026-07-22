@@ -312,3 +312,7 @@ Additiveなtext watermarkを新しいPDFへ出力するcore / bridgeを追加し
 **v0.6.0 Step 4 - Text watermark QA polish**
 
 Text watermarkのQA polishと実PDF確認手順を整理します。新しいwatermark分類、preview、OCR、redaction、PDF本文編集は追加しません。
+
+**v0.6.1 - PDF Workbench compact layout**
+
+PDF Workbenchはoperation selectorから一度に1つの操作だけを表示し、縦スクロールを減らしてReorderとText watermarkへ直接移動できるようにします。PDF処理ロジック、preview、thumbnails、OCR、redaction、PDF本文編集は追加しません。

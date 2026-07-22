@@ -218,3 +218,13 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm protected PDFs are warned about or rejected without decryption or permission bypass.
 - [ ] Confirm image watermark, stamps, overlay writing, OCR, and redaction remain unimplemented.
 - [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, and Reorder remain available.
+
+## v0.6.1 Compact layout
+
+- [ ] Confirm the operation selector shows Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark.
+- [ ] Confirm only the active operation card and its operation plan are shown.
+- [ ] Confirm switching operations preserves selected files, inputs, outputs, and results.
+- [ ] Confirm Text watermark is selectable without scrolling to the bottom of the page.
+- [ ] Confirm the selected-files and right-side information panels are compact and remain usable at 1280px and mobile widths.
+- [ ] Confirm all existing PDF operations still execute through the existing flow.
+- [ ] Confirm no PDF preview, thumbnails, OCR, redaction, or direct PDF text editing was added.
