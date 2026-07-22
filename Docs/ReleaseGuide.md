@@ -240,3 +240,10 @@ git push origin vX.Y.Z
 - The compact layout remains focused on one active operation at a time, and existing PDF operations remain available.
 - No PDF processing logic, `tool_id`, request/response format, PDF rendering, thumbnails, OCR, redaction, or direct PDF text editing is changed.
 - No npm or Cargo dependency is added.
+
+## v0.7.0 Release Note
+
+- v0.7.0 adds the PDF page numbers foundation with the local `pdf_page_numbers` core and bridge plus the PDF Workbench Page numbers UI.
+- Additive page numbers can target all or selected pages and are saved to a new PDF with start number, format, position, margins, font size, input summary, operation plan, and validation warnings.
+- Page numbers do not edit existing PDF text, are not redaction, and do not remove existing page numbers; existing PDF operations and compact layout containment remain available.
+- No PDF rendering, preview, thumbnails, existing page-number removal, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.

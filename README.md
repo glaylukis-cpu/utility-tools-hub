@@ -3,17 +3,17 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.6.2](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.6.2)
+- **Latest release:** [v0.7.0](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.7.0)
 
 ## Current Status
 
-- Latest release: v0.6.2
+- Latest release: v0.7.0
 - Windows desktop app
 - Excel to HTML Converter is available
 - The Tools catalog is organized into Converters, Editors, and Planned / Pro tools
 - Converter Tools stacks File, Data, and Text converter sections, with each active editor shown inside its category
 - Text Case Converter navigation and Excel → HTML Converter navigation are maintained
-- v0.6.2 fixes PDF Workbench layout overflow after PDF selection while keeping the operation selector, active operation card, long file names, summaries, and side panels contained within the compact grid
+- v0.7.0 adds the PDF page numbers foundation: additive page numbers can target all or selected pages, with start number, format, position, margins, font size, input summary, operation plan, and validation warnings; existing page numbers are not removed
 - Additive printable ASCII / Latin watermarks such as `DRAFT` or `CONFIDENTIAL` can target all or selected pages and are saved to a new PDF
 - PDF inspect shows file summaries, single-PDF operation inputs are inspected automatically, and Merge PDFs shows selected-file order, size, page count, PDF version, total pages, and protected-PDF warnings
 - Merge, Split, Extract, Rotate, Delete, and Reorder remain available; watermarking does not edit existing PDF text and is not redaction
