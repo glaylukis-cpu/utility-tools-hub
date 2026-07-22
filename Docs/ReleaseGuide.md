@@ -225,3 +225,10 @@ git push origin vX.Y.Z
 - Printable ASCII / Latin watermarks such as `DRAFT` or `CONFIDENTIAL` can target all or selected pages and are saved to a new PDF with input summaries, operation plans, and validation warnings.
 - Watermarking is additive, does not edit existing PDF text, and is not redaction; existing PDF operations remain available.
 - No image watermark, stamp UI, overlay writing, PDF rendering, thumbnails, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
+
+## v0.6.1 Release Note
+
+- v0.6.1 improves the PDF Workbench compact layout with an operation selector for Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark.
+- The center shows one active operation at a time, while selected-file, status, planning, research, and safety information remains available in more compact panels.
+- Existing PDF operations remain available. No PDF processing logic, `tool_id`, request/response format, PDF rendering, thumbnails, OCR, redaction, or direct PDF text editing is changed.
+- No npm or Cargo dependency is added.
