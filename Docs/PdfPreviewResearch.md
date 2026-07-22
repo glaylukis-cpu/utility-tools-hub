@@ -143,6 +143,8 @@ WebViewの組み込みPDF readerへローカルPDFを渡す方式です。Window
 
 v0.4.3 implements the recommended lightweight operation-plan preview. It visualizes page counts, selected ranges, merge order, protected indicators, and operation targets while continuing to render no PDF pages or thumbnails.
 
+v0.4.4 polishes the lightweight operation-plan preview added in v0.4.3. It improves page-range readability and warnings without adding real PDF rendering.
+
 ### v0.4.4 or later: Experimental renderer prototype
 
 - pdf.jsとPDFiumを小さな非公開fixtureで比較する

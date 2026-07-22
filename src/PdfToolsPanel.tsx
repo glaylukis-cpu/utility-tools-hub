@@ -327,9 +327,15 @@ function parsePageSelectionForPlan(value: string, pageCount?: number | null): Pa
   return { pages, error: null };
 }
 
-function PlanPageChips({ pages }: { pages: number[] }) {
+function PlanPageChips({
+  pages,
+  emptyLabel = "Enter pages to preview targets.",
+}: {
+  pages: number[];
+  emptyLabel?: string;
+}) {
   if (pages.length === 0) {
-    return <span className="pdf-tools-operation-plan-empty">No page targets yet</span>;
+    return <span className="pdf-tools-operation-plan-empty">{emptyLabel}</span>;
   }
 
   const visiblePages = pages.slice(0, MAX_VISIBLE_PLAN_PAGES);
@@ -365,21 +371,21 @@ function SplitOperationPlan({
     <div className="pdf-tools-operation-plan" aria-label="Split operation plan preview">
       <div className="pdf-tools-operation-plan-heading">
         <div>
-          <span>Operation plan preview</span>
-          <strong>Split plan</strong>
+          <span>Lightweight plan</span>
+          <strong>Split output</strong>
         </div>
         <span className={`pdf-tools-operation-plan-status ${status === "Ready" ? "is-valid" : "is-check"}`}>
           {status}
         </span>
       </div>
-      <p className="pdf-tools-operation-plan-note">Page-number plan only. No PDF pages or thumbnails are rendered.</p>
+      <p className="pdf-tools-operation-plan-note">Planning aid only — not a PDF preview. PDF pages and thumbnails are not rendered.</p>
       <dl className="pdf-tools-operation-plan-details">
-        <div><dt>Input pages</dt><dd>{pageCount ?? "Unknown"}</dd></div>
+        <div><dt>Source pages</dt><dd>{pageCount ?? "Unknown"}</dd></div>
         <div><dt>Output estimate</dt><dd>{pageCount ? `${pageCount} single-page PDFs` : "Select a valid PDF"}</dd></div>
       </dl>
       <div className="pdf-tools-operation-plan-targets">
         <span>Output page sequence</span>
-        <PlanPageChips pages={previewPages} />
+        <PlanPageChips pages={previewPages} emptyLabel="Select a PDF to map output pages." />
         {pageCount && pageCount > previewPages.length && (
           <small>Showing the first {previewPages.length} of {pageCount} output pages.</small>
         )}
@@ -390,8 +396,8 @@ function SplitOperationPlan({
           : "Select a valid PDF and enter a valid prefix to preview output names."}
       </p>
       {isProtected && (
-        <p className="pdf-tools-operation-plan-warning" role="alert">
-          Protected PDFs may be rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.
+        <p className="pdf-tools-operation-plan-warning is-protected" role="alert">
+          <strong>Protected PDF:</strong> This operation may be rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.
         </p>
       )}
     </div>
@@ -429,16 +435,16 @@ function PageOperationPlan({
     <div className="pdf-tools-operation-plan" aria-label={`${operation} operation plan preview`}>
       <div className="pdf-tools-operation-plan-heading">
         <div>
-          <span>Operation plan preview</span>
-          <strong>{operation} plan</strong>
+          <span>Lightweight plan</span>
+          <strong>{operation} pages</strong>
         </div>
         <span className={`pdf-tools-operation-plan-status ${status === "Valid" ? "is-valid" : deletesAllPages ? "is-danger" : "is-check"}`}>
           {status}
         </span>
       </div>
-      <p className="pdf-tools-operation-plan-note">Page-number plan only. No PDF pages or thumbnails are rendered.</p>
+      <p className="pdf-tools-operation-plan-note">Planning aid only — not a PDF preview. PDF pages and thumbnails are not rendered.</p>
       <dl className="pdf-tools-operation-plan-details">
-        <div><dt>Input pages</dt><dd>{pageCount ?? "Unknown"}</dd></div>
+        <div><dt>Source pages</dt><dd>{pageCount ?? "Unknown"}</dd></div>
         <div>
           <dt>{operation === "Delete" ? "Pages to delete" : "Selected pages"}</dt>
           <dd>{hasInput && parsed.pages.length > 0 ? parsed.pages.length : "Not set"}</dd>
@@ -452,20 +458,20 @@ function PageOperationPlan({
         <span>{operation === "Delete" ? "Whole pages to remove" : "Selected page targets"}</span>
         <PlanPageChips pages={parsed.pages} />
       </div>
-      {issue && <p className="pdf-tools-operation-plan-warning" role="alert">{issue}</p>}
+      {issue && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Check page selection:</strong> {issue}</p>}
       {deletesAllPages && (
         <p className="pdf-tools-operation-plan-warning is-danger" role="alert">
           This plan would delete every page. Keep at least one page before running Delete pages.
         </p>
       )}
       {isProtected && (
-        <p className="pdf-tools-operation-plan-warning" role="alert">
-          Protected PDFs may be rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.
+        <p className="pdf-tools-operation-plan-warning is-protected" role="alert">
+          <strong>Protected PDF:</strong> This operation may be rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.
         </p>
       )}
       {operation === "Delete" && (
         <p className="pdf-tools-operation-plan-safety">
-          Delete pages removes whole pages only. It is not redaction and does not hide content inside a page.
+          <strong>Not redaction:</strong> Delete pages removes whole pages only. It does not hide content inside a page.
         </p>
       )}
     </div>
@@ -1663,11 +1669,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <section className="pdf-tools-panel pdf-tools-future-workspace" aria-labelledby="future-page-area-title">
             <div className="pdf-tools-section-heading">
               <span>Lightweight workspace</span>
-              <h2 id="future-page-area-title">Operation plan preview</h2>
-              <p>Review page counts, order, and selected targets before running an operation.</p>
+              <h2 id="future-page-area-title">Operation plan</h2>
+              <p>Review page counts, order, and selected targets before running an operation. This is not a rendered PDF preview.</p>
             </div>
             <div className="pdf-tools-preview-placeholder" aria-label="Lightweight operation plan preview explanation">
-              <span>Plan preview available</span>
+              <span>Plan preview · No rendering</span>
               <small>Uses PDF summary data and page-number input only.</small>
               <div className="pdf-tools-operation-plan-legend" aria-label="Operation plan information">
                 <span>Page counts</span>
@@ -1675,7 +1681,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                 <span>Selected targets</span>
                 <span>Protected status</span>
               </div>
-              <strong>No PDF page rendering or thumbnails.</strong>
+              <strong>PDF pages and thumbnails are not rendered.</strong>
             </div>
           </section>
         </aside>
@@ -1727,14 +1733,14 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <div className="pdf-tools-merge-summary" aria-label="Merge operation plan preview">
               <div className="pdf-tools-operation-plan-heading">
                 <div>
-                  <span>Operation plan preview</span>
+                  <span>Lightweight plan</span>
                   <strong>Merge order</strong>
                 </div>
                 <span className={`pdf-tools-operation-plan-status ${mergeInspectLoading || mergeHasProtectedPdf || mergeHasUncountedFiles ? "is-check" : "is-valid"}`}>
                   {mergeInspectLoading ? "Inspecting" : mergeHasProtectedPdf || mergeHasUncountedFiles ? "Needs check" : "Ready"}
                 </span>
               </div>
-              <p className="pdf-tools-operation-plan-note">Summary and order only. No PDF pages or thumbnails are rendered.</p>
+              <p className="pdf-tools-operation-plan-note">Planning aid only — not a PDF preview. PDF pages and thumbnails are not rendered.</p>
               <ol className="pdf-tools-merge-summary-list">
                 {mergeInputSummaries.map((summary) => {
                   const result = summary.result;

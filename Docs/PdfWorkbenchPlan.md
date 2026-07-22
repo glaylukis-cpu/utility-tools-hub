@@ -162,6 +162,8 @@ v0.4.2 adds a PDF preview research spike and documents candidate preview approac
 
 v0.4.3 adds lightweight operation-plan preview before true PDF rendering. No PDF rendering, thumbnails, reorder, OCR, redaction, or direct text editing is added.
 
+v0.4.4 focuses on operation-plan preview QA polish. No PDF rendering, thumbnails, reorder, OCR, redaction, or direct text editing is added.
+
 ### v0.4.4 or later Experimental rendering prototype
 
 - pdf.jsまたはPDFiumによるローカルページ描画方式を比較

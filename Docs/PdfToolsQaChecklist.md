@@ -52,6 +52,18 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm the Operation plan preview does not claim to render actual PDF pages or thumbnails.
 - [ ] Run Merge, Split, Extract, Rotate, and Delete with supported PDF files and confirm their existing execution flows still work.
 
+## v0.4.4 Operation plan preview QA polish
+
+- [ ] Confirm every Operation plan is labeled as a planning aid and cannot be mistaken for rendered PDF pages or thumbnails.
+- [ ] Confirm Merge order and Total pages remain readable at 1280, 1600, 1920, and mobile widths.
+- [ ] Confirm Split shows its output estimate and a prefix-based output-name example.
+- [ ] Confirm Extract, Rotate, and Delete show readable target-page chips for `1`, `1,3,5`, `1-3`, and `1,3,5-7`.
+- [ ] Confirm `0`, `-1`, `abc`, `3-1`, duplicate pages, and empty input receive clear validation or setup guidance.
+- [ ] Confirm a page above the inspected page count shows an out-of-range warning.
+- [ ] Confirm Delete warns when every source page would be removed and continues to state that Delete pages is not redaction.
+- [ ] Confirm protected PDF warnings remain visible without implying decryption or permission bypass.
+- [ ] Run Merge, Split, Extract, Rotate, and Delete with supported PDF files and confirm their existing execution flows still work.
+
 ## Merge PDFs
 
 - [ ] Select two or more PDF files.

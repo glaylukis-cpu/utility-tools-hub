@@ -447,12 +447,14 @@
 
 .pdf-tools-operation-plan {
   display: grid;
-  gap: 10px;
+  min-width: 0;
+  gap: 9px;
   margin: 14px 0 18px;
   border: 1px solid #c7d2fe;
   border-radius: 10px;
   background: linear-gradient(145deg, #ffffff, #f8faff);
   padding: 12px;
+  box-shadow: inset 3px 0 0 #818cf8;
 }
 
 .pdf-tools-operation-plan-heading {
@@ -516,8 +518,16 @@
   line-height: 1.5;
 }
 
+.pdf-tools-operation-plan-note {
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 6px 8px;
+  color: #475569;
+}
+
 .pdf-tools-operation-plan-details {
   display: grid;
+  min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
   margin: 0;
@@ -561,15 +571,15 @@
 
 .pdf-tools-operation-plan-chips span {
   display: inline-grid;
-  min-width: 25px;
-  min-height: 25px;
+  min-width: 28px;
+  min-height: 28px;
   place-items: center;
   border: 1px solid #c7d2fe;
   border-radius: 6px;
   background: #eef2ff;
   color: #3730a3;
   padding: 3px 6px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 750;
 }
 
@@ -596,6 +606,17 @@
   padding: 8px 9px;
   font-size: 10px;
   line-height: 1.5;
+}
+
+.pdf-tools-operation-plan-warning strong,
+.pdf-tools-operation-plan-safety strong {
+  font-weight: 750;
+}
+
+.pdf-tools-operation-plan-warning.is-protected {
+  border-color: #fbbf24;
+  background: #fffbeb;
+  color: #92400e;
 }
 
 .pdf-tools-operation-plan-warning.is-danger {
@@ -1248,5 +1269,14 @@
   .pdf-tools-merge-totals,
   .pdf-tools-operation-plan-details {
     grid-template-columns: 1fr;
+  }
+
+  .pdf-tools-operation-plan-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .pdf-tools-operation-plan-chips {
+    gap: 4px;
   }
 }
