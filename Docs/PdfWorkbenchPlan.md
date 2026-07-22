@@ -332,3 +332,7 @@ AdditiveなPage numbers coreをshared execution bridgeへ接続し、新しいPD
 **v0.7.0 Step 3 - PDF page numbers UI connection**
 
 PDF WorkbenchへPage numbers UIを接続します。Page numbersはadditiveのままで、既存PDF本文の編集、既存ページ番号の削除、redactionは実装しません。
+
+**v0.7.0 Step 4 - PDF page numbers QA polish**
+
+Page numbers UIのQA polishと実PDF確認準備に集中します。Preview、thumbnails、OCR、redaction、PDF本文編集は追加しません。

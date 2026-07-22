@@ -218,3 +218,7 @@ Step 2 adds the additive `pdf_page_numbers` Rust / `lopdf` core and shared execu
 **v0.7.0 Step 3 - Page numbers UI connection**
 
 Step 3 connects `pdf_page_numbers` to PDF Workbench with input summary, all-page or selected-page targeting, numbering settings, operation plan, output selection, loading, success, and safe error feedback. Page numbers remains additive and writes a new PDF; preview, thumbnails, existing page-number removal, OCR, redaction, and direct text editing are still not added.
+
+**v0.7.0 Step 4 - Page numbers UI QA polish**
+
+Step 4 polishes Page numbers validation and operation-plan QA. Page numbers remains additive and does not add preview, thumbnails, existing page-number removal, OCR, redaction, or direct text editing.

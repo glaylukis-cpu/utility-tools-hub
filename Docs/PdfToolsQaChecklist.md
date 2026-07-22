@@ -267,3 +267,17 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm Page numbers is additive, is not redaction, and does not remove existing page numbers.
 - [ ] Confirm preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
 - [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark remain available.
+
+## v0.7.0 Step 4 Page numbers QA polish
+
+- [ ] Confirm Page numbers appears in the operation selector and its card is the only active center card.
+- [ ] Confirm the input PDF summary shows file name, size, page count, PDF version, and protection status.
+- [ ] Confirm blank Pages targets all pages and valid selected-page lists and ranges are accepted.
+- [ ] Confirm start number, format, position, margins, and font size validation works.
+- [ ] Confirm `pdf_page_numbers` writes a new readable PDF with the same page count.
+- [ ] Confirm all-page and selected-page output, representative formats, start numbers, and positions.
+- [ ] Confirm Page numbers is additive, is not PDF text editing or redaction, and does not remove existing page numbers.
+- [ ] Confirm protected PDFs are warned or rejected without decryption or permission bypass.
+- [ ] Confirm file summaries and long file names stay inside the compact layout after PDF selection.
+- [ ] Confirm preview, thumbnails, OCR, and redaction remain unimplemented.
+- [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark still execute through their existing flows.

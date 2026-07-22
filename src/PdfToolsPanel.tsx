@@ -993,6 +993,15 @@ function PageNumbersOperationPlan({
   const example = startNumberError || startNumber === null
     ? "Invalid start number"
     : pageNumberExample(format, startNumber, pageCount);
+  const targetPagesLabel = parsedPages.error
+    ? "Invalid selection"
+    : pagesInput.trim()
+      ? `${parsedPages.pages.length} selected`
+      : "All pages";
+  const marginLabel = marginXError || marginYError || marginX === null || marginY === null
+    ? "Invalid"
+    : `${marginX} / ${marginY} pt`;
+  const fontSizeLabel = fontSizeError || fontSize === null ? "Invalid" : `${fontSize} pt`;
 
   return (
     <div className="pdf-tools-operation-plan" aria-label="Page numbers operation plan preview">
@@ -1008,18 +1017,20 @@ function PageNumbersOperationPlan({
       <p className="pdf-tools-operation-plan-note">Planning aid only — not a real PDF preview. PDF pages, number placement, and thumbnails are not rendered.</p>
       <dl className="pdf-tools-operation-plan-details">
         <div><dt>Input pages</dt><dd>{pageCount ?? "Unknown"}</dd></div>
-        <div><dt>Target pages</dt><dd>{pagesInput.trim() ? `${parsedPages.pages.length} selected` : "All pages"}</dd></div>
+        <div><dt>Target pages</dt><dd>{targetPagesLabel}</dd></div>
         <div><dt>Start number</dt><dd>{startNumberError || startNumber === null ? "Invalid" : startNumber}</dd></div>
         <div><dt>Format</dt><dd>{formatLabel}</dd></div>
         <div><dt>Example output</dt><dd>{example}</dd></div>
         <div><dt>Position</dt><dd>{positionLabel}</dd></div>
-        <div><dt>Margin X / Y</dt><dd>{marginX !== null && marginY !== null ? `${marginX} / ${marginY} pt` : "Invalid"}</dd></div>
-        <div><dt>Font size</dt><dd>{fontSize !== null ? `${fontSize} pt` : "Invalid"}</dd></div>
+        <div><dt>Margin X / Y</dt><dd>{marginLabel}</dd></div>
+        <div><dt>Font size</dt><dd>{fontSizeLabel}</dd></div>
         <div><dt>Output</dt><dd>{outputPath ? `New PDF · ${fileNameFromPath(outputPath)}` : "New PDF not selected"}</dd></div>
       </dl>
       <div className="pdf-tools-operation-plan-targets">
         <span>Selected page targets</span>
-        {pagesInput.trim() ? (
+        {parsedPages.error ? (
+          <span className="pdf-tools-operation-plan-empty">Review the page selection warning below.</span>
+        ) : pagesInput.trim() ? (
           <PlanPageChips pages={parsedPages.pages} />
         ) : (
           <span className="pdf-tools-operation-plan-empty">All pages will receive additive page numbers.</span>
@@ -3857,7 +3868,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               disabled={isAnyOperationRunning}
               placeholder="All pages, or 1,3,5-7"
               aria-invalid={Boolean(parsedPageNumbersPages.error)}
-              aria-describedby={parsedPageNumbersPages.error ? "pdf-page-numbers-pages-error" : "pdf-page-numbers-pages-help"}
+              aria-describedby={parsedPageNumbersPages.error ? "pdf-page-numbers-pages-help pdf-page-numbers-pages-error" : "pdf-page-numbers-pages-help"}
             />
           </label>
           <p id="pdf-page-numbers-pages-help" className="pdf-tools-field-help">1-based pages · Examples: 1, 1,3,5, 1-3, or 1,3,5-7</p>
