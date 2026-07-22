@@ -185,3 +185,11 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm visual masks are not described as safe redaction.
 - [ ] Confirm OCR, redaction, and direct PDF text editing remain unimplemented.
 - [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, and Reorder still work.
+
+## v0.6.0 Step 2 Text watermark core / bridge
+
+- [ ] Confirm `pdf_text_watermark` writes a new readable PDF without overwriting the source.
+- [ ] Confirm all-page and selected-page watermarking validate their page selections.
+- [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
+- [ ] Confirm watermarking is additive and is not described as redaction or direct text editing.
+- [ ] Confirm watermark UI, image watermark, stamps, preview, OCR, and redaction remain unimplemented.

@@ -53,6 +53,7 @@ const PDF_EXTRACT_TOOL_ID: &str = "pdf_extract";
 const PDF_ROTATE_TOOL_ID: &str = "pdf_rotate";
 const PDF_DELETE_TOOL_ID: &str = "pdf_delete";
 const PDF_REORDER_TOOL_ID: &str = "pdf_reorder";
+const PDF_TEXT_WATERMARK_TOOL_ID: &str = "pdf_text_watermark";
 const PDF_INSPECT_TOOL_ID: &str = "pdf_inspect";
 
 #[derive(Debug, Deserialize)]
@@ -225,6 +226,36 @@ pub(crate) struct PdfReorderRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct PdfTextWatermarkInput {
+    input_path: String,
+    output_path: String,
+    text: String,
+    #[serde(default)]
+    pages: Option<Vec<usize>>,
+    #[serde(default)]
+    opacity: Option<f32>,
+    #[serde(default)]
+    rotation_degrees: Option<f32>,
+    #[serde(default)]
+    font_size: Option<f32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfTextWatermarkRequestOptions {}
+
+pub(crate) struct PdfTextWatermarkRequest {
+    input_path: String,
+    output_path: String,
+    text: String,
+    pages: Option<Vec<usize>>,
+    opacity: Option<f32>,
+    rotation_degrees: Option<f32>,
+    font_size: Option<f32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PdfInspectInput {
     input_path: String,
 }
@@ -278,6 +309,7 @@ enum RegisteredTool {
     PdfRotate,
     PdfDelete,
     PdfReorder,
+    PdfTextWatermark,
     PdfInspect,
 }
 
@@ -294,6 +326,7 @@ impl ToolRegistry {
             PDF_ROTATE_TOOL_ID => Ok(RegisteredTool::PdfRotate),
             PDF_DELETE_TOOL_ID => Ok(RegisteredTool::PdfDelete),
             PDF_REORDER_TOOL_ID => Ok(RegisteredTool::PdfReorder),
+            PDF_TEXT_WATERMARK_TOOL_ID => Ok(RegisteredTool::PdfTextWatermark),
             PDF_INSPECT_TOOL_ID => Ok(RegisteredTool::PdfInspect),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
         }
@@ -438,6 +471,28 @@ impl RegisteredTool {
                     page_order: input.page_order,
                 }))
             }
+            RegisteredTool::PdfTextWatermark => {
+                let input: PdfTextWatermarkInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfTextWatermarkRequestOptions::default()
+                } else {
+                    serde_json::from_value::<PdfTextWatermarkRequestOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfTextWatermark(
+                    PdfTextWatermarkRequest {
+                        input_path: input.input_path,
+                        output_path: input.output_path,
+                        text: input.text,
+                        pages: input.pages,
+                        opacity: input.opacity,
+                        rotation_degrees: input.rotation_degrees,
+                        font_size: input.font_size,
+                    },
+                ))
+            }
             RegisteredTool::PdfInspect => {
                 let input: PdfInspectInput = serde_json::from_value(request.input)
                     .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
@@ -465,6 +520,7 @@ enum ValidatedToolRequest {
     PdfRotate(PdfRotateRequest),
     PdfDelete(PdfDeleteRequest),
     PdfReorder(PdfReorderRequest),
+    PdfTextWatermark(PdfTextWatermarkRequest),
     PdfInspect(PdfInspectRequest),
 }
 
@@ -479,6 +535,7 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::PdfRotate(_) => PDF_ROTATE_TOOL_ID,
             ValidatedToolRequest::PdfDelete(_) => PDF_DELETE_TOOL_ID,
             ValidatedToolRequest::PdfReorder(_) => PDF_REORDER_TOOL_ID,
+            ValidatedToolRequest::PdfTextWatermark(_) => PDF_TEXT_WATERMARK_TOOL_ID,
             ValidatedToolRequest::PdfInspect(_) => PDF_INSPECT_TOOL_ID,
         }
     }
@@ -504,6 +561,9 @@ impl ValidatedToolRequest {
             }
             ValidatedToolRequest::PdfReorder(request) => {
                 PdfReorderHandler.execute(app, request).await
+            }
+            ValidatedToolRequest::PdfTextWatermark(request) => {
+                PdfTextWatermarkHandler.execute(app, request).await
             }
             ValidatedToolRequest::PdfInspect(request) => {
                 PdfInspectHandler.execute(app, request).await
@@ -722,6 +782,42 @@ pub(crate) fn run_pdf_reorder_bridge(
         PathBuf::from(request.input_path),
         PathBuf::from(request.output_path),
         request.page_order,
+    )
+    .map_err(|error| error.to_string())
+}
+
+struct PdfTextWatermarkHandler;
+
+impl ToolHandler for PdfTextWatermarkHandler {
+    type Request = PdfTextWatermarkRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result = tauri::async_runtime::spawn_blocking(move || {
+                run_pdf_text_watermark_bridge(request)
+            })
+            .await
+            .map_err(|_| "PDF text watermark task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_text_watermark_bridge(
+    request: PdfTextWatermarkRequest,
+) -> Result<pdf_tools::PdfTextWatermarkResult, String> {
+    pdf_tools::add_text_watermark(
+        PathBuf::from(request.input_path),
+        PathBuf::from(request.output_path),
+        request.text,
+        pdf_tools::PdfTextWatermarkOptions {
+            pages: request.pages,
+            opacity: request.opacity,
+            rotation_degrees: request.rotation_degrees,
+            font_size: request.font_size,
+        },
     )
     .map_err(|error| error.to_string())
 }
@@ -1268,6 +1364,45 @@ mod tests {
             ToolRegistry::resolve(PDF_REORDER_TOOL_ID),
             Ok(RegisteredTool::PdfReorder)
         ));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_text_watermark_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_TEXT_WATERMARK_TOOL_ID),
+            Ok(RegisteredTool::PdfTextWatermark)
+        ));
+    }
+
+    #[test]
+    fn registry_parses_pdf_text_watermark_request() {
+        let tool = ToolRegistry::resolve(PDF_TEXT_WATERMARK_TOOL_ID)
+            .expect("text watermark tool should resolve");
+        let request = ToolRequest {
+            tool_id: PDF_TEXT_WATERMARK_TOOL_ID.to_string(),
+            input: serde_json::json!({
+                "input_path": "input.pdf",
+                "output_path": "watermarked.pdf",
+                "text": "DRAFT",
+                "pages": [1, 3],
+                "opacity": 0.18,
+                "rotation_degrees": -35.0,
+                "font_size": 48.0
+            }),
+            options: serde_json::json!({}),
+        };
+
+        let validated = tool
+            .parse_request(request)
+            .expect("text watermark request should parse");
+        let ValidatedToolRequest::PdfTextWatermark(request) = validated else {
+            panic!("expected a text watermark request");
+        };
+        assert_eq!(request.text, "DRAFT");
+        assert_eq!(request.pages, Some(vec![1, 3]));
+        assert_eq!(request.opacity, Some(0.18));
+        assert_eq!(request.rotation_degrees, Some(-35.0));
+        assert_eq!(request.font_size, Some(48.0));
     }
 
     #[test]

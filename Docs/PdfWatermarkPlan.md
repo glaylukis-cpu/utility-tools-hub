@@ -130,3 +130,7 @@ Each stage should have its own completion condition, unit tests where practical,
 **v0.6.0 Step 2 - Text watermark core proposal**
 
 In a separate implementation task, define a narrow Rust request/result contract and test fixtures for an all-pages Latin text watermark with a fixed placement preset. The core should reject protected PDFs, avoid source overwrite, write a new PDF, reopen the output for structural checks, and add no UI or real rendering. Japanese font embedding, image watermarking, stamps, arbitrary overlay writing, opacity and rotation controls, and page selection should remain later steps until their risks have dedicated tests.
+
+### v0.6.0 Step 2 - Text watermark core / bridge
+
+Step 2 adds the additive `pdf_text_watermark` Rust core and shared execution bridge without editing existing PDF text. UI, image watermark, stamps, preview, OCR, redaction, and direct text editing are not added yet.

@@ -1,4 +1,7 @@
-use lopdf::{dictionary, Document, Object, ObjectId};
+use lopdf::{
+    content::{Content, Operation},
+    dictionary, Dictionary, Document, Object, ObjectId,
+};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::error::Error;
@@ -55,6 +58,23 @@ pub struct PdfReorderResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PdfTextWatermarkResult {
+    pub input_path: String,
+    pub output_path: String,
+    pub text: String,
+    pub pages: Vec<usize>,
+    pub page_count: usize,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PdfTextWatermarkOptions {
+    pub pages: Option<Vec<usize>>,
+    pub opacity: Option<f32>,
+    pub rotation_degrees: Option<f32>,
+    pub font_size: Option<f32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PdfInspectResult {
     pub input_path: String,
     pub file_name: String,
@@ -84,6 +104,11 @@ pub enum PdfToolError {
     DuplicatePage,
     IncompletePageOrder,
     InvalidRotationAngle,
+    EmptyWatermarkText,
+    UnsupportedWatermarkText,
+    InvalidWatermarkOpacity,
+    InvalidWatermarkRotation,
+    InvalidWatermarkFontSize,
     CannotDeleteAllPages,
     EncryptedPdfUnsupported,
     InvalidPdf,
@@ -110,6 +135,19 @@ impl fmt::Display for PdfToolError {
                 "the page order must include every input PDF page exactly once"
             }
             Self::InvalidRotationAngle => "the rotation angle must be 90, 180, or 270 degrees",
+            Self::EmptyWatermarkText => "watermark text must not be empty",
+            Self::UnsupportedWatermarkText => {
+                "watermark text currently supports printable ASCII characters only"
+            }
+            Self::InvalidWatermarkOpacity => {
+                "watermark opacity must be greater than 0 and no greater than 1"
+            }
+            Self::InvalidWatermarkRotation => {
+                "watermark rotation must be a finite value from -360 to 360 degrees"
+            }
+            Self::InvalidWatermarkFontSize => {
+                "watermark font size must be a finite value from 8 to 200 points"
+            }
             Self::CannotDeleteAllPages => "at least one page must remain after deletion",
             Self::EncryptedPdfUnsupported => {
                 "encrypted or permission-protected PDF files are not supported yet"
@@ -498,6 +536,280 @@ pub fn reorder_pdf_pages(
     })
 }
 
+/// Adds an ASCII text watermark as a new content stream and writes a new PDF.
+/// Existing page content is not edited or removed, and the input PDF is never overwritten.
+pub fn add_text_watermark(
+    input_path: PathBuf,
+    output_path: PathBuf,
+    text: String,
+    options: PdfTextWatermarkOptions,
+) -> Result<PdfTextWatermarkResult, PdfToolError> {
+    validate_output_path(&output_path)?;
+    if input_path == output_path {
+        return Err(PdfToolError::OutputConflictsWithInput);
+    }
+    validate_watermark_text(&text)?;
+
+    let opacity = options.opacity.unwrap_or(0.18);
+    if !opacity.is_finite() || opacity <= 0.0 || opacity > 1.0 {
+        return Err(PdfToolError::InvalidWatermarkOpacity);
+    }
+
+    let rotation_degrees = options.rotation_degrees.unwrap_or(-35.0);
+    if !rotation_degrees.is_finite() || !(-360.0..=360.0).contains(&rotation_degrees) {
+        return Err(PdfToolError::InvalidWatermarkRotation);
+    }
+
+    let font_size = options.font_size.unwrap_or(48.0);
+    if !font_size.is_finite() || !(8.0..=200.0).contains(&font_size) {
+        return Err(PdfToolError::InvalidWatermarkFontSize);
+    }
+
+    let mut document = load_pdf_document(&input_path)?;
+    let available_pages = document.get_pages();
+    let page_count = available_pages.len();
+    let pages = match options.pages {
+        Some(pages) if !pages.is_empty() => pages,
+        _ => (1..=page_count).collect(),
+    };
+    let selected_page_ids = validate_selected_pages(&pages, &available_pages)?;
+
+    let font_id = document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+        "Encoding" => "WinAnsiEncoding",
+    });
+    let graphics_state_id = document.add_object(dictionary! {
+        "Type" => "ExtGState",
+        "ca" => Object::Real(opacity),
+        "CA" => Object::Real(opacity),
+    });
+
+    for page_id in selected_page_ids {
+        materialize_inherited_page_attributes(&mut document, page_id)?;
+        let (lower_left_x, lower_left_y, upper_right_x, upper_right_y) =
+            resolved_page_box(&document, page_id)?;
+        let (font_name, graphics_state_name) =
+            install_watermark_resources(&mut document, page_id, font_id, graphics_state_id)?;
+        let content = watermark_content(
+            &text,
+            &font_name,
+            &graphics_state_name,
+            font_size,
+            rotation_degrees,
+            lower_left_x,
+            lower_left_y,
+            upper_right_x,
+            upper_right_y,
+        )?;
+        document
+            .add_page_contents(page_id, content)
+            .map_err(|_| PdfToolError::InvalidPdf)?;
+    }
+
+    document
+        .save(&output_path)
+        .map_err(|_| PdfToolError::SaveFailed)?;
+
+    Ok(PdfTextWatermarkResult {
+        input_path: input_path.to_string_lossy().into_owned(),
+        output_path: output_path.to_string_lossy().into_owned(),
+        text,
+        pages,
+        page_count,
+    })
+}
+
+fn validate_watermark_text(text: &str) -> Result<(), PdfToolError> {
+    if text.trim().is_empty() {
+        return Err(PdfToolError::EmptyWatermarkText);
+    }
+    if text.len() > 128
+        || !text
+            .bytes()
+            .all(|byte| byte == b' ' || byte.is_ascii_graphic())
+    {
+        return Err(PdfToolError::UnsupportedWatermarkText);
+    }
+    Ok(())
+}
+
+fn resolved_page_box(
+    document: &Document,
+    page_id: ObjectId,
+) -> Result<(f32, f32, f32, f32), PdfToolError> {
+    let page = document
+        .get_object(page_id)
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .as_dict()
+        .map_err(|_| PdfToolError::InvalidPdf)?;
+    let page_box = page
+        .get(b"CropBox")
+        .or_else(|_| page.get(b"MediaBox"))
+        .map_err(|_| PdfToolError::InvalidPdf)?;
+    let page_box = resolve_object_clone(document, page_box)?;
+    let values = page_box.as_array().map_err(|_| PdfToolError::InvalidPdf)?;
+    if values.len() != 4 {
+        return Err(PdfToolError::InvalidPdf);
+    }
+
+    let lower_left_x = resolved_number(document, &values[0])?;
+    let lower_left_y = resolved_number(document, &values[1])?;
+    let upper_right_x = resolved_number(document, &values[2])?;
+    let upper_right_y = resolved_number(document, &values[3])?;
+    if upper_right_x <= lower_left_x || upper_right_y <= lower_left_y {
+        return Err(PdfToolError::InvalidPdf);
+    }
+
+    Ok((lower_left_x, lower_left_y, upper_right_x, upper_right_y))
+}
+
+fn resolved_number(document: &Document, object: &Object) -> Result<f32, PdfToolError> {
+    match resolve_object_clone(document, object)? {
+        Object::Integer(value) => Ok(value as f32),
+        Object::Real(value) if value.is_finite() => Ok(value),
+        _ => Err(PdfToolError::InvalidPdf),
+    }
+}
+
+fn resolve_object_clone(document: &Document, object: &Object) -> Result<Object, PdfToolError> {
+    let mut current = object.clone();
+    for _ in 0..=document.objects.len() {
+        match current {
+            Object::Reference(object_id) => {
+                current = document
+                    .get_object(object_id)
+                    .map_err(|_| PdfToolError::InvalidPdf)?
+                    .clone();
+            }
+            _ => return Ok(current),
+        }
+    }
+    Err(PdfToolError::InvalidPdf)
+}
+
+fn resolved_dictionary(document: &Document, object: &Object) -> Result<Dictionary, PdfToolError> {
+    resolve_object_clone(document, object)?
+        .as_dict()
+        .map_err(|_| PdfToolError::InvalidPdf)
+        .cloned()
+}
+
+fn install_watermark_resources(
+    document: &mut Document,
+    page_id: ObjectId,
+    font_id: ObjectId,
+    graphics_state_id: ObjectId,
+) -> Result<(Vec<u8>, Vec<u8>), PdfToolError> {
+    let resources_object = document
+        .get_object(page_id)
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .as_dict()
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .get(b"Resources")
+        .ok()
+        .cloned();
+    let mut resources = match resources_object {
+        Some(object) => resolved_dictionary(document, &object)?,
+        None => Dictionary::new(),
+    };
+
+    let mut fonts = match resources.get(b"Font") {
+        Ok(object) => resolved_dictionary(document, object)?,
+        Err(_) => Dictionary::new(),
+    };
+    let font_name = unique_resource_name(&fonts, b"UTHWatermarkFont");
+    fonts.set(font_name.clone(), Object::Reference(font_id));
+    resources.set("Font", Object::Dictionary(fonts));
+
+    let mut graphics_states = match resources.get(b"ExtGState") {
+        Ok(object) => resolved_dictionary(document, object)?,
+        Err(_) => Dictionary::new(),
+    };
+    let graphics_state_name = unique_resource_name(&graphics_states, b"UTHWatermarkGS");
+    graphics_states.set(
+        graphics_state_name.clone(),
+        Object::Reference(graphics_state_id),
+    );
+    resources.set("ExtGState", Object::Dictionary(graphics_states));
+
+    document
+        .get_object_mut(page_id)
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .as_dict_mut()
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .set("Resources", Object::Dictionary(resources));
+
+    Ok((font_name, graphics_state_name))
+}
+
+fn unique_resource_name(dictionary: &Dictionary, base_name: &[u8]) -> Vec<u8> {
+    if dictionary.get(base_name).is_err() {
+        return base_name.to_vec();
+    }
+
+    for suffix in 1_u64.. {
+        let candidate = format!("{}{}", String::from_utf8_lossy(base_name), suffix).into_bytes();
+        if dictionary.get(&candidate).is_err() {
+            return candidate;
+        }
+    }
+
+    unreachable!("the resource-name suffix space cannot be exhausted")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn watermark_content(
+    text: &str,
+    font_name: &[u8],
+    graphics_state_name: &[u8],
+    font_size: f32,
+    rotation_degrees: f32,
+    lower_left_x: f32,
+    lower_left_y: f32,
+    upper_right_x: f32,
+    upper_right_y: f32,
+) -> Result<Vec<u8>, PdfToolError> {
+    let radians = rotation_degrees.to_radians();
+    let cosine = radians.cos();
+    let sine = radians.sin();
+    let center_x = lower_left_x + (upper_right_x - lower_left_x) / 2.0;
+    let center_y = lower_left_y + (upper_right_y - lower_left_y) / 2.0;
+    let estimated_width = text.len() as f32 * font_size * 0.5;
+    let text_x = center_x - (estimated_width * cosine) / 2.0;
+    let text_y = center_y - (estimated_width * sine) / 2.0;
+
+    Content {
+        operations: vec![
+            Operation::new("q", vec![]),
+            Operation::new("gs", vec![Object::Name(graphics_state_name.to_vec())]),
+            Operation::new("BT", vec![]),
+            Operation::new(
+                "Tf",
+                vec![Object::Name(font_name.to_vec()), Object::Real(font_size)],
+            ),
+            Operation::new("g", vec![Object::Real(0.45)]),
+            Operation::new(
+                "Tm",
+                vec![
+                    Object::Real(cosine),
+                    Object::Real(sine),
+                    Object::Real(-sine),
+                    Object::Real(cosine),
+                    Object::Real(text_x),
+                    Object::Real(text_y),
+                ],
+            ),
+            Operation::new("Tj", vec![Object::string_literal(text)]),
+            Operation::new("ET", vec![]),
+            Operation::new("Q", vec![]),
+        ],
+    }
+    .encode()
+    .map_err(|_| PdfToolError::InvalidPdf)
+}
+
 fn load_pdf_document(input_path: &Path) -> Result<Document, PdfToolError> {
     if !has_pdf_extension(input_path) {
         return Err(PdfToolError::InvalidInputExtension);
@@ -702,8 +1014,9 @@ mod tests {
     use crate::{
         run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_inspect_bridge,
         run_pdf_merge_bridge, run_pdf_reorder_bridge, run_pdf_rotate_bridge, run_pdf_split_bridge,
-        PdfDeleteRequest, PdfExtractRequest, PdfInspectRequest, PdfMergeRequest, PdfReorderRequest,
-        PdfRotateRequest, PdfSplitRequest,
+        run_pdf_text_watermark_bridge, PdfDeleteRequest, PdfExtractRequest, PdfInspectRequest,
+        PdfMergeRequest, PdfReorderRequest, PdfRotateRequest, PdfSplitRequest,
+        PdfTextWatermarkRequest,
     };
     use lopdf::Stream;
     use std::fs;
@@ -1614,6 +1927,326 @@ mod tests {
     }
 
     #[test]
+    fn adds_text_watermark_to_all_pages_and_preserves_source() {
+        let directory = TestDirectory::new();
+        let input = directory.path("watermark-input.pdf");
+        let output = directory.path("watermark-output.pdf");
+        create_pdf_with_page_contents(
+            &input,
+            &[b"q % SOURCE-1 Q", b"q % SOURCE-2 Q", b"q % SOURCE-3 Q"],
+        );
+        let original_bytes = fs::read(&input).expect("source PDF should be readable");
+
+        let result = add_text_watermark(
+            input.clone(),
+            output.clone(),
+            "DRAFT".to_string(),
+            PdfTextWatermarkOptions::default(),
+        )
+        .expect("text watermark should be added");
+
+        assert_eq!(result.text, "DRAFT");
+        assert_eq!(result.pages, vec![1, 2, 3]);
+        assert_eq!(result.page_count, 3);
+        assert_eq!(
+            fs::read(&input).expect("source PDF should remain readable"),
+            original_bytes
+        );
+
+        let output_document = Document::load(&output).expect("watermarked PDF should reload");
+        let output_pages = output_document.get_pages();
+        assert_eq!(output_pages.len(), 3);
+        for page_id in output_pages.values() {
+            let content = output_document
+                .get_page_content(*page_id)
+                .expect("watermarked page content should be readable");
+            assert!(contains_bytes(&content, b"DRAFT"));
+            assert!(contains_bytes(&content, b"SOURCE-"));
+        }
+
+        let empty_pages_output = directory.path("empty-pages-watermark-output.pdf");
+        let empty_pages_result = add_text_watermark(
+            input,
+            empty_pages_output,
+            "DRAFT".to_string(),
+            PdfTextWatermarkOptions {
+                pages: Some(vec![]),
+                ..PdfTextWatermarkOptions::default()
+            },
+        )
+        .expect("an empty page list should target every page");
+        assert_eq!(empty_pages_result.pages, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn adds_text_watermark_only_to_selected_pages() {
+        let directory = TestDirectory::new();
+        let input = directory.path("selected-watermark-input.pdf");
+        let output = directory.path("selected-watermark-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+
+        let result = add_text_watermark(
+            input,
+            output.clone(),
+            "SAMPLE".to_string(),
+            PdfTextWatermarkOptions {
+                pages: Some(vec![1, 3]),
+                opacity: Some(0.25),
+                rotation_degrees: Some(-30.0),
+                font_size: Some(42.0),
+            },
+        )
+        .expect("selected pages should be watermarked");
+
+        assert_eq!(result.pages, vec![1, 3]);
+        let output_document = Document::load(output).expect("watermarked PDF should reload");
+        for (page_number, page_id) in output_document.get_pages() {
+            let content = output_document
+                .get_page_content(page_id)
+                .expect("page content should be readable");
+            assert_eq!(
+                contains_bytes(&content, b"SAMPLE"),
+                page_number == 1 || page_number == 3
+            );
+        }
+    }
+
+    #[test]
+    fn text_watermark_preserves_inherited_page_resources() {
+        let directory = TestDirectory::new();
+        let input = directory.path("nested-watermark-input.pdf");
+        let output = directory.path("nested-watermark-output.pdf");
+        create_nested_page_tree_pdf(&input, &[b"NESTED-1", b"NESTED-2"]);
+
+        add_text_watermark(
+            input,
+            output.clone(),
+            "DRAFT".to_string(),
+            PdfTextWatermarkOptions::default(),
+        )
+        .expect("inherited resources should be preserved");
+
+        let output_document = Document::load(output).expect("watermarked PDF should reload");
+        assert_eq!(output_document.get_pages().len(), 2);
+        for page_id in output_document.get_pages().values() {
+            let fonts = output_document
+                .get_page_fonts(*page_id)
+                .expect("page fonts should remain readable");
+            assert!(fonts.contains_key(b"F1".as_slice()));
+            assert!(fonts.contains_key(b"UTHWatermarkFont".as_slice()));
+            let content = output_document
+                .get_page_content(*page_id)
+                .expect("page content should remain readable");
+            assert!(contains_bytes(&content, b"NESTED-"));
+            assert!(contains_bytes(&content, b"DRAFT"));
+        }
+    }
+
+    #[test]
+    fn text_watermark_validates_text_and_page_selection() {
+        let directory = TestDirectory::new();
+        let input = directory.path("watermark-validation-input.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+
+        let cases = [
+            ("   ", None, PdfToolError::EmptyWatermarkText, "empty.pdf"),
+            (
+                "日本語",
+                None,
+                PdfToolError::UnsupportedWatermarkText,
+                "unsupported.pdf",
+            ),
+            (
+                "DRAFT",
+                Some(vec![0]),
+                PdfToolError::InvalidPageNumber,
+                "zero.pdf",
+            ),
+            (
+                "DRAFT",
+                Some(vec![3]),
+                PdfToolError::PageOutOfRange,
+                "range.pdf",
+            ),
+            (
+                "DRAFT",
+                Some(vec![1, 1]),
+                PdfToolError::DuplicatePage,
+                "duplicate.pdf",
+            ),
+        ];
+
+        for (text, pages, expected_error, output_name) in cases {
+            let error = add_text_watermark(
+                input.clone(),
+                directory.path(output_name),
+                text.to_string(),
+                PdfTextWatermarkOptions {
+                    pages,
+                    ..PdfTextWatermarkOptions::default()
+                },
+            )
+            .unwrap_err();
+            assert_eq!(error, expected_error);
+        }
+    }
+
+    #[test]
+    fn text_watermark_validates_opacity_rotation_and_font_size() {
+        let directory = TestDirectory::new();
+        let input = directory.path("watermark-style-input.pdf");
+        create_single_page_pdf(&input);
+
+        for opacity in [0.0, -0.1, 1.1, f32::NAN] {
+            let error = add_text_watermark(
+                input.clone(),
+                directory.path("opacity.pdf"),
+                "DRAFT".to_string(),
+                PdfTextWatermarkOptions {
+                    opacity: Some(opacity),
+                    ..PdfTextWatermarkOptions::default()
+                },
+            )
+            .unwrap_err();
+            assert_eq!(error, PdfToolError::InvalidWatermarkOpacity);
+        }
+
+        for font_size in [7.9, 200.1, f32::INFINITY] {
+            let error = add_text_watermark(
+                input.clone(),
+                directory.path("font-size.pdf"),
+                "DRAFT".to_string(),
+                PdfTextWatermarkOptions {
+                    font_size: Some(font_size),
+                    ..PdfTextWatermarkOptions::default()
+                },
+            )
+            .unwrap_err();
+            assert_eq!(error, PdfToolError::InvalidWatermarkFontSize);
+        }
+
+        let rotation_error = add_text_watermark(
+            input,
+            directory.path("rotation.pdf"),
+            "DRAFT".to_string(),
+            PdfTextWatermarkOptions {
+                rotation_degrees: Some(f32::NAN),
+                ..PdfTextWatermarkOptions::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(rotation_error, PdfToolError::InvalidWatermarkRotation);
+    }
+
+    #[test]
+    fn text_watermark_rejects_invalid_paths_and_source_overwrite() {
+        let directory = TestDirectory::new();
+        let input = directory.path("watermark-path-input.pdf");
+        create_single_page_pdf(&input);
+
+        assert_eq!(
+            add_text_watermark(
+                directory.path("input.txt"),
+                directory.path("output.pdf"),
+                "DRAFT".to_string(),
+                PdfTextWatermarkOptions::default(),
+            )
+            .unwrap_err(),
+            PdfToolError::InvalidInputExtension
+        );
+        assert_eq!(
+            add_text_watermark(
+                input.clone(),
+                directory.path("output.txt"),
+                "DRAFT".to_string(),
+                PdfTextWatermarkOptions::default(),
+            )
+            .unwrap_err(),
+            PdfToolError::InvalidOutputExtension
+        );
+        assert_eq!(
+            add_text_watermark(
+                directory.path("missing.pdf"),
+                directory.path("missing-output.pdf"),
+                "DRAFT".to_string(),
+                PdfTextWatermarkOptions::default(),
+            )
+            .unwrap_err(),
+            PdfToolError::InputNotFound
+        );
+        assert_eq!(
+            add_text_watermark(
+                input.clone(),
+                directory.path("missing-directory").join("output.pdf"),
+                "DRAFT".to_string(),
+                PdfTextWatermarkOptions::default(),
+            )
+            .unwrap_err(),
+            PdfToolError::OutputDirectoryNotFound
+        );
+        assert_eq!(
+            add_text_watermark(
+                input.clone(),
+                input,
+                "DRAFT".to_string(),
+                PdfTextWatermarkOptions::default(),
+            )
+            .unwrap_err(),
+            PdfToolError::OutputConflictsWithInput
+        );
+    }
+
+    #[test]
+    fn text_watermark_rejects_a_protected_pdf_without_decrypting_it() {
+        let directory = TestDirectory::new();
+        let input = directory.path("protected-watermark-input.pdf");
+        let output = directory.path("protected-watermark-output.pdf");
+        create_single_page_pdf(&input);
+
+        let mut protected_document = Document::load(&input).expect("fixture should load");
+        let encryption_id = protected_document.add_object(dictionary! {
+            "Filter" => "Standard",
+            "V" => 1,
+        });
+        protected_document.trailer.set("Encrypt", encryption_id);
+        protected_document
+            .save(&input)
+            .expect("protected marker should be saved");
+
+        let error = add_text_watermark(
+            input,
+            output.clone(),
+            "DRAFT".to_string(),
+            PdfTextWatermarkOptions::default(),
+        )
+        .unwrap_err();
+
+        assert_eq!(error, PdfToolError::EncryptedPdfUnsupported);
+        assert!(!output.exists());
+    }
+
+    #[test]
+    fn text_watermark_bridge_writes_a_new_pdf() {
+        let directory = TestDirectory::new();
+        let input = directory.path("watermark-bridge-input.pdf");
+        let output = directory.path("watermark-bridge-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+
+        let result = run_pdf_text_watermark_bridge(pdf_text_watermark_request(
+            input,
+            output.clone(),
+            "CONFIDENTIAL",
+            Some(vec![1, 3]),
+        ))
+        .expect("text watermark bridge should succeed");
+
+        assert!(output.is_file());
+        assert_eq!(result.text, "CONFIDENTIAL");
+        assert_eq!(result.pages, vec![1, 3]);
+        assert_eq!(result.page_count, 3);
+    }
+
+    #[test]
     fn split_bridge_splits_a_three_page_pdf() {
         let directory = TestDirectory::new();
         let input = directory.path("split-bridge-input.pdf");
@@ -1998,6 +2631,23 @@ mod tests {
         }
     }
 
+    fn pdf_text_watermark_request(
+        input_path: PathBuf,
+        output_path: PathBuf,
+        text: &str,
+        pages: Option<Vec<usize>>,
+    ) -> PdfTextWatermarkRequest {
+        PdfTextWatermarkRequest {
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: output_path.to_string_lossy().into_owned(),
+            text: text.to_string(),
+            pages,
+            opacity: Some(0.18),
+            rotation_degrees: Some(-35.0),
+            font_size: Some(48.0),
+        }
+    }
+
     fn pdf_merge_request(input_paths: Vec<PathBuf>, output_path: PathBuf) -> PdfMergeRequest {
         PdfMergeRequest {
             input_paths: input_paths
@@ -2010,6 +2660,12 @@ mod tests {
 
     fn create_single_page_pdf(path: &Path) {
         create_single_page_pdf_with_content(path, b"q Q");
+    }
+
+    fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
+        haystack
+            .windows(needle.len())
+            .any(|window| window == needle)
     }
 
     fn create_single_page_pdf_with_content(path: &Path, content: &[u8]) {

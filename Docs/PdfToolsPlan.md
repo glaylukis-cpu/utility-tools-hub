@@ -95,3 +95,7 @@ The PDF reorder core, command bridge, Reorder pages UI, input summary, full-page
 ## v0.6.0 Watermark foundation planning
 
 Watermark remains in the planning stage. `Docs/PdfWatermarkPlan.md` defines additive text and image watermarks, stamps, overlay writing, implementation risks, and the boundary from direct text editing and safe redaction; no PDF processing or UI implementation is added in this step.
+
+## v0.6.0 Text watermark core / bridge
+
+The additive `pdf_text_watermark` core and shared execution bridge can write printable ASCII text to all or selected pages in a new PDF. UI connection, image watermark, stamps, preview, OCR, redaction, and direct PDF text editing remain unimplemented.
