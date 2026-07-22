@@ -218,3 +218,10 @@ git push origin vX.Y.Z
 - Complete page orders are validated, summarized, and shown in the lightweight operation plan before a new PDF is written.
 - Missing, duplicate, invalid, and out-of-range page warnings are included; existing Inspect, Merge, Split, Extract, Rotate, and Delete operations remain available.
 - This is not PDF rendering. No page rendering, thumbnails, drag-and-drop reorder, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
+
+## v0.6.0 Release Note
+
+- v0.6.0 adds the PDF text watermark foundation with the local `pdf_text_watermark` core and bridge plus the PDF Workbench Text watermark UI.
+- Printable ASCII / Latin watermarks such as `DRAFT` or `CONFIDENTIAL` can target all or selected pages and are saved to a new PDF with input summaries, operation plans, and validation warnings.
+- Watermarking is additive, does not edit existing PDF text, and is not redaction; existing PDF operations remain available.
+- No image watermark, stamp UI, overlay writing, PDF rendering, thumbnails, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
