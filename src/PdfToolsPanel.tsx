@@ -626,6 +626,11 @@ function ReorderOperationPlan({
           Select a valid PDF to validate the full page order.
         </p>
       )}
+      {pageCount !== null && !hasInput && (
+        <p className="pdf-tools-operation-plan-warning" role="alert">
+          <strong>Page order required:</strong> Enter every page exactly once.
+        </p>
+      )}
       {hasInput && parsed.invalidEntries && (
         <p className="pdf-tools-operation-plan-warning" role="alert">Invalid entries found. Use comma-separated whole page numbers only.</p>
       )}
@@ -2653,7 +2658,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             />
           </label>
           {reorderPageOrderInput.trim() && reorderInputSummary.result && !parsedReorderPageOrder.isValid && (
-            <p className="pdf-tools-field-error">Enter every page exactly once using comma-separated page numbers.</p>
+            <p className="pdf-tools-field-error">Check the page-order warnings in the operation plan below.</p>
           )}
 
           <ReorderOperationPlan

@@ -292,3 +292,7 @@ Merge PDFsの各入力へ`pdf_inspect`を実行し、選択順、サイズ、ペ
 **v0.5.0 Step 2 - PDF reorder UI connection**
 
 `pdf_reorder`をPDF Workbench UIへ接続し、全ページ順序を入力して新しいPDFへ保存できるようにします。Drag-and-drop reorder、thumbnails、実PDF renderingは引き続き追加しません。
+
+**v0.5.0 Step 3 - PDF reorder QA polish**
+
+Reorder pages UIと全ページ順序のvalidation、operation plan、実PDF確認手順を整理します。Drag-and-drop reorder、thumbnails、実PDF renderingは引き続き追加しません。

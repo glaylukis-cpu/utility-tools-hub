@@ -166,3 +166,14 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm missing, duplicate, invalid, and out-of-range page orders show warnings.
 - [ ] Confirm `pdf_reorder` can execute and write a new PDF.
 - [ ] Confirm drag-and-drop reorder, thumbnails, and real PDF rendering are not implemented.
+
+## v0.5.0 Step 3 Reorder QA polish
+
+- [ ] Confirm the Reorder pages card, input picker, input PDF summary, page-order field, output picker, and run button are visible.
+- [ ] Confirm a full page order such as `3,1,2` is Valid for a three-page PDF.
+- [ ] Confirm empty, missing, duplicate, invalid, and out-of-range page orders show clear warnings.
+- [ ] Confirm the Reorder operation plan is labeled as a planning aid, not a real PDF preview.
+- [ ] Confirm `pdf_reorder` writes a new readable PDF with the same page count and the requested page order.
+- [ ] Confirm protected PDFs are warned about or rejected without decryption or permission bypass.
+- [ ] Confirm drag-and-drop reorder, thumbnails, and real PDF rendering remain unimplemented.
+- [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, and Reorder remain available.
