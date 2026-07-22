@@ -232,3 +232,11 @@ git push origin vX.Y.Z
 - The center shows one active operation at a time, while selected-file, status, planning, research, and safety information remains available in more compact panels.
 - Existing PDF operations remain available. No PDF processing logic, `tool_id`, request/response format, PDF rendering, thumbnails, OCR, redaction, or direct PDF text editing is changed.
 - No npm or Cargo dependency is added.
+
+## v0.6.2 Release Note
+
+- v0.6.2 fixes PDF Workbench layout overflow after PDF selection.
+- Long file names, input summaries, operation cards, the operation selector, and side panels remain contained within the compact grid and center column.
+- The compact layout remains focused on one active operation at a time, and existing PDF operations remain available.
+- No PDF processing logic, `tool_id`, request/response format, PDF rendering, thumbnails, OCR, redaction, or direct PDF text editing is changed.
+- No npm or Cargo dependency is added.
