@@ -125,7 +125,7 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
   border: 1px solid #dbe3ef;
   border-radius: 12px;
@@ -1001,11 +1001,13 @@
   max-width: 100%;
 }
 
-.pdf-tools-watermark-card {
+.pdf-tools-watermark-card,
+.pdf-tools-page-numbers-card {
   grid-column: 1 / -1;
 }
 
-.pdf-tools-watermark-fields {
+.pdf-tools-watermark-fields,
+.pdf-tools-parameter-fields {
   display: grid;
   width: 100%;
   min-width: 0;
@@ -1015,12 +1017,14 @@
   margin: 18px 0;
 }
 
-.pdf-tools-watermark-fields .pdf-tools-field {
+.pdf-tools-watermark-fields .pdf-tools-field,
+.pdf-tools-parameter-fields .pdf-tools-field {
   min-width: 0;
   margin: 0;
 }
 
-.pdf-tools-watermark-field-group {
+.pdf-tools-watermark-field-group,
+.pdf-tools-parameter-field-group {
   display: grid;
   min-width: 0;
   align-content: start;
@@ -1033,7 +1037,8 @@
   line-height: 1.45;
 }
 
-.pdf-tools-watermark-field-group .pdf-tools-field-error {
+.pdf-tools-watermark-field-group .pdf-tools-field-error,
+.pdf-tools-parameter-field-group .pdf-tools-field-error {
   margin: 7px 0 0;
 }
 
@@ -1626,7 +1631,8 @@
     gap: 4px;
   }
 
-  .pdf-tools-watermark-fields {
+  .pdf-tools-watermark-fields,
+  .pdf-tools-parameter-fields {
     grid-template-columns: 1fr;
   }
 }

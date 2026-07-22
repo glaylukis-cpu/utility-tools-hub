@@ -256,3 +256,14 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
 - [ ] Confirm Page numbers is additive and is not described as redaction or direct text editing.
 - [ ] Confirm existing page numbers are not removed and the Page numbers UI is still unimplemented.
+
+## v0.7.0 Step 3 Page numbers UI connection
+
+- [ ] Confirm Page numbers appears in PDF Workbench and the nine-item operation selector does not overflow.
+- [ ] Confirm selecting an input PDF displays file name, size, page count, PDF version, and protection status.
+- [ ] Confirm empty Pages targets all pages and selected ranges such as `1,3,5-7` are validated.
+- [ ] Confirm start number, format, position, margins, and font size validation works.
+- [ ] Confirm `pdf_page_numbers` writes a new PDF and loading, success, and safe error states appear.
+- [ ] Confirm Page numbers is additive, is not redaction, and does not remove existing page numbers.
+- [ ] Confirm preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
+- [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark remain available.

@@ -215,4 +215,6 @@ Each stage requires focused unit tests where practical and real, non-sensitive P
 
 Step 2 adds the additive `pdf_page_numbers` Rust / `lopdf` core and shared execution bridge for all or selected pages, validated formats and positions, start number, margins, font size, and new-file output. It does not edit existing PDF text or remove existing page numbers; UI, preview, OCR, redaction, and direct text editing are not added. Placement uses each page's effective CropBox / MediaBox, while viewer-facing rotation polish remains a later QA step.
 
-The next implementation step is a focused Page numbers UI connection with input summary, operation plan, output selection, loading, success, and safe error feedback.
+**v0.7.0 Step 3 - Page numbers UI connection**
+
+Step 3 connects `pdf_page_numbers` to PDF Workbench with input summary, all-page or selected-page targeting, numbering settings, operation plan, output selection, loading, success, and safe error feedback. Page numbers remains additive and writes a new PDF; preview, thumbnails, existing page-number removal, OCR, redaction, and direct text editing are still not added.

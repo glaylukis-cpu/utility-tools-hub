@@ -328,3 +328,7 @@ Page number formats、positioning、selected pages、start numberと安全境界
 **v0.7.0 Step 2 - PDF page numbers core / bridge**
 
 AdditiveなPage numbers coreをshared execution bridgeへ接続し、新しいPDFへ出力できるようにします。UIとpreviewはまだ追加しません。
+
+**v0.7.0 Step 3 - PDF page numbers UI connection**
+
+PDF WorkbenchへPage numbers UIを接続します。Page numbersはadditiveのままで、既存PDF本文の編集、既存ページ番号の削除、redactionは実装しません。

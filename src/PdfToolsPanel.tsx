@@ -72,6 +72,16 @@ type PdfTextWatermarkResult = {
   page_count: number;
 };
 
+type PdfPageNumbersResult = {
+  input_path: string;
+  output_path: string;
+  pages: number[];
+  page_count: number;
+  start_number: number;
+  format: PageNumberFormat;
+  position: PageNumberPosition;
+};
+
 type PdfInspectResult = {
   input_path: string;
   file_name: string;
@@ -124,7 +134,23 @@ type PdfWorkbenchOperation =
   | "rotate"
   | "delete"
   | "reorder"
-  | "textWatermark";
+  | "textWatermark"
+  | "pageNumbers";
+
+type PageNumberFormat =
+  | "number"
+  | "page-number"
+  | "page-number-of-total"
+  | "number-slash-total"
+  | "dash-number";
+
+type PageNumberPosition =
+  | "bottom-center"
+  | "bottom-right"
+  | "bottom-left"
+  | "top-center"
+  | "top-right"
+  | "top-left";
 
 const pdfWorkbenchOperations: ReadonlyArray<{
   id: PdfWorkbenchOperation;
@@ -138,6 +164,7 @@ const pdfWorkbenchOperations: ReadonlyArray<{
   { id: "delete", label: "Delete" },
   { id: "reorder", label: "Reorder" },
   { id: "textWatermark", label: "Text watermark" },
+  { id: "pageNumbers", label: "Page numbers" },
 ];
 
 const plannedPageTools = [
@@ -146,7 +173,6 @@ const plannedPageTools = [
   "Drag-and-drop reorder",
   "Real PDF page preview",
   "Page thumbnails",
-  "Page numbers",
   "Overlay writing",
 ] as const;
 
@@ -163,10 +189,28 @@ const PDF_ROTATE_TOOL_ID = "pdf_rotate";
 const PDF_DELETE_TOOL_ID = "pdf_delete";
 const PDF_REORDER_TOOL_ID = "pdf_reorder";
 const PDF_TEXT_WATERMARK_TOOL_ID = "pdf_text_watermark";
+const PDF_PAGE_NUMBERS_TOOL_ID = "pdf_page_numbers";
 const PDF_INSPECT_TOOL_ID = "pdf_inspect";
 const POLL_INTERVAL_MS = 500;
 const MAX_EXPANDED_PAGES = 10_000;
 const MAX_VISIBLE_PLAN_PAGES = 18;
+
+const pageNumberFormatOptions: ReadonlyArray<{ value: PageNumberFormat; label: string }> = [
+  { value: "number", label: "Number only: 1" },
+  { value: "page-number", label: "Page number: Page 1" },
+  { value: "page-number-of-total", label: "Page number of total: Page 1 of 10" },
+  { value: "number-slash-total", label: "Number / total: 1 / 10" },
+  { value: "dash-number", label: "Dash number: - 1 -" },
+];
+
+const pageNumberPositionOptions: ReadonlyArray<{ value: PageNumberPosition; label: string }> = [
+  { value: "bottom-center", label: "Bottom center" },
+  { value: "bottom-right", label: "Bottom right" },
+  { value: "bottom-left", label: "Bottom left" },
+  { value: "top-center", label: "Top center" },
+  { value: "top-right", label: "Top right" },
+  { value: "top-left", label: "Top left" },
+];
 
 function fileNameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() || path;
@@ -348,6 +392,34 @@ function watermarkFailureMessage(reason?: string | null): string {
   );
 }
 
+function pageNumbersFailureMessage(reason?: string | null): string {
+  const knownMessages: Record<string, string> = {
+    "every input file must use the .pdf extension": "The input file must use the .pdf extension.",
+    "the output file must use the .pdf extension": "The output file must use the .pdf extension.",
+    "an input PDF file does not exist": "The selected PDF could not be found. Select it again.",
+    "the output directory does not exist": "The selected output folder no longer exists. Choose the output PDF again.",
+    "the output file must differ from every input file": "The output PDF must be different from the input PDF.",
+    "page numbers must be one or greater": "Page numbers must be whole numbers greater than zero.",
+    "a selected page is outside the input PDF page range": "The page selection contains a page outside the input PDF range.",
+    "duplicate page numbers are not supported": "Enter each target page only once.",
+    "page number start must be one or greater": "Start number must be a whole number greater than zero.",
+    "the page number format is not supported": "Select one of the supported page-number formats.",
+    "the page number position is not supported": "Select one of the supported page-number positions.",
+    "page number margins must be finite values from 0 to 144 points and fit the page":
+      "Margins must be between 0 and 144 points and fit the selected PDF pages.",
+    "page number font size must be a finite value from 6 to 72 points": "Font size must be between 6 and 72 points.",
+    "encrypted or permission-protected PDF files are not supported yet":
+      "Protected PDFs are not supported. Utility Tools Hub does not decrypt PDFs or bypass permissions.",
+    "an input file is not a supported PDF document": "The input file is not a supported PDF document.",
+    "the output PDF could not be saved": "The output PDF could not be saved. Choose a writable location and try again.",
+  };
+
+  return (
+    (reason ? knownMessages[reason.trim()] : undefined) ??
+    "Page numbers failed. Check the input PDF, page-number settings, and writable output location, then try again."
+  );
+}
+
 function parsePageSelection(value: string): PageParseResult {
   const trimmedValue = value.trim();
   if (!trimmedValue) {
@@ -447,6 +519,45 @@ function parseFiniteNumber(value: string): number | null {
   if (!value.trim()) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function positiveIntegerValidationMessage(value: string, label: string): string | null {
+  const parsed = parseFiniteNumber(value);
+  if (parsed === null) return `${label} must be a number.`;
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    return `${label} must be a whole number greater than zero.`;
+  }
+  return null;
+}
+
+function boundedNumberValidationMessage(
+  value: string,
+  label: string,
+  minimum: number,
+  maximum: number,
+): string | null {
+  const parsed = parseFiniteNumber(value);
+  if (parsed === null) return `${label} must be a number.`;
+  if (parsed < minimum || parsed > maximum) {
+    return `${label} must be between ${minimum} and ${maximum}.`;
+  }
+  return null;
+}
+
+function pageNumberExample(format: PageNumberFormat, number: number, total: number | null): string {
+  const safeTotal = total ?? "total";
+  switch (format) {
+    case "page-number":
+      return `Page ${number}`;
+    case "page-number-of-total":
+      return `Page ${number} of ${safeTotal}`;
+    case "number-slash-total":
+      return `${number} / ${safeTotal}`;
+    case "dash-number":
+      return `- ${number} -`;
+    default:
+      return String(number);
+  }
 }
 
 function parsePageOrder(value: string, pageCount?: number | null): PageOrderParseResult {
@@ -834,6 +945,103 @@ function TextWatermarkOperationPlan({
   );
 }
 
+function PageNumbersOperationPlan({
+  summary,
+  pagesInput,
+  startNumberInput,
+  format,
+  position,
+  marginXInput,
+  marginYInput,
+  fontSizeInput,
+  outputPath,
+}: {
+  summary: OperationInputSummaryState;
+  pagesInput: string;
+  startNumberInput: string;
+  format: PageNumberFormat;
+  position: PageNumberPosition;
+  marginXInput: string;
+  marginYInput: string;
+  fontSizeInput: string;
+  outputPath: string | null;
+}) {
+  const result = summary.result;
+  const pageCount = result?.page_count ?? null;
+  const parsedPages = parseOptionalPageSelection(pagesInput, pageCount);
+  const startNumber = parseFiniteNumber(startNumberInput);
+  const marginX = parseFiniteNumber(marginXInput);
+  const marginY = parseFiniteNumber(marginYInput);
+  const fontSize = parseFiniteNumber(fontSizeInput);
+  const startNumberError = positiveIntegerValidationMessage(startNumberInput, "Start number");
+  const marginXError = boundedNumberValidationMessage(marginXInput, "Margin X", 0, 144);
+  const marginYError = boundedNumberValidationMessage(marginYInput, "Margin Y", 0, 144);
+  const fontSizeError = boundedNumberValidationMessage(fontSizeInput, "Font size", 6, 72);
+  const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
+  const isValid = Boolean(
+    result &&
+      outputPath &&
+      !parsedPages.error &&
+      !startNumberError &&
+      !marginXError &&
+      !marginYError &&
+      !fontSizeError &&
+      !isProtected,
+  );
+  const formatLabel = pageNumberFormatOptions.find((option) => option.value === format)?.label ?? format;
+  const positionLabel = pageNumberPositionOptions.find((option) => option.value === position)?.label ?? position;
+  const example = startNumberError || startNumber === null
+    ? "Invalid start number"
+    : pageNumberExample(format, startNumber, pageCount);
+
+  return (
+    <div className="pdf-tools-operation-plan" aria-label="Page numbers operation plan preview">
+      <div className="pdf-tools-operation-plan-heading">
+        <div>
+          <span>Lightweight plan</span>
+          <strong>Page numbers</strong>
+        </div>
+        <span className={`pdf-tools-operation-plan-status ${isValid ? "is-valid" : "is-check"}`}>
+          {isValid ? "Valid" : "Needs check"}
+        </span>
+      </div>
+      <p className="pdf-tools-operation-plan-note">Planning aid only — not a real PDF preview. PDF pages, number placement, and thumbnails are not rendered.</p>
+      <dl className="pdf-tools-operation-plan-details">
+        <div><dt>Input pages</dt><dd>{pageCount ?? "Unknown"}</dd></div>
+        <div><dt>Target pages</dt><dd>{pagesInput.trim() ? `${parsedPages.pages.length} selected` : "All pages"}</dd></div>
+        <div><dt>Start number</dt><dd>{startNumberError || startNumber === null ? "Invalid" : startNumber}</dd></div>
+        <div><dt>Format</dt><dd>{formatLabel}</dd></div>
+        <div><dt>Example output</dt><dd>{example}</dd></div>
+        <div><dt>Position</dt><dd>{positionLabel}</dd></div>
+        <div><dt>Margin X / Y</dt><dd>{marginX !== null && marginY !== null ? `${marginX} / ${marginY} pt` : "Invalid"}</dd></div>
+        <div><dt>Font size</dt><dd>{fontSize !== null ? `${fontSize} pt` : "Invalid"}</dd></div>
+        <div><dt>Output</dt><dd>{outputPath ? `New PDF · ${fileNameFromPath(outputPath)}` : "New PDF not selected"}</dd></div>
+      </dl>
+      <div className="pdf-tools-operation-plan-targets">
+        <span>Selected page targets</span>
+        {pagesInput.trim() ? (
+          <PlanPageChips pages={parsedPages.pages} />
+        ) : (
+          <span className="pdf-tools-operation-plan-empty">All pages will receive additive page numbers.</span>
+        )}
+      </div>
+      {parsedPages.error && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid page range:</strong> {parsedPages.error}</p>}
+      {startNumberError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid start number:</strong> {startNumberError}</p>}
+      {marginXError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid margin:</strong> {marginXError}</p>}
+      {marginYError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid margin:</strong> {marginYError}</p>}
+      {fontSizeError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid font size:</strong> {fontSizeError}</p>}
+      {isProtected && (
+        <p className="pdf-tools-operation-plan-warning is-protected" role="alert">
+          <strong>Protected PDF:</strong> Protected PDFs may be rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.
+        </p>
+      )}
+      <p className="pdf-tools-operation-plan-safety">
+        <strong>Additive only · Not redaction:</strong> The Page numbers operation adds new text to a new PDF. It does not edit existing PDF text, remove existing page numbers, or hide content.
+      </p>
+    </div>
+  );
+}
+
 export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const inspectFileInputRef = useRef<HTMLInputElement>(null);
   const mergeFileInputRef = useRef<HTMLInputElement>(null);
@@ -843,6 +1051,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const deleteFileInputRef = useRef<HTMLInputElement>(null);
   const reorderFileInputRef = useRef<HTMLInputElement>(null);
   const watermarkFileInputRef = useRef<HTMLInputElement>(null);
+  const pageNumbersFileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
   const mergeInspectRunIdRef = useRef(0);
@@ -912,6 +1121,20 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [watermarkFeedback, setWatermarkFeedback] = useState<string | null>(null);
   const [watermarkError, setWatermarkError] = useState<string | null>(null);
 
+  const [pageNumbersInput, setPageNumbersInput] = useState<SelectedPdf | null>(null);
+  const [pageNumbersPagesInput, setPageNumbersPagesInput] = useState("");
+  const [pageNumbersStartInput, setPageNumbersStartInput] = useState("1");
+  const [pageNumbersFormat, setPageNumbersFormat] = useState<PageNumberFormat>("number");
+  const [pageNumbersPosition, setPageNumbersPosition] = useState<PageNumberPosition>("bottom-center");
+  const [pageNumbersMarginXInput, setPageNumbersMarginXInput] = useState("36");
+  const [pageNumbersMarginYInput, setPageNumbersMarginYInput] = useState("24");
+  const [pageNumbersFontSizeInput, setPageNumbersFontSizeInput] = useState("12");
+  const [pageNumbersOutputPath, setPageNumbersOutputPath] = useState<string | null>(null);
+  const [pageNumbersResult, setPageNumbersResult] = useState<PdfPageNumbersResult | null>(null);
+  const [isAddingPageNumbers, setIsAddingPageNumbers] = useState(false);
+  const [pageNumbersFeedback, setPageNumbersFeedback] = useState<string | null>(null);
+  const [pageNumbersError, setPageNumbersError] = useState<string | null>(null);
+
   const [inspectInput, setInspectInput] = useState<SelectedPdf | null>(null);
   const [inspectResult, setInspectResult] = useState<PdfInspectResult | null>(null);
   const [isInspecting, setIsInspecting] = useState(false);
@@ -924,6 +1147,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [deleteInputSummary, setDeleteInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [reorderInputSummary, setReorderInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [watermarkInputSummary, setWatermarkInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
+  const [pageNumbersInputSummary, setPageNumbersInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
 
   const nativeDialogAvailable = isTauri();
   const parsedExtractPages = parsePageSelection(extractPagesInput);
@@ -950,6 +1174,18 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const watermarkFontSizeError = watermarkFontSize === null || watermarkFontSize < 8 || watermarkFontSize > 200
     ? "Font size must be between 8 and 200 points."
     : null;
+  const parsedPageNumbersPages = parseOptionalPageSelection(
+    pageNumbersPagesInput,
+    pageNumbersInputSummary.result?.page_count ?? null,
+  );
+  const pageNumbersStartNumber = parseFiniteNumber(pageNumbersStartInput);
+  const pageNumbersMarginX = parseFiniteNumber(pageNumbersMarginXInput);
+  const pageNumbersMarginY = parseFiniteNumber(pageNumbersMarginYInput);
+  const pageNumbersFontSize = parseFiniteNumber(pageNumbersFontSizeInput);
+  const pageNumbersStartError = positiveIntegerValidationMessage(pageNumbersStartInput, "Start number");
+  const pageNumbersMarginXError = boundedNumberValidationMessage(pageNumbersMarginXInput, "Margin X", 0, 144);
+  const pageNumbersMarginYError = boundedNumberValidationMessage(pageNumbersMarginYInput, "Margin Y", 0, 144);
+  const pageNumbersFontSizeError = boundedNumberValidationMessage(pageNumbersFontSizeInput, "Font size", 6, 72);
 
   const stopPolling = () => {
     if (pollTimerRef.current !== null) {
@@ -2056,6 +2292,147 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     );
   };
 
+  const selectPageNumbersInput = async () => {
+    if (isRunningRef.current) return;
+    setPageNumbersFeedback(null);
+    setPageNumbersError(null);
+    setPageNumbersResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF for page numbers",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+          setPageNumbersError("Select a file with the .pdf extension.");
+          return;
+        }
+
+        const fileName = fileNameFromPath(selectedPath);
+        setPageNumbersInput({ name: fileName, path: selectedPath });
+        setPageNumbersFeedback(`Input selected: ${fileName}`);
+        await inspectOperationInput(selectedPath, setPageNumbersInputSummary);
+        return;
+      } catch {
+        setPageNumbersError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    pageNumbersFileInputRef.current?.click();
+  };
+
+  const selectBrowserPageNumbersInput = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setPageNumbersFeedback(null);
+    setPageNumbersResult(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setPageNumbersInput(null);
+      setPageNumbersInputSummary(emptyOperationInputSummary());
+      setPageNumbersError("Please select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setPageNumbersInput({ name: file.name });
+    setPageNumbersInputSummary({
+      loading: false,
+      error: "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    });
+    setPageNumbersError("Desktop file path selection is required to add page numbers.");
+    input.value = "";
+  };
+
+  const selectPageNumbersOutputPdf = async () => {
+    if (!nativeDialogAvailable || isRunningRef.current) return;
+    setPageNumbersFeedback(null);
+    setPageNumbersError(null);
+    setPageNumbersResult(null);
+
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await save({
+        defaultPath: "numbered-document.pdf",
+        title: "Select page-numbers output PDF",
+        filters: [{ name: "PDF document", extensions: ["pdf"] }],
+      });
+      if (!selectedPath) return;
+      if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+        setPageNumbersError("The output file must use the .pdf extension.");
+        return;
+      }
+
+      setPageNumbersOutputPath(selectedPath);
+      setPageNumbersFeedback(`Output selected: ${fileNameFromPath(selectedPath)}`);
+    } catch {
+      setPageNumbersError("The page-numbers output PDF could not be selected.");
+    }
+  };
+
+  const addPageNumbers = async () => {
+    if (isRunningRef.current) return;
+    if (
+      !pageNumbersInput?.path ||
+      !pageNumbersInputSummary.result ||
+      !pageNumbersOutputPath ||
+      parsedPageNumbersPages.error ||
+      pageNumbersStartError ||
+      pageNumbersMarginXError ||
+      pageNumbersMarginYError ||
+      pageNumbersFontSizeError ||
+      pageNumbersStartNumber === null ||
+      pageNumbersMarginX === null ||
+      pageNumbersMarginY === null ||
+      pageNumbersFontSize === null
+    ) {
+      setPageNumbersError(
+        parsedPageNumbersPages.error ??
+          pageNumbersStartError ??
+          pageNumbersMarginXError ??
+          pageNumbersMarginYError ??
+          pageNumbersFontSizeError ??
+          "Select a desktop PDF and output PDF, then review the page-number plan.",
+      );
+      return;
+    }
+
+    setPageNumbersResult(null);
+    setPageNumbersFeedback(null);
+    setPageNumbersError(null);
+
+    await executeAdditionalPdfTool<PdfPageNumbersResult>(
+      PDF_PAGE_NUMBERS_TOOL_ID,
+      {
+        input_path: pageNumbersInput.path,
+        output_path: pageNumbersOutputPath,
+        pages: parsedPageNumbersPages.pages,
+        start_number: pageNumbersStartNumber,
+        format: pageNumbersFormat,
+        position: pageNumbersPosition,
+        margin_x: pageNumbersMarginX,
+        margin_y: pageNumbersMarginY,
+        font_size: pageNumbersFontSize,
+      },
+      setIsAddingPageNumbers,
+      (result) => {
+        setPageNumbersResult(result);
+        setPageNumbersFeedback("Page numbers completed successfully.");
+        setPageNumbersError(null);
+      },
+      (reason) => {
+        setPageNumbersResult(null);
+        setPageNumbersFeedback(null);
+        setPageNumbersError(pageNumbersFailureMessage(reason));
+      },
+    );
+  };
+
   const hasDesktopInputPaths =
     selectedPdfs.length > 0 && selectedPdfs.every((pdf) => typeof pdf.path === "string");
   const isAnyOperationRunning =
@@ -2067,13 +2444,15 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     deleteInputSummary.loading ||
     reorderInputSummary.loading ||
     watermarkInputSummary.loading ||
+    pageNumbersInputSummary.loading ||
     isMerging ||
     isSplitting ||
     isExtracting ||
     isRotating ||
     isDeleting ||
     isReordering ||
-    isWatermarking;
+    isWatermarking ||
+    isAddingPageNumbers;
   const mergeTotalPages = mergeInputSummaries.reduce(
     (total, summary) => total + (summary.result?.page_count ?? 0),
     0,
@@ -2132,6 +2511,17 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     watermarkOpacityError === null &&
     watermarkRotationError === null &&
     watermarkFontSizeError === null &&
+    !isAnyOperationRunning;
+  const canAddPageNumbers =
+    nativeDialogAvailable &&
+    typeof pageNumbersInput?.path === "string" &&
+    pageNumbersInputSummary.result !== null &&
+    pageNumbersOutputPath !== null &&
+    parsedPageNumbersPages.error === null &&
+    pageNumbersStartError === null &&
+    pageNumbersMarginXError === null &&
+    pageNumbersMarginYError === null &&
+    pageNumbersFontSizeError === null &&
     !isAnyOperationRunning;
   const mergeDisabledReason = !nativeDialogAvailable
     ? "PDF processing is available in the desktop app."
@@ -2224,6 +2614,27 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                     : !watermarkOutputPath
                       ? "Select an output PDF."
                       : null;
+  const pageNumbersDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : !pageNumbersInput?.path
+      ? "Select one input PDF."
+      : pageNumbersInputSummary.loading
+        ? "Wait for the input PDF summary to finish."
+        : !pageNumbersInputSummary.result
+          ? "A valid input PDF summary is required."
+          : parsedPageNumbersPages.error
+            ? parsedPageNumbersPages.error
+            : pageNumbersStartError
+              ? pageNumbersStartError
+              : pageNumbersMarginXError
+                ? pageNumbersMarginXError
+                : pageNumbersMarginYError
+                  ? pageNumbersMarginYError
+                  : pageNumbersFontSizeError
+                    ? pageNumbersFontSizeError
+                    : !pageNumbersOutputPath
+                      ? "Select an output PDF."
+                      : null;
   const inspectMetadata = inspectResult
     ? [
         { label: "Title", value: inspectResult.title },
@@ -2257,7 +2668,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               ? deleteInput?.name ?? "No file selected"
               : selectedOperation === "reorder"
                 ? reorderInput?.name ?? "No file selected"
-                : watermarkInput?.name ?? "No file selected";
+                : selectedOperation === "textWatermark"
+                  ? watermarkInput?.name ?? "No file selected"
+                  : pageNumbersInput?.name ?? "No file selected";
   const operationStatuses: ReadonlyArray<{
     id: PdfWorkbenchOperation;
     label: string;
@@ -2272,6 +2685,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     { id: "delete", label: "Delete", status: isDeleting ? "Running" : deleteError ? "Needs attention" : deleteResult ? "Completed" : "Ready", className: isDeleting ? "is-running" : deleteError ? "is-error" : deleteResult ? "is-success" : "" },
     { id: "reorder", label: "Reorder", status: isReordering ? "Running" : reorderError ? "Needs attention" : reorderResult ? "Completed" : "Ready", className: isReordering ? "is-running" : reorderError ? "is-error" : reorderResult ? "is-success" : "" },
     { id: "textWatermark", label: "Text watermark", status: isWatermarking ? "Running" : watermarkError ? "Needs attention" : watermarkResult ? "Completed" : "Ready", className: isWatermarking ? "is-running" : watermarkError ? "is-error" : watermarkResult ? "is-success" : "" },
+    { id: "pageNumbers", label: "Page numbers", status: isAddingPageNumbers ? "Running" : pageNumbersError ? "Needs attention" : pageNumbersResult ? "Completed" : "Ready", className: isAddingPageNumbers ? "is-running" : pageNumbersError ? "is-error" : pageNumbersResult ? "is-success" : "" },
   ];
   const activeOperationStatus = operationStatuses.find(
     (operation) => operation.id === selectedOperation,
@@ -2288,11 +2702,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h1>PDF Workbench</h1>
           <p>Local page operations with clear file, operation, result, and safety areas</p>
         </div>
-        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete · Reorder · Text watermark</span>
+        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete · Reorder · Text watermark · Page numbers</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>PDF Workbench supports local page operations and additive text watermarking.</strong>
+        <strong>PDF Workbench supports local page operations, additive text watermarks, and page numbers.</strong>
         <span>Preview, thumbnails, OCR, redaction, and direct text editing are not implemented.</span>
       </div>
 
@@ -2412,6 +2826,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                 <div><dt>Delete</dt><dd>{deleteInput?.name ?? "None"}</dd></div>
                 <div><dt>Reorder</dt><dd>{reorderInput?.name ?? "None"}</dd></div>
                 <div><dt>Watermark</dt><dd>{watermarkInput?.name ?? "None"}</dd></div>
+                <div><dt>Page numbers</dt><dd>{pageNumbersInput?.name ?? "None"}</dd></div>
               </dl>
             </details>
             <div className="pdf-tools-local-notes">
@@ -3377,6 +3792,225 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           )}
         </section>
         )}
+
+        {selectedOperation === "pageNumbers" && (
+        <section id="pdf-operation-pageNumbers" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card pdf-tools-page-numbers-card" aria-labelledby="pdf-page-numbers-title">
+          <div className="pdf-tools-section-heading">
+            <span>Additive text · All or selected pages</span>
+            <h2 id="pdf-page-numbers-title">Page numbers</h2>
+            <p>Add page numbers to all or selected pages and save a new PDF.</p>
+          </div>
+          <p className="pdf-tools-helper">Leave Pages empty to target all pages. Page numbers start at 1 unless you choose another positive whole number.</p>
+          <p className="pdf-tools-warning"><strong>Additive only · Not redaction:</strong> This adds new page-number text. It does not edit existing PDF text, remove existing page numbers, or hide content.</p>
+
+          <div className="pdf-tools-button-row">
+            <button type="button" className="btn btn-outline" onClick={selectPageNumbersInput} disabled={isAnyOperationRunning}>
+              Select input PDF
+            </button>
+            <button
+              type="button"
+              className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
+              onClick={selectPageNumbersOutputPdf}
+              disabled={!nativeDialogAvailable || isAnyOperationRunning}
+            >
+              {nativeDialogAvailable ? "Select output PDF" : "Output PDF (Desktop only)"}
+            </button>
+          </div>
+          <input
+            ref={pageNumbersFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) =>
+              selectBrowserPageNumbersInput(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+
+          <dl className="pdf-tools-selection-details">
+            <div><dt>Input PDF</dt><dd>{pageNumbersInput?.name ?? "Not selected"}</dd></div>
+            <div>
+              <dt>Output PDF</dt>
+              <dd className="pdf-tools-path">
+                {pageNumbersOutputPath ? fileNameFromPath(pageNumbersOutputPath) : "Not selected"}
+              </dd>
+            </div>
+          </dl>
+
+          <OperationInputSummary
+            fileName={pageNumbersInput?.name}
+            summary={pageNumbersInputSummary}
+            guidance="Page count checks selected targets. Protected PDFs may be rejected."
+          />
+
+          <label className="pdf-tools-field">
+            <span>Pages (optional)</span>
+            <input
+              type="text"
+              inputMode="text"
+              value={pageNumbersPagesInput}
+              onChange={(event) => {
+                setPageNumbersPagesInput(event.currentTarget.value);
+                setPageNumbersResult(null);
+                setPageNumbersFeedback(null);
+                setPageNumbersError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="All pages, or 1,3,5-7"
+              aria-invalid={Boolean(parsedPageNumbersPages.error)}
+              aria-describedby={parsedPageNumbersPages.error ? "pdf-page-numbers-pages-error" : "pdf-page-numbers-pages-help"}
+            />
+          </label>
+          <p id="pdf-page-numbers-pages-help" className="pdf-tools-field-help">1-based pages · Examples: 1, 1,3,5, 1-3, or 1,3,5-7</p>
+          {parsedPageNumbersPages.error && <p id="pdf-page-numbers-pages-error" className="pdf-tools-field-error">{parsedPageNumbersPages.error}</p>}
+
+          <div className="pdf-tools-parameter-fields">
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Start number</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={pageNumbersStartInput}
+                  onChange={(event) => {
+                    setPageNumbersStartInput(event.currentTarget.value);
+                    setPageNumbersResult(null);
+                    setPageNumbersFeedback(null);
+                    setPageNumbersError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(pageNumbersStartError)}
+                  aria-describedby={pageNumbersStartError ? "pdf-page-numbers-start-error" : undefined}
+                />
+              </label>
+              {pageNumbersStartError && <p id="pdf-page-numbers-start-error" className="pdf-tools-field-error">{pageNumbersStartError}</p>}
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Format</span>
+                <select
+                  value={pageNumbersFormat}
+                  onChange={(event) => {
+                    setPageNumbersFormat(event.currentTarget.value as PageNumberFormat);
+                    setPageNumbersResult(null);
+                    setPageNumbersFeedback(null);
+                    setPageNumbersError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                >
+                  {pageNumberFormatOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Position</span>
+                <select
+                  value={pageNumbersPosition}
+                  onChange={(event) => {
+                    setPageNumbersPosition(event.currentTarget.value as PageNumberPosition);
+                    setPageNumbersResult(null);
+                    setPageNumbersFeedback(null);
+                    setPageNumbersError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                >
+                  {pageNumberPositionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Margin X (pt)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={pageNumbersMarginXInput}
+                  onChange={(event) => {
+                    setPageNumbersMarginXInput(event.currentTarget.value);
+                    setPageNumbersResult(null);
+                    setPageNumbersFeedback(null);
+                    setPageNumbersError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(pageNumbersMarginXError)}
+                  aria-describedby={pageNumbersMarginXError ? "pdf-page-numbers-margin-x-error" : undefined}
+                />
+              </label>
+              {pageNumbersMarginXError && <p id="pdf-page-numbers-margin-x-error" className="pdf-tools-field-error">{pageNumbersMarginXError}</p>}
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Margin Y (pt)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={pageNumbersMarginYInput}
+                  onChange={(event) => {
+                    setPageNumbersMarginYInput(event.currentTarget.value);
+                    setPageNumbersResult(null);
+                    setPageNumbersFeedback(null);
+                    setPageNumbersError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(pageNumbersMarginYError)}
+                  aria-describedby={pageNumbersMarginYError ? "pdf-page-numbers-margin-y-error" : undefined}
+                />
+              </label>
+              {pageNumbersMarginYError && <p id="pdf-page-numbers-margin-y-error" className="pdf-tools-field-error">{pageNumbersMarginYError}</p>}
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Font size (pt)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={pageNumbersFontSizeInput}
+                  onChange={(event) => {
+                    setPageNumbersFontSizeInput(event.currentTarget.value);
+                    setPageNumbersResult(null);
+                    setPageNumbersFeedback(null);
+                    setPageNumbersError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(pageNumbersFontSizeError)}
+                  aria-describedby={pageNumbersFontSizeError ? "pdf-page-numbers-font-size-error" : undefined}
+                />
+              </label>
+              {pageNumbersFontSizeError && <p id="pdf-page-numbers-font-size-error" className="pdf-tools-field-error">{pageNumbersFontSizeError}</p>}
+            </div>
+          </div>
+
+          <PageNumbersOperationPlan
+            summary={pageNumbersInputSummary}
+            pagesInput={pageNumbersPagesInput}
+            startNumberInput={pageNumbersStartInput}
+            format={pageNumbersFormat}
+            position={pageNumbersPosition}
+            marginXInput={pageNumbersMarginXInput}
+            marginYInput={pageNumbersMarginYInput}
+            fontSizeInput={pageNumbersFontSizeInput}
+            outputPath={pageNumbersOutputPath}
+          />
+
+          <button type="button" className="btn btn-primary" onClick={addPageNumbers} disabled={!canAddPageNumbers}>
+            {isAddingPageNumbers ? "Adding page numbers..." : "Add page numbers"}
+          </button>
+          {!canAddPageNumbers && !isAddingPageNumbers && (
+            <p className="pdf-tools-operation-requirements">To enable Page numbers: {pageNumbersDisabledReason}</p>
+          )}
+
+          {isAddingPageNumbers && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Adding page numbers to a new PDF...</div>}
+          {pageNumbersError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{pageNumbersError}</div>}
+          {!pageNumbersError && !isAddingPageNumbers && pageNumbersFeedback && (
+            <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
+              <strong>{pageNumbersFeedback}</strong>
+              {pageNumbersResult && (
+                <span>{pageNumbersResult.pages.length} target page{pageNumbersResult.pages.length === 1 ? "" : "s"} · Start {pageNumbersResult.start_number} · {pageNumbersResult.page_count} total pages · Output: {fileNameFromPath(pageNumbersResult.output_path)}</span>
+              )}
+            </div>
+          )}
+        </section>
+        )}
           </div>
         </main>
 
@@ -3409,7 +4043,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <h2 id="available-pdf-tools-title">Local PDF operations</h2>
             </div>
             <div className="pdf-tools-capability-list pdf-tools-capability-available">
-              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark'].map((tool) => <span key={tool}>{tool}</span>)}
+              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark', 'Page numbers'].map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
           </details>
@@ -3453,6 +4087,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <li>Original files are not overwritten by default.</li>
               <li>Protected PDFs are rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.</li>
               <li>Delete pages removes whole pages only; it is not redaction. Visual masks do not remove underlying content.</li>
+              <li>Page numbers is additive; it does not edit PDF text, remove existing numbering, or provide redaction.</li>
               <li>OCR and direct text editing are not implemented.</li>
             </ul>
           </section>

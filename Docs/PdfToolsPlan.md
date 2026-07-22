@@ -115,3 +115,7 @@ Page numbers remains in the planning stage. `Docs/PdfPageNumbersPlan.md` defines
 ## v0.7.0 Page numbers core / bridge
 
 The additive `pdf_page_numbers` core and shared execution bridge can write validated page numbers to all or selected pages in a new PDF. Existing PDF text and page numbers are not edited or removed; UI, preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.7.0 Page numbers UI connection
+
+PDF Workbench now connects to `pdf_page_numbers` with input summary, all-page or selected-page targeting, bounded numbering settings, operation plan, and local new-PDF output. Page numbers remains additive; real preview, thumbnails, existing page-number removal, OCR, redaction, and direct PDF text editing remain unimplemented.
