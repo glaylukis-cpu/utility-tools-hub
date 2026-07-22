@@ -107,3 +107,7 @@ PDF Workbench now connects to `pdf_text_watermark` with input summary, all-page 
 ## v0.6.1 Compact Workbench layout
 
 PDF Workbench now uses an operation selector and shows only the active operation card. File selections and field state remain in memory while switching operations; PDF processing, preview, thumbnails, OCR, redaction, and direct text editing are unchanged.
+
+## v0.7.0 Page numbers foundation planning
+
+Page numbers remains in the planning stage. `Docs/PdfPageNumbersPlan.md` defines additive numbering, formats, selected-page and start-number semantics, six positioning anchors, margins, font size, staged Rust / `lopdf` risks, and the boundary from direct text editing and redaction; no PDF processing, Rust, bridge, UI, rendering, or dependency change is added in this step.

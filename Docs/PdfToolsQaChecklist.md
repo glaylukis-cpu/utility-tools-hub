@@ -237,3 +237,12 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm the operation selector stays inside the center column.
 - [ ] Confirm 1280px width has no horizontal overflow.
 - [ ] Confirm all existing PDF operations still execute through the existing flow.
+
+## v0.7.0 Step 1 Page numbers planning
+
+- [ ] Confirm `Docs/PdfPageNumbersPlan.md` exists.
+- [ ] Confirm Page numbers is described as additive content, not direct PDF text editing.
+- [ ] Confirm Page numbers is not described as redaction.
+- [ ] Confirm existing page numbers are not claimed to be removed or replaced.
+- [ ] Confirm OCR, redaction, and direct PDF text editing remain unimplemented.
+- [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark still work.

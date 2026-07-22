@@ -320,3 +320,7 @@ PDF Workbenchはoperation selectorから一度に1つの操作だけを表示し
 **v0.6.2 - Compact layout overflow hotfix**
 
 PDF選択後もfile summary、operation card、左右パネルがWorkbench gridを押し広げないようにし、一度に1つの操作を表示するcompact layoutを維持します。
+
+**v0.7.0 Step 1 - PDF page numbers foundation planning**
+
+Page number formats、positioning、selected pages、start numberと安全境界を設計文書で整理します。Page numbers実装、PDF rendering、OCR、redaction、PDF本文編集はまだ追加しません。
