@@ -3,22 +3,22 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.8.0](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.8.0)
+- **Latest release:** [v0.9.0](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.9.0)
 
 ## Current Status
 
-- Latest release: v0.8.0
+- Latest release: v0.9.0
 - Windows desktop app
 - Excel to HTML Converter is available
 - The Tools catalog is organized into Converters, Editors, and Planned / Pro tools
 - Converter Tools stacks File, Data, and Text converter sections, with each active editor shown inside its category
 - Text Case Converter navigation and Excel → HTML Converter navigation are maintained
-- v0.8.0 adds the JPEG-only Image watermark foundation: additive JPEG/JPG watermarks can target all or selected pages with center placement, fixed width, preserved aspect ratio, opacity, rotation, input summary, validation, operation plan, and new-PDF feedback
+- v0.9.0 adds the PDF Text stamp foundation: short ASCII / Latin-1 stamps such as `APPROVED`, `REVIEWED`, `PAID`, `VOID`, or `COPY` can target all or selected pages with preset positions, margins, font size, opacity, rotation, color, input summary, validation, operation plan, and new-PDF feedback
 - Additive printable ASCII / Latin watermarks such as `DRAFT` or `CONFIDENTIAL` can target all or selected pages and are saved to a new PDF
 - PDF inspect shows file summaries, single-PDF operation inputs are inspected automatically, and Merge PDFs shows selected-file order, size, page count, PDF version, total pages, and protected-PDF warnings
 - Merge, Split, Extract, Rotate, Delete, and Reorder remain available; watermarking does not edit existing PDF text and is not redaction
 - PDF page operations use the local Rust core without a Python sidecar or external communication
-- PNG alpha, WebP, SVG, CMYK/YCCK JPEG, progressive JPEG, image/text stamp UI, real PDF preview, thumbnails, overlay writing, direct PDF text editing, OCR, and redaction are not implemented
+- PNG alpha, WebP, SVG, CMYK/YCCK JPEG, progressive JPEG, image stamp UI, border/background stamps, Japanese font embedding, multi-line stamps, real PDF preview, thumbnails, overlay writing, direct PDF text editing, OCR, and redaction are not implemented
 - Delete pages removes whole pages and is not redaction
 - Billing shows a pricing model draft, and Account shows a planned license activation flow
 - Real authentication, payment, Stripe Checkout, Customer Portal, license activation, Pro unlock, and external communication are not implemented yet
@@ -76,6 +76,13 @@ Download the latest Windows installer from [GitHub Releases](https://github.com/
 6. Use sheet tabs inside the preview when available
 
 ## Release Notes
+
+### v0.9.0
+
+- Added the local `pdf_text_stamp` core / bridge and connected Text stamp to the compact PDF Workbench UI
+- Added short printable ASCII / Latin-1 stamps for all or selected pages with preset positions, margins, font size, opacity, rotation, black/red/gray colors, input summary, validation, operation plan, and result feedback
+- Text stamp remains additive: it does not edit existing PDF text, remove existing images, text, page numbers, or watermarks, and `APPROVED` / `REVIEWED` style stamps are not digital signatures or audit trails
+- Kept existing PDF operations and compact layout fixes; no border/background, Japanese font embedding, multi-line layout, image stamp UI, overlay writing, rendering, preview, thumbnails, OCR, redaction, direct editing, npm dependency, or Cargo dependency was added
 
 ### v0.8.0
 
