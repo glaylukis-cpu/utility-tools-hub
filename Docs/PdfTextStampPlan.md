@@ -8,11 +8,11 @@ A Text stamp is a narrow additive operation that places short text such as `APPR
 
 ## 2. Current PDF Workbench status
 
-PDF Workbench currently provides local Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, Text watermark, Page numbers, and JPEG-only Image watermark operations. Text watermark was introduced in v0.6.0, Page numbers in v0.7.0, and JPEG-only Image watermark in v0.8.0.
+PDF Workbench currently provides local Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, Text watermark, Page numbers, JPEG-only Image watermark, and Text stamp operations. Text stamp now connects the Step 2 `pdf_text_stamp` core / bridge to the compact Workbench UI.
 
 The current additive text implementations provide useful references for page selection, protected-PDF rejection, new-PDF output, resource handling, opacity, rotation, operation-plan wording, validation, and result feedback. They do not solve stamp-specific anchoring, text rectangles, borders, backgrounds, padding, or compact high-opacity styling.
 
-Real PDF page rendering, preview, thumbnails, drag-and-drop reorder, OCR, safe redaction, direct PDF text editing, Image stamp UI, Text stamp UI, and general Overlay writing remain unimplemented. PDF processing stays local and uses no Python sidecar.
+Real PDF page rendering, preview, thumbnails, drag-and-drop reorder, OCR, safe redaction, direct PDF text editing, Image stamp UI, Text stamp border/background styling, and general Overlay writing remain unimplemented. PDF processing stays local and uses no Python sidecar.
 
 ## 3. Feature goals
 
@@ -257,10 +257,14 @@ Each stage should remain independently reviewable and should not combine Text st
 
 ## 14. Next implementation step
 
-The next separately approved task should be v0.9.0 Step 2: a narrow Text stamp core / bridge design review followed by implementation only if the request contract, font scope, page-box policy, rotation-center math, bounds validation, resource reuse, and protected-PDF behavior are accepted.
+The next separately approved task should be v0.9.0 Step 4: Text stamp QA and real-PDF checks across representative page geometry, page selections, styling values, protected input, and compact layouts.
 
-That step should begin with tests for short ASCII/Latin text, a small preset set, black or red text, all or selected pages, mixed page sizes, rotated and cropped pages, source preservation, and protected-input rejection. It should not include React UI, border/background, preview, Image stamp, Overlay writing, OCR, redaction, direct PDF text editing, dependency additions, version changes, or release work unless separately requested.
+That step should confirm short ASCII/Latin-1 text, all supported presets and colors, all or selected pages, mixed page sizes, rotated and cropped pages, source preservation, protected-input rejection, and desktop layout behavior. It should not include border/background, preview, Image stamp, Overlay writing, OCR, redaction, direct PDF text editing, dependency additions, version changes, or release work unless separately requested.
 
 ## 15. v0.9.0 Step 2 - Text stamp core / bridge
 
 Step 2 adds the additive `pdf_text_stamp` Rust core and shared execution bridge for short printable ASCII / Latin-1 text, preset positions, margins, font size, opacity, rotation, and limited color presets. UI, border/background, preview, OCR, redaction, Japanese font embedding, and direct PDF text editing are not added yet.
+
+## 16. v0.9.0 Step 3 - Text stamp UI connection
+
+Step 3 connects `pdf_text_stamp` to the compact PDF Workbench with input and output PDF selection, input summary, short-text and page validation, position, margins, font size, opacity, rotation, black/red/gray color, a lightweight operation plan, and loading/success/error feedback. Empty Pages sends an empty list so the core targets all pages. Text stamp remains additive and is not redaction or direct PDF text editing; border/background styling, real preview, thumbnails, Image stamp, Overlay writing, OCR, and removal of existing text, images, page numbers, or watermarks remain unimplemented.

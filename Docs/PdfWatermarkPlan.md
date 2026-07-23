@@ -166,3 +166,7 @@ PDF Workbench now connects to the JPEG-only Image watermark core with bounded se
 ### v0.9.0 Step 2 - Text stamp core / bridge
 
 The additive `pdf_text_stamp` core and shared bridge support validated short ASCII / Latin-1 text with preset placement and limited styling. Text stamp UI, border/background, preview, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+### v0.9.0 Step 3 - Text stamp UI connection
+
+PDF Workbench now connects to `pdf_text_stamp` with input summary, all-page or selected-page targeting, bounded stamp settings, limited color presets, operation plan, and local new-PDF feedback. Text stamp is additive; border/background, preview, thumbnails, OCR, redaction, direct text editing, and existing-content removal remain unimplemented.

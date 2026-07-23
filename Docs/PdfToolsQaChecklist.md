@@ -388,3 +388,16 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
 - [ ] Confirm Text stamp remains additive and is not redaction or direct PDF text editing.
 - [ ] Confirm Text stamp UI remains unimplemented.
+
+## v0.9.0 Step 3 Text stamp UI connection
+
+- [ ] Confirm Text stamp appears in the 11-item operation selector without compact-layout overflow.
+- [ ] Confirm input PDF summary and separate new output PDF selection are available.
+- [ ] Confirm the defaults are `APPROVED`, all pages, top right, 36 / 36 pt margins, 24 pt font, 0.85 opacity, 0° rotation, and red.
+- [ ] Confirm single-line printable ASCII / Latin-1 text up to 64 characters is accepted and Japanese, newlines, and overlong text are rejected.
+- [ ] Confirm blank Pages targets all pages and `1`, `1,3`, `1-3`, and mixed lists/ranges validate duplicates and PDF bounds.
+- [ ] Confirm margins, font size, opacity, rotation, limited colors, and output `.pdf` validation are visible before execution.
+- [ ] Confirm `pdf_text_stamp` receives the UI fields through the shared execution flow and shows loading, success, and safe error feedback.
+- [ ] Confirm the operation plan shows input, text, pages, position, margins, font size, opacity, rotation, color, and output.
+- [ ] Confirm Text stamp is additive, is not redaction or direct PDF text editing, and does not remove existing text, images, page numbers, or watermarks.
+- [ ] Confirm border/background, real preview, thumbnails, Image stamp, Overlay writing, OCR, redaction, and direct text editing remain unimplemented.
