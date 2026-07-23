@@ -131,3 +131,7 @@ Image watermark remains planned rather than implemented. Format research recomme
 ## v0.8.0 JPEG-only Image watermark core / bridge
 
 The additive `pdf_image_watermark` core and shared execution bridge can write validated baseline grayscale/RGB JPEG watermarks to all or selected pages using one shared Image XObject. UI, PNG, WebP, SVG, stamps, rendering, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.8.0 JPEG Image watermark UI connection
+
+PDF Workbench now connects to `pdf_image_watermark` with PDF/JPEG selection, bounded settings, center-placement operation plan, and local new-PDF feedback. PNG, WebP, SVG, stamps, rendering, OCR, redaction, and direct PDF text editing remain unimplemented.

@@ -444,3 +444,7 @@ PNG support should follow in a separately approved step after choosing a maintai
 ## 14. v0.8.0 Step 3 - JPEG-only Image watermark core / bridge
 
 Step 3 adds the additive `pdf_image_watermark` Rust core and shared execution bridge for validated baseline grayscale/RGB JPEG watermarks, using one shared `DCTDecode` Image XObject across all or selected pages. UI, PNG alpha, WebP, SVG, Image stamp UI, preview, OCR, redaction, and direct PDF text editing are not added yet.
+
+## 15. v0.8.0 Step 4 - JPEG Image watermark UI connection
+
+Step 4 connects JPEG-only Image watermark to the compact PDF Workbench UI with input PDF, JPEG image, target pages, width, opacity, rotation, center placement, output, validation, operation plan, and result feedback. PNG alpha, WebP, SVG, preview, OCR, redaction, direct PDF text editing, Image stamp UI, and Text stamp UI remain unimplemented.

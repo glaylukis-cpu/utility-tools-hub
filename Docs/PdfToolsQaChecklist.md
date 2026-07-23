@@ -314,3 +314,12 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
 - [ ] Confirm Image watermark is additive and is not redaction or direct PDF text editing.
 - [ ] Confirm Image watermark UI remains unimplemented.
+
+## v0.8.0 Step 4 JPEG Image watermark UI connection
+
+- [ ] Confirm Image watermark UI calls `pdf_image_watermark` through the shared execution flow.
+- [ ] Confirm the JPEG-only warning and unsupported PNG/WebP/SVG guidance are visible.
+- [ ] Confirm pages, width, opacity, and rotation validation is visible before execution.
+- [ ] Confirm output PDF loading, success, and safe error feedback is visible.
+- [ ] Confirm Image watermark remains additive and is not redaction or direct PDF text editing.
+- [ ] Confirm PNG/WebP/SVG, preview, OCR, redaction, and direct editing remain unimplemented.

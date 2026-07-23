@@ -154,3 +154,7 @@ Image watermark and stamp remain in format-research and core-feasibility plannin
 ### v0.8.0 Step 3 - JPEG-only Image watermark core / bridge
 
 The additive JPEG-only Image watermark core / bridge supports validated baseline grayscale/RGB JPEG input and shared Image XObject output. UI, PNG and other image formats, stamps, preview, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+### v0.8.0 Step 4 - JPEG Image watermark UI connection
+
+PDF Workbench now connects to the JPEG-only Image watermark core with bounded settings, an additive operation plan, and new-PDF result feedback. PNG alpha and other image formats, stamps, preview, OCR, redaction, and direct PDF text editing remain unimplemented.

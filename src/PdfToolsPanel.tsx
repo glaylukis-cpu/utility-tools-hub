@@ -11,6 +11,11 @@ type SelectedPdf = {
   path?: string;
 };
 
+type SelectedImage = {
+  name: string;
+  path?: string;
+};
+
 type ToolJobStatus = "queued" | "running" | "succeeded" | "failed";
 
 type ToolJob<T> = {
@@ -70,6 +75,19 @@ type PdfTextWatermarkResult = {
   text: string;
   pages: number[];
   page_count: number;
+};
+
+type PdfImageWatermarkResult = {
+  input_path: string;
+  output_path: string;
+  image_path: string;
+  pages: number[];
+  page_count: number;
+  position: string;
+  width: number;
+  height: number;
+  opacity: number;
+  rotation_degrees: number;
 };
 
 type PdfPageNumbersResult = {
@@ -135,7 +153,8 @@ type PdfWorkbenchOperation =
   | "delete"
   | "reorder"
   | "textWatermark"
-  | "pageNumbers";
+  | "pageNumbers"
+  | "imageWatermark";
 
 type PageNumberFormat =
   | "number"
@@ -165,10 +184,12 @@ const pdfWorkbenchOperations: ReadonlyArray<{
   { id: "reorder", label: "Reorder" },
   { id: "textWatermark", label: "Text watermark" },
   { id: "pageNumbers", label: "Page numbers" },
+  { id: "imageWatermark", label: "Image watermark" },
 ];
 
 const plannedPageTools = [
-  "Image watermark",
+  "PNG alpha image watermark",
+  "Image stamp",
   "Text stamp",
   "Drag-and-drop reorder",
   "Real PDF page preview",
@@ -180,6 +201,7 @@ const researchTools = [
   "Safe redaction",
   "OCR-assisted workflow",
   "Direct PDF text editing",
+  "Existing image / page-number removal research",
 ] as const;
 
 const PDF_MERGE_TOOL_ID = "pdf_merge";
@@ -190,6 +212,7 @@ const PDF_DELETE_TOOL_ID = "pdf_delete";
 const PDF_REORDER_TOOL_ID = "pdf_reorder";
 const PDF_TEXT_WATERMARK_TOOL_ID = "pdf_text_watermark";
 const PDF_PAGE_NUMBERS_TOOL_ID = "pdf_page_numbers";
+const PDF_IMAGE_WATERMARK_TOOL_ID = "pdf_image_watermark";
 const PDF_INSPECT_TOOL_ID = "pdf_inspect";
 const POLL_INTERVAL_MS = 500;
 const MAX_EXPANDED_PAGES = 10_000;
@@ -390,6 +413,48 @@ function watermarkFailureMessage(reason?: string | null): string {
     (reason ? knownMessages[reason.trim()] : undefined) ??
     "Text watermark failed. Check the input PDF, watermark settings, and writable output location, then try again."
   );
+}
+
+function imageWatermarkFailureMessage(reason?: string | null): string {
+  const knownMessages: Record<string, string> = {
+    "every input file must use the .pdf extension": "The input file must use the .pdf extension.",
+    "the output file must use the .pdf extension": "The output file must use the .pdf extension.",
+    "an input PDF file does not exist": "The selected PDF could not be found. Select it again.",
+    "the output directory does not exist": "The selected output folder no longer exists. Choose the output PDF again.",
+    "the output file must differ from every input file": "The output PDF must be different from the input PDF.",
+    "the watermark image must use the .jpg or .jpeg extension": "Select a JPEG image with the .jpg or .jpeg extension. PNG, WebP, and SVG are not supported.",
+    "the watermark image file does not exist": "The selected JPEG image could not be found. Select it again.",
+    "the watermark JPEG file is too large": "The JPEG image exceeds the supported file-size limit.",
+    "the watermark image is not a valid baseline JPEG file": "The image is not a valid supported baseline JPEG.",
+    "the watermark JPEG must use 8-bit baseline sequential encoding": "Progressive or non-baseline JPEG encoding is not supported.",
+    "the watermark JPEG must use grayscale or three-component color": "Only grayscale or RGB JPEG images are supported. CMYK/YCCK JPEG is not supported.",
+    "the watermark JPEG dimensions are zero or exceed the supported limit": "The JPEG dimensions are zero or exceed the supported limit.",
+    "image watermark width must be a finite value from 8 to 1440 points": "Width must be between 8 and 1440 points.",
+    "image watermark opacity must be greater than 0 and no greater than 1": "Opacity must be greater than 0 and no greater than 1.",
+    "image watermark rotation must be a finite value from -360 to 360 degrees": "Rotation must be between -360 and 360 degrees.",
+    "the image watermark does not fit inside a selected PDF page": "The rotated image does not fit inside one or more selected PDF pages. Reduce its width or rotation.",
+    "page numbers must be one or greater": "Page numbers must be whole numbers greater than zero.",
+    "a selected page is outside the input PDF page range": "The page selection contains a page outside the input PDF range.",
+    "duplicate page numbers are not supported": "Enter each target page only once.",
+    "encrypted or permission-protected PDF files are not supported yet":
+      "Protected PDFs are not supported. Utility Tools Hub does not decrypt PDFs or bypass permissions.",
+    "an input file is not a supported PDF document": "The input file is not a supported PDF document.",
+    "the output PDF could not be saved": "The output PDF could not be saved. Choose a writable location and try again.",
+  };
+
+  return (
+    (reason ? knownMessages[reason.trim()] : undefined) ??
+    "Image watermark failed. Check the input PDF, baseline JPEG image, settings, and writable output location, then try again."
+  );
+}
+
+function imageWatermarkImageValidationMessage(image: SelectedImage | null): string | null {
+  if (!image) return "Select a JPEG image.";
+  if (!/\.(jpe?g)$/i.test(image.name)) {
+    return "JPEG/JPG only. PNG, WebP, and SVG are not supported.";
+  }
+  if (!image.path) return "Select the JPEG again with the desktop file picker.";
+  return null;
 }
 
 function pageNumbersFailureMessage(reason?: string | null): string {
@@ -954,6 +1019,101 @@ function TextWatermarkOperationPlan({
   );
 }
 
+function ImageWatermarkOperationPlan({
+  summary,
+  image,
+  pagesInput,
+  widthInput,
+  opacityInput,
+  rotationInput,
+  outputPath,
+}: {
+  summary: OperationInputSummaryState;
+  image: SelectedImage | null;
+  pagesInput: string;
+  widthInput: string;
+  opacityInput: string;
+  rotationInput: string;
+  outputPath: string | null;
+}) {
+  const result = summary.result;
+  const pageCount = result?.page_count ?? null;
+  const parsedPages = parseOptionalPageSelection(pagesInput, pageCount);
+  const imageError = imageWatermarkImageValidationMessage(image);
+  const width = parseFiniteNumber(widthInput);
+  const opacity = parseFiniteNumber(opacityInput);
+  const rotation = parseFiniteNumber(rotationInput);
+  const widthError = boundedNumberValidationMessage(widthInput, "Width", 8, 1440);
+  const opacityError = opacity === null || opacity <= 0 || opacity > 1
+    ? "Opacity must be greater than 0 and no greater than 1."
+    : null;
+  const rotationError = rotation === null || rotation < -360 || rotation > 360
+    ? "Rotation must be between -360 and 360 degrees."
+    : null;
+  const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
+  const isValid = Boolean(
+    result &&
+      image &&
+      outputPath &&
+      !imageError &&
+      !parsedPages.error &&
+      !widthError &&
+      !opacityError &&
+      !rotationError &&
+      !isProtected,
+  );
+
+  return (
+    <div className="pdf-tools-operation-plan" aria-label="Image watermark operation plan preview">
+      <div className="pdf-tools-operation-plan-heading">
+        <div>
+          <span>Lightweight plan</span>
+          <strong>JPEG image watermark</strong>
+        </div>
+        <span className={`pdf-tools-operation-plan-status ${isValid ? "is-valid" : "is-check"}`}>
+          {isValid ? "Valid" : "Needs check"}
+        </span>
+      </div>
+      <p className="pdf-tools-operation-plan-note">Planning aid only — not a real PDF or image preview. Placement and thumbnails are not rendered.</p>
+      <dl className="pdf-tools-operation-plan-details">
+        <div><dt>Input PDF</dt><dd>{result?.file_name ?? "Not selected"}</dd></div>
+        <div><dt>Image file</dt><dd>{image?.name ?? "Not selected"}</dd></div>
+        <div><dt>Target pages</dt><dd>{pagesInput.trim() || "All pages"}</dd></div>
+        <div><dt>Position</dt><dd>Center · fixed</dd></div>
+        <div><dt>Width</dt><dd>{widthError || width === null ? "Invalid" : `${width} pt`}</dd></div>
+        <div><dt>Opacity</dt><dd>{opacityError || opacity === null ? "Invalid" : opacity}</dd></div>
+        <div><dt>Rotation</dt><dd>{rotationError || rotation === null ? "Invalid" : `${rotation}°`}</dd></div>
+        <div><dt>Format</dt><dd>Baseline grayscale/RGB JPEG only</dd></div>
+        <div><dt>Output PDF</dt><dd>{outputPath ? `New PDF · ${fileNameFromPath(outputPath)}` : "Not selected"}</dd></div>
+      </dl>
+      <div className="pdf-tools-operation-plan-targets">
+        <span>Selected page targets</span>
+        {parsedPages.error ? (
+          <span className="pdf-tools-operation-plan-empty">Review the page selection warning below.</span>
+        ) : pagesInput.trim() ? (
+          <PlanPageChips pages={parsedPages.pages} />
+        ) : (
+          <span className="pdf-tools-operation-plan-empty">All pages will receive the additive image watermark.</span>
+        )}
+      </div>
+      {imageError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Check image:</strong> {imageError}</p>}
+      {parsedPages.error && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Check page selection:</strong> {parsedPages.error}</p>}
+      {widthError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid width:</strong> {widthError}</p>}
+      {opacityError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid opacity:</strong> {opacityError}</p>}
+      {rotationError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid rotation:</strong> {rotationError}</p>}
+      {!outputPath && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Output required:</strong> Select a new output PDF.</p>}
+      {isProtected && (
+        <p className="pdf-tools-operation-plan-warning is-protected" role="alert">
+          <strong>Protected PDF:</strong> Image watermark is unavailable. Utility Tools Hub does not decrypt PDFs or bypass permissions.
+        </p>
+      )}
+      <p className="pdf-tools-operation-plan-safety">
+        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This adds a JPEG image layer to a new PDF. It does not remove existing images, text, or page numbers.
+      </p>
+    </div>
+  );
+}
+
 function PageNumbersOperationPlan({
   summary,
   pagesInput,
@@ -1072,6 +1232,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const reorderFileInputRef = useRef<HTMLInputElement>(null);
   const watermarkFileInputRef = useRef<HTMLInputElement>(null);
   const pageNumbersFileInputRef = useRef<HTMLInputElement>(null);
+  const imageWatermarkPdfFileInputRef = useRef<HTMLInputElement>(null);
+  const imageWatermarkImageFileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
   const mergeInspectRunIdRef = useRef(0);
@@ -1155,6 +1317,18 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [pageNumbersFeedback, setPageNumbersFeedback] = useState<string | null>(null);
   const [pageNumbersError, setPageNumbersError] = useState<string | null>(null);
 
+  const [imageWatermarkInput, setImageWatermarkInput] = useState<SelectedPdf | null>(null);
+  const [imageWatermarkImage, setImageWatermarkImage] = useState<SelectedImage | null>(null);
+  const [imageWatermarkPagesInput, setImageWatermarkPagesInput] = useState("");
+  const [imageWatermarkWidthInput, setImageWatermarkWidthInput] = useState("180");
+  const [imageWatermarkOpacityInput, setImageWatermarkOpacityInput] = useState("0.25");
+  const [imageWatermarkRotationInput, setImageWatermarkRotationInput] = useState("0");
+  const [imageWatermarkOutputPath, setImageWatermarkOutputPath] = useState<string | null>(null);
+  const [imageWatermarkResult, setImageWatermarkResult] = useState<PdfImageWatermarkResult | null>(null);
+  const [isAddingImageWatermark, setIsAddingImageWatermark] = useState(false);
+  const [imageWatermarkFeedback, setImageWatermarkFeedback] = useState<string | null>(null);
+  const [imageWatermarkError, setImageWatermarkError] = useState<string | null>(null);
+
   const [inspectInput, setInspectInput] = useState<SelectedPdf | null>(null);
   const [inspectResult, setInspectResult] = useState<PdfInspectResult | null>(null);
   const [isInspecting, setIsInspecting] = useState(false);
@@ -1168,6 +1342,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [reorderInputSummary, setReorderInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [watermarkInputSummary, setWatermarkInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [pageNumbersInputSummary, setPageNumbersInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
+  const [imageWatermarkInputSummary, setImageWatermarkInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
 
   const nativeDialogAvailable = isTauri();
   const parsedExtractPages = parsePageSelection(extractPagesInput);
@@ -1206,6 +1381,32 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const pageNumbersMarginXError = pageNumberMarginValidationMessage(pageNumbersMarginXInput, "Margin X");
   const pageNumbersMarginYError = pageNumberMarginValidationMessage(pageNumbersMarginYInput, "Margin Y");
   const pageNumbersFontSizeError = boundedNumberValidationMessage(pageNumbersFontSizeInput, "Font size", 6, 72);
+  const parsedImageWatermarkPages = parseOptionalPageSelection(
+    imageWatermarkPagesInput,
+    imageWatermarkInputSummary.result?.page_count ?? null,
+  );
+  const imageWatermarkImageError = imageWatermarkImageValidationMessage(imageWatermarkImage);
+  const imageWatermarkWidth = parseFiniteNumber(imageWatermarkWidthInput);
+  const imageWatermarkOpacity = parseFiniteNumber(imageWatermarkOpacityInput);
+  const imageWatermarkRotation = parseFiniteNumber(imageWatermarkRotationInput);
+  const imageWatermarkWidthError = boundedNumberValidationMessage(
+    imageWatermarkWidthInput,
+    "Width",
+    8,
+    1440,
+  );
+  const imageWatermarkOpacityError =
+    imageWatermarkOpacity === null || imageWatermarkOpacity <= 0 || imageWatermarkOpacity > 1
+      ? "Opacity must be greater than 0 and no greater than 1."
+      : null;
+  const imageWatermarkRotationError =
+    imageWatermarkRotation === null || imageWatermarkRotation < -360 || imageWatermarkRotation > 360
+      ? "Rotation must be between -360 and 360 degrees."
+      : null;
+  const imageWatermarkInputIsProtected = Boolean(
+    imageWatermarkInputSummary.result &&
+      (imageWatermarkInputSummary.result.is_encrypted || imageWatermarkInputSummary.result.is_protected),
+  );
 
   const stopPolling = () => {
     if (pollTimerRef.current !== null) {
@@ -2453,6 +2654,200 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     );
   };
 
+  const selectImageWatermarkInput = async () => {
+    if (isRunningRef.current) return;
+    setImageWatermarkFeedback(null);
+    setImageWatermarkError(null);
+    setImageWatermarkResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF for image watermark",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+          setImageWatermarkError("Select a file with the .pdf extension.");
+          return;
+        }
+
+        const fileName = fileNameFromPath(selectedPath);
+        setImageWatermarkInput({ name: fileName, path: selectedPath });
+        setImageWatermarkFeedback(`Input selected: ${fileName}`);
+        await inspectOperationInput(selectedPath, setImageWatermarkInputSummary);
+        return;
+      } catch {
+        setImageWatermarkError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    imageWatermarkPdfFileInputRef.current?.click();
+  };
+
+  const selectBrowserImageWatermarkInput = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setImageWatermarkFeedback(null);
+    setImageWatermarkResult(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setImageWatermarkInput(null);
+      setImageWatermarkInputSummary(emptyOperationInputSummary());
+      setImageWatermarkError("Please select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setImageWatermarkInput({ name: file.name });
+    setImageWatermarkInputSummary({
+      loading: false,
+      error: "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    });
+    setImageWatermarkError("Desktop file path selection is required to add an image watermark.");
+    input.value = "";
+  };
+
+  const selectImageWatermarkJpeg = async () => {
+    if (isRunningRef.current) return;
+    setImageWatermarkFeedback(null);
+    setImageWatermarkError(null);
+    setImageWatermarkResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select JPEG image watermark",
+          filters: [{ name: "JPEG image", extensions: ["jpg", "jpeg"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        const fileName = fileNameFromPath(selectedPath);
+        if (!/\.(jpe?g)$/i.test(fileName)) {
+          setImageWatermarkImage(null);
+          setImageWatermarkError("JPEG/JPG only. PNG, WebP, and SVG are not supported.");
+          return;
+        }
+
+        setImageWatermarkImage({ name: fileName, path: selectedPath });
+        setImageWatermarkFeedback(`JPEG selected: ${fileName}`);
+        return;
+      } catch {
+        setImageWatermarkError("The native JPEG picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    imageWatermarkImageFileInputRef.current?.click();
+  };
+
+  const selectBrowserImageWatermarkJpeg = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setImageWatermarkFeedback(null);
+    setImageWatermarkResult(null);
+
+    if (!/\.(jpe?g)$/i.test(file.name)) {
+      setImageWatermarkImage(null);
+      setImageWatermarkError("JPEG/JPG only. PNG, WebP, and SVG are not supported.");
+      input.value = "";
+      return;
+    }
+
+    setImageWatermarkImage({ name: file.name });
+    setImageWatermarkError("Select the JPEG again with the desktop file picker to run Image watermark.");
+    input.value = "";
+  };
+
+  const selectImageWatermarkOutputPdf = async () => {
+    if (!nativeDialogAvailable || isRunningRef.current) return;
+    setImageWatermarkFeedback(null);
+    setImageWatermarkError(null);
+    setImageWatermarkResult(null);
+
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await save({
+        defaultPath: "image-watermarked-document.pdf",
+        title: "Select image-watermark output PDF",
+        filters: [{ name: "PDF document", extensions: ["pdf"] }],
+      });
+      if (!selectedPath) return;
+      if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+        setImageWatermarkError("The output file must use the .pdf extension.");
+        return;
+      }
+
+      setImageWatermarkOutputPath(selectedPath);
+      setImageWatermarkFeedback(`Output selected: ${fileNameFromPath(selectedPath)}`);
+    } catch {
+      setImageWatermarkError("The image-watermark output PDF could not be selected.");
+    }
+  };
+
+  const addImageWatermark = async () => {
+    if (isRunningRef.current) return;
+    if (
+      !imageWatermarkInput?.path ||
+      !imageWatermarkInputSummary.result ||
+      !imageWatermarkImage?.path ||
+      !imageWatermarkOutputPath ||
+      imageWatermarkImageError ||
+      parsedImageWatermarkPages.error ||
+      imageWatermarkWidthError ||
+      imageWatermarkOpacityError ||
+      imageWatermarkRotationError ||
+      imageWatermarkInputIsProtected ||
+      imageWatermarkWidth === null ||
+      imageWatermarkOpacity === null ||
+      imageWatermarkRotation === null
+    ) {
+      setImageWatermarkError(
+        imageWatermarkImageError ??
+          parsedImageWatermarkPages.error ??
+          imageWatermarkWidthError ??
+          imageWatermarkOpacityError ??
+          imageWatermarkRotationError ??
+          (imageWatermarkInputIsProtected
+            ? "Protected PDFs are not supported. Utility Tools Hub does not decrypt PDFs or bypass permissions."
+            : null) ??
+          "Select a desktop PDF, baseline JPEG image, and output PDF, then review the operation plan.",
+      );
+      return;
+    }
+
+    setImageWatermarkResult(null);
+    setImageWatermarkFeedback(null);
+    setImageWatermarkError(null);
+
+    await executeAdditionalPdfTool<PdfImageWatermarkResult>(
+      PDF_IMAGE_WATERMARK_TOOL_ID,
+      {
+        input_path: imageWatermarkInput.path,
+        output_path: imageWatermarkOutputPath,
+        image_path: imageWatermarkImage.path,
+        pages: parsedImageWatermarkPages.pages,
+        width: imageWatermarkWidth,
+        opacity: imageWatermarkOpacity,
+        rotation_degrees: imageWatermarkRotation,
+      },
+      setIsAddingImageWatermark,
+      (result) => {
+        setImageWatermarkResult(result);
+        setImageWatermarkFeedback("Image watermark completed successfully.");
+        setImageWatermarkError(null);
+      },
+      (reason) => {
+        setImageWatermarkResult(null);
+        setImageWatermarkFeedback(null);
+        setImageWatermarkError(imageWatermarkFailureMessage(reason));
+      },
+    );
+  };
+
   const hasDesktopInputPaths =
     selectedPdfs.length > 0 && selectedPdfs.every((pdf) => typeof pdf.path === "string");
   const isAnyOperationRunning =
@@ -2465,6 +2860,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     reorderInputSummary.loading ||
     watermarkInputSummary.loading ||
     pageNumbersInputSummary.loading ||
+    imageWatermarkInputSummary.loading ||
     isMerging ||
     isSplitting ||
     isExtracting ||
@@ -2472,7 +2868,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     isDeleting ||
     isReordering ||
     isWatermarking ||
-    isAddingPageNumbers;
+    isAddingPageNumbers ||
+    isAddingImageWatermark;
   const mergeTotalPages = mergeInputSummaries.reduce(
     (total, summary) => total + (summary.result?.page_count ?? 0),
     0,
@@ -2542,6 +2939,19 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     pageNumbersMarginXError === null &&
     pageNumbersMarginYError === null &&
     pageNumbersFontSizeError === null &&
+    !isAnyOperationRunning;
+  const canAddImageWatermark =
+    nativeDialogAvailable &&
+    typeof imageWatermarkInput?.path === "string" &&
+    imageWatermarkInputSummary.result !== null &&
+    typeof imageWatermarkImage?.path === "string" &&
+    imageWatermarkOutputPath !== null &&
+    imageWatermarkImageError === null &&
+    parsedImageWatermarkPages.error === null &&
+    imageWatermarkWidthError === null &&
+    imageWatermarkOpacityError === null &&
+    imageWatermarkRotationError === null &&
+    !imageWatermarkInputIsProtected &&
     !isAnyOperationRunning;
   const mergeDisabledReason = !nativeDialogAvailable
     ? "PDF processing is available in the desktop app."
@@ -2655,6 +3065,29 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                     : !pageNumbersOutputPath
                       ? "Select an output PDF."
                       : null;
+  const imageWatermarkDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : !imageWatermarkInput?.path
+      ? "Select one input PDF."
+      : imageWatermarkInputSummary.loading
+        ? "Wait for the input PDF summary to finish."
+        : !imageWatermarkInputSummary.result
+          ? "A valid input PDF summary is required."
+          : imageWatermarkInputIsProtected
+            ? "Protected PDFs are not supported. Decryption and permission bypass are not provided."
+            : imageWatermarkImageError
+              ? imageWatermarkImageError
+              : parsedImageWatermarkPages.error
+                ? parsedImageWatermarkPages.error
+                : imageWatermarkWidthError
+                  ? imageWatermarkWidthError
+                  : imageWatermarkOpacityError
+                    ? imageWatermarkOpacityError
+                    : imageWatermarkRotationError
+                      ? imageWatermarkRotationError
+                      : !imageWatermarkOutputPath
+                        ? "Select an output PDF."
+                        : null;
   const inspectMetadata = inspectResult
     ? [
         { label: "Title", value: inspectResult.title },
@@ -2690,7 +3123,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                 ? reorderInput?.name ?? "No file selected"
                 : selectedOperation === "textWatermark"
                   ? watermarkInput?.name ?? "No file selected"
-                  : pageNumbersInput?.name ?? "No file selected";
+                  : selectedOperation === "pageNumbers"
+                    ? pageNumbersInput?.name ?? "No file selected"
+                    : imageWatermarkInput?.name ?? "No file selected";
   const operationStatuses: ReadonlyArray<{
     id: PdfWorkbenchOperation;
     label: string;
@@ -2706,6 +3141,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     { id: "reorder", label: "Reorder", status: isReordering ? "Running" : reorderError ? "Needs attention" : reorderResult ? "Completed" : "Ready", className: isReordering ? "is-running" : reorderError ? "is-error" : reorderResult ? "is-success" : "" },
     { id: "textWatermark", label: "Text watermark", status: isWatermarking ? "Running" : watermarkError ? "Needs attention" : watermarkResult ? "Completed" : "Ready", className: isWatermarking ? "is-running" : watermarkError ? "is-error" : watermarkResult ? "is-success" : "" },
     { id: "pageNumbers", label: "Page numbers", status: isAddingPageNumbers ? "Running" : pageNumbersError ? "Needs attention" : pageNumbersResult ? "Completed" : "Ready", className: isAddingPageNumbers ? "is-running" : pageNumbersError ? "is-error" : pageNumbersResult ? "is-success" : "" },
+    { id: "imageWatermark", label: "Image watermark", status: isAddingImageWatermark ? "Running" : imageWatermarkError ? "Needs attention" : imageWatermarkResult ? "Completed" : "Ready", className: isAddingImageWatermark ? "is-running" : imageWatermarkError ? "is-error" : imageWatermarkResult ? "is-success" : "" },
   ];
   const activeOperationStatus = operationStatuses.find(
     (operation) => operation.id === selectedOperation,
@@ -2722,11 +3158,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h1>PDF Workbench</h1>
           <p>Local page operations with clear file, operation, result, and safety areas</p>
         </div>
-        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete · Reorder · Text watermark · Page numbers</span>
+        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete · Reorder · Text watermark · Page numbers · Image watermark</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>PDF Workbench supports local page operations, additive text watermarks, and page numbers.</strong>
+        <strong>PDF Workbench supports local page operations, additive text and JPEG image watermarks, and page numbers.</strong>
         <span>Preview, thumbnails, OCR, redaction, and direct text editing are not implemented.</span>
       </div>
 
@@ -2847,6 +3283,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                 <div><dt>Reorder</dt><dd>{reorderInput?.name ?? "None"}</dd></div>
                 <div><dt>Watermark</dt><dd>{watermarkInput?.name ?? "None"}</dd></div>
                 <div><dt>Page numbers</dt><dd>{pageNumbersInput?.name ?? "None"}</dd></div>
+                <div><dt>Image watermark</dt><dd>{imageWatermarkInput?.name ?? "None"}</dd></div>
               </dl>
             </details>
             <div className="pdf-tools-local-notes">
@@ -4031,6 +4468,184 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           )}
         </section>
         )}
+
+        {selectedOperation === "imageWatermark" && (
+        <section id="pdf-operation-imageWatermark" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card pdf-tools-watermark-card" aria-labelledby="pdf-image-watermark-title">
+          <div className="pdf-tools-section-heading">
+            <span>JPEG image overlay · JPEG only</span>
+            <h2 id="pdf-image-watermark-title">Image watermark</h2>
+            <p>Add one baseline grayscale/RGB JPEG image to all or selected pages and save a new PDF.</p>
+          </div>
+          <p className="pdf-tools-helper">JPEG/JPG only for now. Position is fixed at center; width preserves the image aspect ratio. No image preview or thumbnails are rendered.</p>
+          <p className="pdf-tools-warning"><strong>Additive only · Not redaction:</strong> Image watermark does not edit existing PDF text or remove existing images or page numbers. It cannot safely hide content.</p>
+          <p className="pdf-tools-helper">PNG alpha, WebP, SVG, CMYK/YCCK JPEG, progressive JPEG, image stamps, text stamps, preview, OCR, redaction, and direct text editing are not implemented.</p>
+
+          <div className="pdf-tools-button-row">
+            <button type="button" className="btn btn-outline" onClick={selectImageWatermarkInput} disabled={isAnyOperationRunning}>
+              Select input PDF
+            </button>
+            <button type="button" className="btn btn-outline" onClick={selectImageWatermarkJpeg} disabled={isAnyOperationRunning}>
+              Select JPEG image
+            </button>
+            <button
+              type="button"
+              className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
+              onClick={selectImageWatermarkOutputPdf}
+              disabled={!nativeDialogAvailable || isAnyOperationRunning}
+            >
+              {nativeDialogAvailable ? "Select output PDF" : "Output PDF (Desktop only)"}
+            </button>
+          </div>
+          <input
+            ref={imageWatermarkPdfFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) =>
+              selectBrowserImageWatermarkInput(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+          <input
+            ref={imageWatermarkImageFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".jpg,.jpeg,image/jpeg"
+            onChange={(event) =>
+              selectBrowserImageWatermarkJpeg(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+
+          <dl className="pdf-tools-selection-details">
+            <div><dt>Input PDF</dt><dd>{imageWatermarkInput?.name ?? "Not selected"}</dd></div>
+            <div><dt>JPEG image</dt><dd>{imageWatermarkImage?.name ?? "Not selected"}</dd></div>
+            <div><dt>Position</dt><dd>Center · fixed</dd></div>
+            <div>
+              <dt>Output PDF</dt>
+              <dd className="pdf-tools-path">
+                {imageWatermarkOutputPath ? fileNameFromPath(imageWatermarkOutputPath) : "Not selected"}
+              </dd>
+            </div>
+          </dl>
+
+          <OperationInputSummary
+            fileName={imageWatermarkInput?.name}
+            summary={imageWatermarkInputSummary}
+            guidance="Page count checks selected targets. Protected PDFs are not decrypted or bypassed."
+          />
+
+          <label className="pdf-tools-field">
+            <span>Pages (optional)</span>
+            <input
+              type="text"
+              inputMode="text"
+              value={imageWatermarkPagesInput}
+              onChange={(event) => {
+                setImageWatermarkPagesInput(event.currentTarget.value);
+                setImageWatermarkResult(null);
+                setImageWatermarkFeedback(null);
+                setImageWatermarkError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="All pages, or 1,3,5-7"
+              aria-invalid={Boolean(parsedImageWatermarkPages.error)}
+              aria-describedby={parsedImageWatermarkPages.error ? "pdf-image-watermark-pages-help pdf-image-watermark-pages-error" : "pdf-image-watermark-pages-help"}
+            />
+          </label>
+          <p id="pdf-image-watermark-pages-help" className="pdf-tools-field-help">Leave empty for all pages · Examples: 1, 1,3, 1-3, or 1,3,5-7</p>
+          {parsedImageWatermarkPages.error && <p id="pdf-image-watermark-pages-error" className="pdf-tools-field-error">{parsedImageWatermarkPages.error}</p>}
+
+          <div className="pdf-tools-watermark-fields">
+            <div className="pdf-tools-watermark-field-group">
+              <label className="pdf-tools-field">
+                <span>Width (pt)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={imageWatermarkWidthInput}
+                  onChange={(event) => {
+                    setImageWatermarkWidthInput(event.currentTarget.value);
+                    setImageWatermarkResult(null);
+                    setImageWatermarkFeedback(null);
+                    setImageWatermarkError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(imageWatermarkWidthError)}
+                  aria-describedby={imageWatermarkWidthError ? "pdf-image-watermark-width-error" : undefined}
+                />
+              </label>
+              {imageWatermarkWidthError && <p id="pdf-image-watermark-width-error" className="pdf-tools-field-error">{imageWatermarkWidthError}</p>}
+            </div>
+            <div className="pdf-tools-watermark-field-group">
+              <label className="pdf-tools-field">
+                <span>Opacity</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={imageWatermarkOpacityInput}
+                  onChange={(event) => {
+                    setImageWatermarkOpacityInput(event.currentTarget.value);
+                    setImageWatermarkResult(null);
+                    setImageWatermarkFeedback(null);
+                    setImageWatermarkError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(imageWatermarkOpacityError)}
+                  aria-describedby={imageWatermarkOpacityError ? "pdf-image-watermark-opacity-error" : undefined}
+                />
+              </label>
+              {imageWatermarkOpacityError && <p id="pdf-image-watermark-opacity-error" className="pdf-tools-field-error">{imageWatermarkOpacityError}</p>}
+            </div>
+            <div className="pdf-tools-watermark-field-group">
+              <label className="pdf-tools-field">
+                <span>Rotation (degrees)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={imageWatermarkRotationInput}
+                  onChange={(event) => {
+                    setImageWatermarkRotationInput(event.currentTarget.value);
+                    setImageWatermarkResult(null);
+                    setImageWatermarkFeedback(null);
+                    setImageWatermarkError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(imageWatermarkRotationError)}
+                  aria-describedby={imageWatermarkRotationError ? "pdf-image-watermark-rotation-error" : undefined}
+                />
+              </label>
+              {imageWatermarkRotationError && <p id="pdf-image-watermark-rotation-error" className="pdf-tools-field-error">{imageWatermarkRotationError}</p>}
+            </div>
+          </div>
+
+          <ImageWatermarkOperationPlan
+            summary={imageWatermarkInputSummary}
+            image={imageWatermarkImage}
+            pagesInput={imageWatermarkPagesInput}
+            widthInput={imageWatermarkWidthInput}
+            opacityInput={imageWatermarkOpacityInput}
+            rotationInput={imageWatermarkRotationInput}
+            outputPath={imageWatermarkOutputPath}
+          />
+
+          <button type="button" className="btn btn-primary" onClick={addImageWatermark} disabled={!canAddImageWatermark}>
+            {isAddingImageWatermark ? "Adding image watermark..." : "Add image watermark"}
+          </button>
+          {!canAddImageWatermark && !isAddingImageWatermark && (
+            <p className="pdf-tools-operation-requirements">To enable Image watermark: {imageWatermarkDisabledReason}</p>
+          )}
+
+          {isAddingImageWatermark && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Adding the JPEG image watermark to a new PDF...</div>}
+          {imageWatermarkError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{imageWatermarkError}</div>}
+          {!imageWatermarkError && !isAddingImageWatermark && imageWatermarkFeedback && (
+            <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
+              <strong>{imageWatermarkFeedback}</strong>
+              {imageWatermarkResult && (
+                <span>{imageWatermarkResult.pages.length} target page{imageWatermarkResult.pages.length === 1 ? "" : "s"} · Center · {imageWatermarkResult.width} × {imageWatermarkResult.height} pt · Opacity {imageWatermarkResult.opacity} · Rotation {imageWatermarkResult.rotation_degrees}° · {imageWatermarkResult.page_count} total pages · Output: {fileNameFromPath(imageWatermarkResult.output_path)}</span>
+              )}
+            </div>
+          )}
+        </section>
+        )}
           </div>
         </main>
 
@@ -4063,7 +4678,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <h2 id="available-pdf-tools-title">Local PDF operations</h2>
             </div>
             <div className="pdf-tools-capability-list pdf-tools-capability-available">
-              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark', 'Page numbers'].map((tool) => <span key={tool}>{tool}</span>)}
+              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark', 'Page numbers', 'JPEG image watermark'].map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
           </details>
@@ -4106,7 +4721,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <li>PDF files stay on this device. Full local paths are not shown.</li>
               <li>Original files are not overwritten by default.</li>
               <li>Protected PDFs are rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.</li>
-              <li>Delete pages removes whole pages only; it is not redaction. Visual masks do not remove underlying content.</li>
+              <li>Delete pages removes whole pages only; it is not redaction. Visual masks are not safe redaction and do not remove underlying content.</li>
+              <li>Image watermark is additive; it does not edit PDF text, remove existing images or page numbers, or provide redaction.</li>
               <li>Page numbers is additive; it does not edit PDF text, remove existing numbering, or provide redaction.</li>
               <li>OCR and direct text editing are not implemented.</li>
             </ul>
