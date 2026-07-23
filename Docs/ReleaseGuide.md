@@ -272,3 +272,10 @@ git push origin vX.Y.Z
 - Short printable ASCII / Latin-1 stamps such as `APPROVED`, `REVIEWED`, `PAID`, `VOID`, or `COPY` can target all or selected pages with preset positions, margins, font size, opacity, rotation, black/red/gray colors, input summary, validation, operation plan, and new-PDF feedback.
 - Text stamp is additive and is not PDF text editing or redaction. It does not remove existing images, text, page numbers, or watermarks, and status-style stamps are not digital signatures or audit trails.
 - Existing PDF operations and compact layout fixes remain maintained. Border/background, Japanese font embedding, multi-line layout, image stamp UI, overlay writing, rendering, preview, thumbnails, OCR, redaction, and direct editing are not added, and no npm or Cargo dependency is added.
+
+## v0.9.1 Release Note
+
+- v0.9.1 polishes the helper layout around the Stamp text, Pages, and Position fields so long guidance no longer feels cramped in the compact Text stamp card.
+- Text stamp validation, `pdf_text_stamp`, request/response formats, PDF processing logic, and existing PDF operations are unchanged.
+- Text stamp remains additive and is not redaction or direct PDF text editing; `APPROVED` / `REVIEWED` style stamps are not digital signatures or audit trails.
+- No new PDF feature, border/background, preview, thumbnails, OCR, npm dependency, or Cargo dependency is added.

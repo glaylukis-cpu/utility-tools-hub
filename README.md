@@ -3,16 +3,17 @@
 A desktop hub for small, local-first productivity tools.
 
 - **Official website:** [Utility Tools Hub](https://glaylukis-cpu.github.io/utility-tools-hub-site/)
-- **Latest release:** [v0.9.0](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.9.0)
+- **Latest release:** [v0.9.1](https://github.com/glaylukis-cpu/utility-tools-hub/releases/tag/v0.9.1)
 
 ## Current Status
 
-- Latest release: v0.9.0
+- Latest release: v0.9.1
 - Windows desktop app
 - Excel to HTML Converter is available
 - The Tools catalog is organized into Converters, Editors, and Planned / Pro tools
 - Converter Tools stacks File, Data, and Text converter sections, with each active editor shown inside its category
 - Text Case Converter navigation and Excel → HTML Converter navigation are maintained
+- v0.9.1 polishes the compact Text stamp helper layout around Stamp text, Pages, and Position without changing validation, `pdf_text_stamp`, request/response formats, or PDF processing
 - v0.9.0 adds the PDF Text stamp foundation: short ASCII / Latin-1 stamps such as `APPROVED`, `REVIEWED`, `PAID`, `VOID`, or `COPY` can target all or selected pages with preset positions, margins, font size, opacity, rotation, color, input summary, validation, operation plan, and new-PDF feedback
 - Additive printable ASCII / Latin watermarks such as `DRAFT` or `CONFIDENTIAL` can target all or selected pages and are saved to a new PDF
 - PDF inspect shows file summaries, single-PDF operation inputs are inspected automatically, and Merge PDFs shows selected-file order, size, page count, PDF version, total pages, and protected-PDF warnings
@@ -76,6 +77,13 @@ Download the latest Windows installer from [GitHub Releases](https://github.com/
 6. Use sheet tabs inside the preview when available
 
 ## Release Notes
+
+### v0.9.1
+
+- Polished the Text stamp helper layout around the Stamp text, Pages, and Position fields so long guidance no longer feels cramped in the compact three-column card
+- Kept Text stamp validation, `pdf_text_stamp`, request/response formats, PDF processing logic, and existing PDF operations unchanged
+- Text stamp remains additive and is not redaction or direct PDF text editing; `APPROVED` / `REVIEWED` style stamps are not digital signatures or audit trails
+- Added no new PDF feature, border/background, preview, thumbnails, OCR, npm dependency, or Cargo dependency
 
 ### v0.9.0
 
