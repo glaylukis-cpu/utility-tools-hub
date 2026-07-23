@@ -289,3 +289,11 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [x] Confirm Page numbers remains additive and is not redaction, and existing page numbers are not removed.
 - [x] Confirm preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
 - [x] Confirm existing Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark operations still execute through their existing tests and flows.
+
+## v0.8.0 Step 1 Image watermark and stamp planning
+
+- [ ] Confirm `Docs/PdfImageWatermarkStampPlan.md` exists.
+- [ ] Confirm image watermarks and stamps are described as additive content, not direct PDF text editing.
+- [ ] Confirm visual masks are explicitly not safe redaction.
+- [ ] Confirm OCR, redaction, direct PDF text editing, and image/stamp processing remain unimplemented.
+- [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, Text watermark, and Page numbers still work.

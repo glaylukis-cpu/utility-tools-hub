@@ -142,3 +142,7 @@ Step 3 connects `pdf_text_watermark` to the PDF Workbench UI so printable ASCII 
 ### v0.6.0 Step 4 - Text watermark QA polish
 
 Step 4 polishes Text watermark validation and QA checks. Text watermark remains additive; image watermark, stamps, preview, OCR, redaction, and direct text editing are still not added.
+
+### v0.8.0 Step 1 - Image watermark and stamp planning
+
+`Docs/PdfImageWatermarkStampPlan.md` now defines design-only image watermark, image stamp, and text stamp categories, format and placement candidates, implementation risks, safety boundaries, staged delivery, and QA. No image or stamp processing, UI, dependency, preview, OCR, redaction, or direct PDF text editing is added in this step.

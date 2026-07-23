@@ -119,3 +119,7 @@ The additive `pdf_page_numbers` core and shared execution bridge can write valid
 ## v0.7.0 Page numbers UI connection
 
 PDF Workbench now connects to `pdf_page_numbers` with input summary, all-page or selected-page targeting, bounded numbering settings, operation plan, and local new-PDF output. Page numbers remains additive; real preview, thumbnails, existing page-number removal, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.8.0 Image watermark and stamp planning
+
+`Docs/PdfImageWatermarkStampPlan.md` defines design-only image watermark, image stamp, and text stamp categories, PNG and JPEG/JPG candidates, placement and sizing models, implementation risks, safety boundaries, staged delivery, and QA. No image or stamp processing, Rust, bridge, UI, dependency, rendering, OCR, redaction, or direct PDF text editing is added in this step.
