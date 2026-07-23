@@ -390,3 +390,7 @@ Text stampのborder/background stylingと安全境界を設計します。Additi
 **v0.10.0 Step 3 - Text stamp border/background UI connection**
 
 既存のborder/background fieldsをcompact PDF Workbench UIへ接続し、limited colors、width、opacity、padding、validation、operation planを表示します。Additive visual stylingでありredactionではありません。
+
+**v0.10.0 Step 4 - Text stamp border/background QA**
+
+compact PDF WorkbenchでText stamp border/backgroundのUI、validation、operation plan、実PDF出力、responsive layoutを検証します。既存のlayout overflow対策とnot-redaction境界を維持します。

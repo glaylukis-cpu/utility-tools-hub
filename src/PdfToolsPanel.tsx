@@ -1513,7 +1513,7 @@ function TextStampOperationPlan({
         </p>
       )}
       <p className="pdf-tools-operation-plan-safety">
-        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This adds a short status label and optional visual styling to a new PDF without removing underlying content. Filled backgrounds are not safe redaction. The result is not a digital signature, identity verification, or an audit trail. Real preview/thumbnails are not included.
+        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This adds a short status label and optional visual styling to a new PDF without removing existing text, images, page numbers, or watermarks. Filled backgrounds are not safe redaction. The result is not a digital signature, identity verification, or an audit trail. Real preview/thumbnails are not included.
       </p>
     </div>
   );
@@ -5262,7 +5262,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <p>Add a short status label such as APPROVED, REVIEWED, or PAID to a new PDF.</p>
           </div>
           <p className="pdf-tools-helper">Leave Pages empty to stamp all pages. Stamp text supports one printable ASCII / Latin-1 line, up to 64 characters. Japanese font embedding and multiple lines are not supported.</p>
-          <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> Adds a status label and optional border/background without removing underlying content. Filled backgrounds are not safe redaction. APPROVED / REVIEWED style stamps are not digital signatures or audit trails.</p>
+          <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> Adds a status label and optional border/background without removing existing text, images, page numbers, or watermarks. Filled backgrounds are not safe redaction. APPROVED / REVIEWED style stamps are not digital signatures or audit trails.</p>
 
           <div className="pdf-tools-button-row">
             <button type="button" className="btn btn-outline" onClick={selectTextStampInput} disabled={isAnyOperationRunning}>
@@ -5779,7 +5779,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <li>Delete pages removes whole pages only; it is not redaction. Visual masks are not safe redaction and do not remove underlying content.</li>
               <li>Image watermark is additive; it does not edit PDF text, remove existing images or page numbers, or provide redaction.</li>
               <li>Page numbers is additive; it does not edit PDF text, remove existing numbering, or provide redaction.</li>
-              <li>Text stamp and its optional border/background are additive; they do not edit or remove underlying PDF content and are not redaction.</li>
+              <li>Text stamp and its optional border/background are additive; they do not edit or remove existing PDF text, images, page numbers, or watermarks and are not redaction.</li>
               <li>Filled rectangles and backgrounds are not safe redaction. Real PDF preview and thumbnails are not implemented.</li>
               <li>OCR and direct text editing are not implemented.</li>
             </ul>

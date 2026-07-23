@@ -418,3 +418,7 @@ Step 2 extends the existing `pdf_text_stamp` core / bridge with optional rectang
 ## 20. v0.10.0 Step 3 - Text stamp border/background UI connection
 
 Step 3 connects the existing border/background fields to the compact PDF Workbench UI with limited colors, width, opacity, padding, validation, operation-plan details, and result feedback. Border/background remain additive visual styling and are not redaction; filled rectangles do not remove underlying PDF content.
+
+## 21. v0.10.0 Step 4 - Text stamp border/background QA
+
+Step 4 verifies the Text stamp border/background UI, validation, operation plan, compact layout, protected-PDF rejection, and real PDF output. Border/background remain additive visual styling rather than redaction, and filled rectangles do not remove underlying PDF content.

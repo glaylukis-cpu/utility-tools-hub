@@ -441,3 +441,13 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm the operation selector, Text stamp card, controls, validation, and operation plan have no horizontal overflow at 1280px, 768px, or 640px.
 - [ ] Confirm existing PDF operations, Converter Tools, Text Case Converter, Excel Converter, and version behavior remain unchanged.
 - [ ] Confirm preview, thumbnails, Image stamp UI, Overlay writing, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.10.0 Step 4 Text stamp border/background QA
+
+- [x] Confirm the Text stamp border/background UI, operation plan, limited color presets, and numeric validation boundaries are clear.
+- [x] Confirm real border-only, background-only, and combined outputs reopen, preserve page counts and source content, and target all or selected pages.
+- [x] Confirm rotated and small stamps remain visible and border/background/text drawing order is maintained.
+- [x] Confirm filled rectangles are additive visual styling, are not safe redaction, and do not remove underlying content.
+- [x] Confirm protected PDFs are rejected without decryption, password UI, or permission bypass.
+- [x] Confirm the card, warnings, operation plan, long input name, and operation selector do not overflow at 1280px, 768px, 640px, or 125% equivalent width.
+- [x] Confirm preview, thumbnails, Image stamp UI, Overlay writing, OCR, redaction, and direct PDF text editing remain unimplemented.
