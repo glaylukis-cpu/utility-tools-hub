@@ -222,3 +222,5 @@ Step 3 connects `pdf_page_numbers` to PDF Workbench with input summary, all-page
 **v0.7.0 Step 4 - Page numbers UI QA polish**
 
 Step 4 polishes Page numbers validation and operation-plan QA. Page numbers remains additive and does not add preview, thumbnails, existing page-number removal, OCR, redaction, or direct text editing.
+
+**v0.7.1 - Page numbers real PDF QA polish:** v0.7.1 focuses on Page numbers real PDF QA polish. No preview, thumbnails, existing page-number removal, OCR, redaction, or direct text editing is added.

@@ -281,3 +281,11 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm file summaries and long file names stay inside the compact layout after PDF selection.
 - [ ] Confirm preview, thumbnails, OCR, and redaction remain unimplemented.
 - [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark still execute through their existing flows.
+
+## v0.7.1 Page numbers real PDF QA
+
+- [x] Confirm real-PDF checks cover all-pages and selected-pages output, representative start number / format / position cases, readable output, and unchanged page count.
+- [x] Confirm the compact layout does not overflow after PDF selection, including long file names; native-dialog visual confirmation remains a manual desktop check where unavailable.
+- [x] Confirm Page numbers remains additive and is not redaction, and existing page numbers are not removed.
+- [x] Confirm preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
+- [x] Confirm existing Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, and Text watermark operations still execute through their existing tests and flows.

@@ -544,6 +544,15 @@ function boundedNumberValidationMessage(
   return null;
 }
 
+function pageNumberMarginValidationMessage(value: string, label: string): string | null {
+  const parsed = parseFiniteNumber(value);
+  if (parsed === null) return `${label} must be a number.`;
+  if (parsed <= 0 || parsed > 144) {
+    return `${label} must be greater than 0 and no greater than 144.`;
+  }
+  return null;
+}
+
 function pageNumberExample(format: PageNumberFormat, number: number, total: number | null): string {
   const safeTotal = total ?? "total";
   switch (format) {
@@ -974,8 +983,8 @@ function PageNumbersOperationPlan({
   const marginY = parseFiniteNumber(marginYInput);
   const fontSize = parseFiniteNumber(fontSizeInput);
   const startNumberError = positiveIntegerValidationMessage(startNumberInput, "Start number");
-  const marginXError = boundedNumberValidationMessage(marginXInput, "Margin X", 0, 144);
-  const marginYError = boundedNumberValidationMessage(marginYInput, "Margin Y", 0, 144);
+  const marginXError = pageNumberMarginValidationMessage(marginXInput, "Margin X");
+  const marginYError = pageNumberMarginValidationMessage(marginYInput, "Margin Y");
   const fontSizeError = boundedNumberValidationMessage(fontSizeInput, "Font size", 6, 72);
   const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
   const isValid = Boolean(
@@ -1194,8 +1203,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const pageNumbersMarginY = parseFiniteNumber(pageNumbersMarginYInput);
   const pageNumbersFontSize = parseFiniteNumber(pageNumbersFontSizeInput);
   const pageNumbersStartError = positiveIntegerValidationMessage(pageNumbersStartInput, "Start number");
-  const pageNumbersMarginXError = boundedNumberValidationMessage(pageNumbersMarginXInput, "Margin X", 0, 144);
-  const pageNumbersMarginYError = boundedNumberValidationMessage(pageNumbersMarginYInput, "Margin Y", 0, 144);
+  const pageNumbersMarginXError = pageNumberMarginValidationMessage(pageNumbersMarginXInput, "Margin X");
+  const pageNumbersMarginYError = pageNumberMarginValidationMessage(pageNumbersMarginYInput, "Margin Y");
   const pageNumbersFontSizeError = boundedNumberValidationMessage(pageNumbersFontSizeInput, "Font size", 6, 72);
 
   const stopPolling = () => {
