@@ -1044,6 +1044,104 @@
   overflow-wrap: anywhere;
 }
 
+.pdf-tools-text-stamp-styling {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  margin: 0 0 4px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+}
+
+.pdf-tools-text-stamp-styling-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 10px;
+}
+
+.pdf-tools-text-stamp-styling-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.pdf-tools-text-stamp-styling-heading span {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.pdf-tools-text-stamp-styling-heading strong {
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.pdf-tools-text-stamp-styling-heading small {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.pdf-tools-text-stamp-styling-toggles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  gap: 8px 12px;
+}
+
+.pdf-tools-text-stamp-toggle {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pdf-tools-text-stamp-toggle input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.pdf-tools-text-stamp-toggle:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.pdf-tools-text-stamp-styling-fields {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.pdf-tools-text-stamp-styling-fields .pdf-tools-field {
+  min-width: 0;
+  margin: 0;
+}
+
+.pdf-tools-text-stamp-styling-notice {
+  margin: 0;
+  border-left: 3px solid #fb923c;
+  background: #fff7ed;
+  color: #9a3412;
+  padding: 7px 9px;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .pdf-tools-watermark-field-group .pdf-tools-field-error,
 .pdf-tools-parameter-field-group .pdf-tools-field-error {
   margin: 7px 0 0;
@@ -1639,8 +1737,13 @@
   }
 
   .pdf-tools-watermark-fields,
-  .pdf-tools-parameter-fields {
+  .pdf-tools-parameter-fields,
+  .pdf-tools-text-stamp-styling-fields {
     grid-template-columns: 1fr;
+  }
+
+  .pdf-tools-text-stamp-styling-heading {
+    align-items: flex-start;
   }
 }
 

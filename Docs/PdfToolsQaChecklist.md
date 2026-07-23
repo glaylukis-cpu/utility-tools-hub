@@ -430,3 +430,14 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm border/background colors, width, opacity, padding, bounds, rotation, and page selection validation are covered.
 - [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
 - [ ] Confirm PDF Workbench border/background UI remains unimplemented.
+
+## v0.10.0 Step 3 Text stamp border/background UI connection
+
+- [ ] Confirm Border and Background default to off and existing text-only Text stamp behavior is preserved.
+- [ ] Confirm limited color selects, border width `0.5`-`6`, opacities above `0` through `1`, and padding `0`-`36` validate visibly.
+- [ ] Confirm `pdf_text_stamp` receives enabled border/background fields through the existing shared execution flow.
+- [ ] Confirm the operation plan and success feedback show border/background status without exposing full local paths.
+- [ ] Confirm background guidance says filled rectangles are additive visual styling, not redaction, and do not remove underlying PDF content.
+- [ ] Confirm the operation selector, Text stamp card, controls, validation, and operation plan have no horizontal overflow at 1280px, 768px, or 640px.
+- [ ] Confirm existing PDF operations, Converter Tools, Text Case Converter, Excel Converter, and version behavior remain unchanged.
+- [ ] Confirm preview, thumbnails, Image stamp UI, Overlay writing, OCR, redaction, and direct PDF text editing remain unimplemented.

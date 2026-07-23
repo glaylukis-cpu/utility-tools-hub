@@ -111,6 +111,14 @@ type PdfTextStampResult = {
   opacity: number;
   rotation_degrees: number;
   color: TextStampColor;
+  border_enabled: boolean;
+  border_color: string | null;
+  border_width: number | null;
+  border_opacity: number | null;
+  background_enabled: boolean;
+  background_color: string | null;
+  background_opacity: number | null;
+  padding: number;
 };
 
 type PdfInspectResult = {
@@ -195,6 +203,8 @@ type TextStampPosition =
   | "bottom-right";
 
 type TextStampColor = "black" | "red" | "gray";
+type TextStampBorderColor = TextStampColor;
+type TextStampBackgroundColor = "white" | "yellow" | "red" | "gray";
 
 const pdfWorkbenchOperations: ReadonlyArray<{
   id: PdfWorkbenchOperation;
@@ -216,7 +226,6 @@ const pdfWorkbenchOperations: ReadonlyArray<{
 const plannedPageTools = [
   "PNG alpha image watermark",
   "Image stamp",
-  "Text stamp border / background",
   "Text stamp color presets polish",
   "Drag-and-drop reorder",
   "Real PDF page preview",
@@ -275,6 +284,19 @@ const textStampPositionOptions: ReadonlyArray<{ value: TextStampPosition; label:
 
 const textStampColorOptions: ReadonlyArray<{ value: TextStampColor; label: string }> = [
   { value: "black", label: "Black" },
+  { value: "red", label: "Red" },
+  { value: "gray", label: "Gray" },
+];
+
+const textStampBorderColorOptions: ReadonlyArray<{ value: TextStampBorderColor; label: string }> = [
+  { value: "black", label: "Black" },
+  { value: "red", label: "Red" },
+  { value: "gray", label: "Gray" },
+];
+
+const textStampBackgroundColorOptions: ReadonlyArray<{ value: TextStampBackgroundColor; label: string }> = [
+  { value: "white", label: "White" },
+  { value: "yellow", label: "Yellow" },
   { value: "red", label: "Red" },
   { value: "gray", label: "Gray" },
 ];
@@ -546,6 +568,13 @@ function textStampFailureMessage(reason?: string | null): string {
     "text stamp opacity must be greater than 0 and no greater than 1": "Opacity must be greater than 0 and no greater than 1.",
     "text stamp rotation must be a finite value from -360 to 360 degrees": "Rotation must be between -360 and 360 degrees.",
     "the text stamp color is not supported": "Select black, red, or gray.",
+    "the text stamp border color is not supported": "Select black, red, or gray for the border.",
+    "text stamp border width must be a finite value from 0.5 to 6 points": "Border width must be between 0.5 and 6 points.",
+    "text stamp border opacity must be greater than 0 and no greater than 1": "Border opacity must be greater than 0 and no greater than 1.",
+    "the text stamp background color is not supported": "Select white, yellow, red, or gray for the background.",
+    "text stamp background opacity must be greater than 0 and no greater than 1": "Background opacity must be greater than 0 and no greater than 1.",
+    "text stamp padding must be a finite value from 0 to 36 points and fit the page":
+      "Padding must be between 0 and 36 points and fit the selected PDF pages.",
     "page numbers must be one or greater": "Page numbers must be whole numbers greater than zero.",
     "a selected page is outside the input PDF page range": "The page selection contains a page outside the input PDF range.",
     "duplicate page numbers are not supported": "Enter each target page only once.",
@@ -1325,6 +1354,14 @@ function TextStampOperationPlan({
   opacityInput,
   rotationInput,
   color,
+  borderEnabled,
+  borderColor,
+  borderWidthInput,
+  borderOpacityInput,
+  backgroundEnabled,
+  backgroundColor,
+  backgroundOpacityInput,
+  paddingInput,
   outputPath,
 }: {
   summary: OperationInputSummaryState;
@@ -1337,6 +1374,14 @@ function TextStampOperationPlan({
   opacityInput: string;
   rotationInput: string;
   color: TextStampColor;
+  borderEnabled: boolean;
+  borderColor: TextStampBorderColor;
+  borderWidthInput: string;
+  borderOpacityInput: string;
+  backgroundEnabled: boolean;
+  backgroundColor: TextStampBackgroundColor;
+  backgroundOpacityInput: string;
+  paddingInput: string;
   outputPath: string | null;
 }) {
   const result = summary.result;
@@ -1348,6 +1393,10 @@ function TextStampOperationPlan({
   const fontSize = parseFiniteNumber(fontSizeInput);
   const opacity = parseFiniteNumber(opacityInput);
   const rotation = parseFiniteNumber(rotationInput);
+  const borderWidth = parseFiniteNumber(borderWidthInput);
+  const borderOpacity = parseFiniteNumber(borderOpacityInput);
+  const backgroundOpacity = parseFiniteNumber(backgroundOpacityInput);
+  const padding = parseFiniteNumber(paddingInput);
   const marginXError = boundedNumberValidationMessage(marginXInput, "Margin X", 0, 144);
   const marginYError = boundedNumberValidationMessage(marginYInput, "Margin Y", 0, 144);
   const fontSizeError = boundedNumberValidationMessage(fontSizeInput, "Font size", 8, 144);
@@ -1356,6 +1405,20 @@ function TextStampOperationPlan({
     : null;
   const rotationError = rotation === null || rotation < -360 || rotation > 360
     ? "Rotation must be between -360 and 360 degrees."
+    : null;
+  const borderWidthError = borderEnabled
+    ? boundedNumberValidationMessage(borderWidthInput, "Border width", 0.5, 6)
+    : null;
+  const borderOpacityError =
+    borderEnabled && (borderOpacity === null || borderOpacity <= 0 || borderOpacity > 1)
+      ? "Border opacity must be greater than 0 and no greater than 1."
+      : null;
+  const backgroundOpacityError =
+    backgroundEnabled && (backgroundOpacity === null || backgroundOpacity <= 0 || backgroundOpacity > 1)
+      ? "Background opacity must be greater than 0 and no greater than 1."
+      : null;
+  const paddingError = borderEnabled || backgroundEnabled
+    ? boundedNumberValidationMessage(paddingInput, "Padding", 0, 36)
     : null;
   const outputError = outputPdfValidationMessage(outputPath);
   const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
@@ -1368,11 +1431,32 @@ function TextStampOperationPlan({
       !fontSizeError &&
       !opacityError &&
       !rotationError &&
+      !borderWidthError &&
+      !borderOpacityError &&
+      !backgroundOpacityError &&
+      !paddingError &&
       !outputError &&
       !isProtected,
   );
   const positionLabel = textStampPositionOptions.find((option) => option.value === position)?.label ?? position;
   const colorLabel = textStampColorOptions.find((option) => option.value === color)?.label ?? color;
+  const borderColorLabel = textStampBorderColorOptions.find((option) => option.value === borderColor)?.label ?? borderColor;
+  const backgroundColorLabel = textStampBackgroundColorOptions.find((option) => option.value === backgroundColor)?.label ?? backgroundColor;
+  const borderLabel = !borderEnabled
+    ? "Off"
+    : borderWidthError || borderOpacityError || borderWidth === null || borderOpacity === null
+      ? "Invalid"
+      : `On · ${borderColorLabel} · ${borderWidth} pt · Opacity ${borderOpacity}`;
+  const backgroundLabel = !backgroundEnabled
+    ? "Off"
+    : backgroundOpacityError || backgroundOpacity === null
+      ? "Invalid"
+      : `On · ${backgroundColorLabel} · Opacity ${backgroundOpacity}`;
+  const paddingLabel = !borderEnabled && !backgroundEnabled
+    ? "Not used"
+    : paddingError || padding === null
+      ? "Invalid"
+      : `${padding} pt`;
 
   return (
     <div className="pdf-tools-operation-plan" aria-label="Text stamp operation plan preview">
@@ -1396,6 +1480,9 @@ function TextStampOperationPlan({
         <div><dt>Opacity</dt><dd>{opacityError || opacity === null ? "Invalid" : opacity}</dd></div>
         <div><dt>Rotation</dt><dd>{rotationError || rotation === null ? "Invalid" : `${rotation}°`}</dd></div>
         <div><dt>Color</dt><dd>{colorLabel}</dd></div>
+        <div><dt>Border</dt><dd>{borderLabel}</dd></div>
+        <div><dt>Background</dt><dd>{backgroundLabel}</dd></div>
+        <div><dt>Padding</dt><dd>{paddingLabel}</dd></div>
         <div><dt>Output PDF</dt><dd>{outputPath ? `New PDF · ${fileNameFromPath(outputPath)}` : "Not selected"}</dd></div>
       </dl>
       <div className="pdf-tools-operation-plan-targets">
@@ -1415,6 +1502,10 @@ function TextStampOperationPlan({
       {fontSizeError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid font size:</strong> {fontSizeError}</p>}
       {opacityError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid opacity:</strong> {opacityError}</p>}
       {rotationError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid rotation:</strong> {rotationError}</p>}
+      {borderWidthError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid border width:</strong> {borderWidthError}</p>}
+      {borderOpacityError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid border opacity:</strong> {borderOpacityError}</p>}
+      {backgroundOpacityError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid background opacity:</strong> {backgroundOpacityError}</p>}
+      {paddingError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid padding:</strong> {paddingError}</p>}
       {outputError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Output required:</strong> {outputError}</p>}
       {isProtected && (
         <p className="pdf-tools-operation-plan-warning is-protected" role="alert">
@@ -1422,7 +1513,7 @@ function TextStampOperationPlan({
         </p>
       )}
       <p className="pdf-tools-operation-plan-safety">
-        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This adds a short status label to a new PDF without removing existing text, images, page numbers, or watermarks. It is not a digital signature, identity verification, or an audit trail. Border/background styling and real preview/thumbnails are not included.
+        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This adds a short status label and optional visual styling to a new PDF without removing underlying content. Filled backgrounds are not safe redaction. The result is not a digital signature, identity verification, or an audit trail. Real preview/thumbnails are not included.
       </p>
     </div>
   );
@@ -1546,6 +1637,14 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [textStampOpacityInput, setTextStampOpacityInput] = useState("0.85");
   const [textStampRotationInput, setTextStampRotationInput] = useState("0");
   const [textStampColor, setTextStampColor] = useState<TextStampColor>("red");
+  const [textStampBorderEnabled, setTextStampBorderEnabled] = useState(false);
+  const [textStampBorderColor, setTextStampBorderColor] = useState<TextStampBorderColor>("red");
+  const [textStampBorderWidthInput, setTextStampBorderWidthInput] = useState("1");
+  const [textStampBorderOpacityInput, setTextStampBorderOpacityInput] = useState("0.85");
+  const [textStampBackgroundEnabled, setTextStampBackgroundEnabled] = useState(false);
+  const [textStampBackgroundColor, setTextStampBackgroundColor] = useState<TextStampBackgroundColor>("yellow");
+  const [textStampBackgroundOpacityInput, setTextStampBackgroundOpacityInput] = useState("0.25");
+  const [textStampPaddingInput, setTextStampPaddingInput] = useState("6");
   const [textStampOutputPath, setTextStampOutputPath] = useState<string | null>(null);
   const [textStampResult, setTextStampResult] = useState<PdfTextStampResult | null>(null);
   const [isAddingTextStamp, setIsAddingTextStamp] = useState(false);
@@ -1641,6 +1740,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const textStampFontSize = parseFiniteNumber(textStampFontSizeInput);
   const textStampOpacity = parseFiniteNumber(textStampOpacityInput);
   const textStampRotation = parseFiniteNumber(textStampRotationInput);
+  const textStampBorderWidth = parseFiniteNumber(textStampBorderWidthInput);
+  const textStampBorderOpacity = parseFiniteNumber(textStampBorderOpacityInput);
+  const textStampBackgroundOpacity = parseFiniteNumber(textStampBackgroundOpacityInput);
+  const textStampPadding = parseFiniteNumber(textStampPaddingInput);
   const textStampMarginXError = boundedNumberValidationMessage(textStampMarginXInput, "Margin X", 0, 144);
   const textStampMarginYError = boundedNumberValidationMessage(textStampMarginYInput, "Margin Y", 0, 144);
   const textStampFontSizeError = boundedNumberValidationMessage(textStampFontSizeInput, "Font size", 8, 144);
@@ -1652,6 +1755,22 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     textStampRotation === null || textStampRotation < -360 || textStampRotation > 360
       ? "Rotation must be between -360 and 360 degrees."
       : null;
+  const textStampBorderWidthError = textStampBorderEnabled
+    ? boundedNumberValidationMessage(textStampBorderWidthInput, "Border width", 0.5, 6)
+    : null;
+  const textStampBorderOpacityError =
+    textStampBorderEnabled &&
+    (textStampBorderOpacity === null || textStampBorderOpacity <= 0 || textStampBorderOpacity > 1)
+      ? "Border opacity must be greater than 0 and no greater than 1."
+      : null;
+  const textStampBackgroundOpacityError =
+    textStampBackgroundEnabled &&
+    (textStampBackgroundOpacity === null || textStampBackgroundOpacity <= 0 || textStampBackgroundOpacity > 1)
+      ? "Background opacity must be greater than 0 and no greater than 1."
+      : null;
+  const textStampPaddingError = textStampBorderEnabled || textStampBackgroundEnabled
+    ? boundedNumberValidationMessage(textStampPaddingInput, "Padding", 0, 36)
+    : null;
   const textStampOutputError = outputPdfValidationMessage(textStampOutputPath);
   const textStampInputIsProtected = Boolean(
     textStampInputSummary.result &&
@@ -3193,6 +3312,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       textStampFontSizeError ||
       textStampOpacityError ||
       textStampRotationError ||
+      textStampBorderWidthError ||
+      textStampBorderOpacityError ||
+      textStampBackgroundOpacityError ||
+      textStampPaddingError ||
       textStampOutputError ||
       textStampInputIsProtected ||
       textStampMarginX === null ||
@@ -3200,6 +3323,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       textStampFontSize === null ||
       textStampOpacity === null ||
       textStampRotation === null ||
+      (textStampBorderEnabled && (textStampBorderWidth === null || textStampBorderOpacity === null)) ||
+      (textStampBackgroundEnabled && textStampBackgroundOpacity === null) ||
+      ((textStampBorderEnabled || textStampBackgroundEnabled) && textStampPadding === null) ||
       !textStampOutputPath
     ) {
       setTextStampError(
@@ -3210,6 +3336,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           textStampFontSizeError ??
           textStampOpacityError ??
           textStampRotationError ??
+          textStampBorderWidthError ??
+          textStampBorderOpacityError ??
+          textStampBackgroundOpacityError ??
+          textStampPaddingError ??
           textStampOutputError ??
           (textStampInputIsProtected
             ? "Protected PDFs are not supported. Utility Tools Hub does not decrypt PDFs or bypass permissions."
@@ -3237,6 +3367,22 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         opacity: textStampOpacity,
         rotation_degrees: textStampRotation,
         color: textStampColor,
+        border_enabled: textStampBorderEnabled,
+        ...(textStampBorderEnabled
+          ? {
+              border_color: textStampBorderColor,
+              border_width: textStampBorderWidth,
+              border_opacity: textStampBorderOpacity,
+            }
+          : {}),
+        background_enabled: textStampBackgroundEnabled,
+        ...(textStampBackgroundEnabled
+          ? {
+              background_color: textStampBackgroundColor,
+              background_opacity: textStampBackgroundOpacity,
+            }
+          : {}),
+        ...(textStampBorderEnabled || textStampBackgroundEnabled ? { padding: textStampPadding } : {}),
       },
       setIsAddingTextStamp,
       (result) => {
@@ -3370,6 +3516,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     textStampFontSizeError === null &&
     textStampOpacityError === null &&
     textStampRotationError === null &&
+    textStampBorderWidthError === null &&
+    textStampBorderOpacityError === null &&
+    textStampBackgroundOpacityError === null &&
+    textStampPaddingError === null &&
     textStampOutputError === null &&
     !textStampInputIsProtected &&
     !isAnyOperationRunning;
@@ -3532,7 +3682,15 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                         ? textStampOpacityError
                         : textStampRotationError
                           ? textStampRotationError
-                          : textStampOutputError;
+                          : textStampBorderWidthError
+                            ? textStampBorderWidthError
+                            : textStampBorderOpacityError
+                              ? textStampBorderOpacityError
+                              : textStampBackgroundOpacityError
+                                ? textStampBackgroundOpacityError
+                                : textStampPaddingError
+                                  ? textStampPaddingError
+                                  : textStampOutputError;
   const inspectMetadata = inspectResult
     ? [
         { label: "Title", value: inspectResult.title },
@@ -3610,7 +3768,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>PDF Workbench supports local page operations, additive text and JPEG image watermarks, page numbers, and short text stamps.</strong>
+        <strong>PDF Workbench supports local page operations, additive text and JPEG image watermarks, page numbers, and short text stamps with optional border/background.</strong>
         <span>Preview, thumbnails, OCR, redaction, and direct text editing are not implemented.</span>
       </div>
 
@@ -5104,7 +5262,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <p>Add a short status label such as APPROVED, REVIEWED, or PAID to a new PDF.</p>
           </div>
           <p className="pdf-tools-helper">Leave Pages empty to stamp all pages. Stamp text supports one printable ASCII / Latin-1 line, up to 64 characters. Japanese font embedding and multiple lines are not supported.</p>
-          <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> Adds a status label without removing existing text, images, page numbers, or watermarks. It is not a digital signature, identity verification, or an audit trail; border/background styling is not included.</p>
+          <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> Adds a status label and optional border/background without removing underlying content. Filled backgrounds are not safe redaction. APPROVED / REVIEWED style stamps are not digital signatures or audit trails.</p>
 
           <div className="pdf-tools-button-row">
             <button type="button" className="btn btn-outline" onClick={selectTextStampInput} disabled={isAnyOperationRunning}>
@@ -5333,6 +5491,175 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             </div>
           </div>
 
+          <div className="pdf-tools-text-stamp-styling" aria-labelledby="pdf-text-stamp-styling-title">
+            <div className="pdf-tools-text-stamp-styling-heading">
+              <div>
+                <span>Optional styling</span>
+                <strong id="pdf-text-stamp-styling-title">Border / background</strong>
+              </div>
+              <small>Additive visual styling only</small>
+            </div>
+
+            <div className="pdf-tools-text-stamp-styling-toggles" role="group" aria-label="Text stamp styling switches">
+              <label className="pdf-tools-text-stamp-toggle">
+                <input
+                  type="checkbox"
+                  checked={textStampBorderEnabled}
+                  onChange={(event) => {
+                    setTextStampBorderEnabled(event.currentTarget.checked);
+                    setTextStampResult(null);
+                    setTextStampFeedback(null);
+                    setTextStampError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                />
+                <span>Border</span>
+              </label>
+              <label className="pdf-tools-text-stamp-toggle">
+                <input
+                  type="checkbox"
+                  checked={textStampBackgroundEnabled}
+                  onChange={(event) => {
+                    setTextStampBackgroundEnabled(event.currentTarget.checked);
+                    setTextStampResult(null);
+                    setTextStampFeedback(null);
+                    setTextStampError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                />
+                <span>Background</span>
+              </label>
+            </div>
+
+            <div className="pdf-tools-text-stamp-styling-fields">
+              <div className="pdf-tools-parameter-field-group">
+                <label className="pdf-tools-field">
+                  <span>Border color</span>
+                  <select
+                    value={textStampBorderColor}
+                    onChange={(event) => {
+                      setTextStampBorderColor(event.currentTarget.value as TextStampBorderColor);
+                      setTextStampResult(null);
+                      setTextStampFeedback(null);
+                      setTextStampError(null);
+                    }}
+                    disabled={!textStampBorderEnabled || isAnyOperationRunning}
+                  >
+                    {textStampBorderColorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <div className="pdf-tools-parameter-field-group">
+                <label className="pdf-tools-field">
+                  <span>Border width (pt)</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={textStampBorderWidthInput}
+                    onChange={(event) => {
+                      setTextStampBorderWidthInput(event.currentTarget.value);
+                      setTextStampResult(null);
+                      setTextStampFeedback(null);
+                      setTextStampError(null);
+                    }}
+                    disabled={!textStampBorderEnabled || isAnyOperationRunning}
+                    aria-invalid={Boolean(textStampBorderWidthError)}
+                    aria-describedby={textStampBorderWidthError ? "pdf-text-stamp-border-width-error" : undefined}
+                  />
+                </label>
+                {textStampBorderWidthError && <p id="pdf-text-stamp-border-width-error" className="pdf-tools-field-error">{textStampBorderWidthError}</p>}
+              </div>
+
+              <div className="pdf-tools-parameter-field-group">
+                <label className="pdf-tools-field">
+                  <span>Border opacity</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={textStampBorderOpacityInput}
+                    onChange={(event) => {
+                      setTextStampBorderOpacityInput(event.currentTarget.value);
+                      setTextStampResult(null);
+                      setTextStampFeedback(null);
+                      setTextStampError(null);
+                    }}
+                    disabled={!textStampBorderEnabled || isAnyOperationRunning}
+                    aria-invalid={Boolean(textStampBorderOpacityError)}
+                    aria-describedby={textStampBorderOpacityError ? "pdf-text-stamp-border-opacity-error" : undefined}
+                  />
+                </label>
+                {textStampBorderOpacityError && <p id="pdf-text-stamp-border-opacity-error" className="pdf-tools-field-error">{textStampBorderOpacityError}</p>}
+              </div>
+
+              <div className="pdf-tools-parameter-field-group">
+                <label className="pdf-tools-field">
+                  <span>Background color</span>
+                  <select
+                    value={textStampBackgroundColor}
+                    onChange={(event) => {
+                      setTextStampBackgroundColor(event.currentTarget.value as TextStampBackgroundColor);
+                      setTextStampResult(null);
+                      setTextStampFeedback(null);
+                      setTextStampError(null);
+                    }}
+                    disabled={!textStampBackgroundEnabled || isAnyOperationRunning}
+                  >
+                    {textStampBackgroundColorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <div className="pdf-tools-parameter-field-group">
+                <label className="pdf-tools-field">
+                  <span>Background opacity</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={textStampBackgroundOpacityInput}
+                    onChange={(event) => {
+                      setTextStampBackgroundOpacityInput(event.currentTarget.value);
+                      setTextStampResult(null);
+                      setTextStampFeedback(null);
+                      setTextStampError(null);
+                    }}
+                    disabled={!textStampBackgroundEnabled || isAnyOperationRunning}
+                    aria-invalid={Boolean(textStampBackgroundOpacityError)}
+                    aria-describedby={textStampBackgroundOpacityError ? "pdf-text-stamp-background-opacity-error" : undefined}
+                  />
+                </label>
+                {textStampBackgroundOpacityError && <p id="pdf-text-stamp-background-opacity-error" className="pdf-tools-field-error">{textStampBackgroundOpacityError}</p>}
+              </div>
+
+              <div className="pdf-tools-parameter-field-group">
+                <label className="pdf-tools-field">
+                  <span>Padding (pt)</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={textStampPaddingInput}
+                    onChange={(event) => {
+                      setTextStampPaddingInput(event.currentTarget.value);
+                      setTextStampResult(null);
+                      setTextStampFeedback(null);
+                      setTextStampError(null);
+                    }}
+                    disabled={(!textStampBorderEnabled && !textStampBackgroundEnabled) || isAnyOperationRunning}
+                    aria-invalid={Boolean(textStampPaddingError)}
+                    aria-describedby={textStampPaddingError ? "pdf-text-stamp-padding-error" : undefined}
+                  />
+                </label>
+                {textStampPaddingError && <p id="pdf-text-stamp-padding-error" className="pdf-tools-field-error">{textStampPaddingError}</p>}
+              </div>
+            </div>
+
+            {textStampBackgroundEnabled && (
+              <p className="pdf-tools-text-stamp-styling-notice" role="note">
+                A filled background, including opaque red or gray, is an additive visual mark. It does not remove or redact underlying PDF content.
+              </p>
+            )}
+          </div>
+
           <TextStampOperationPlan
             summary={textStampInputSummary}
             text={textStampText}
@@ -5344,6 +5671,14 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             opacityInput={textStampOpacityInput}
             rotationInput={textStampRotationInput}
             color={textStampColor}
+            borderEnabled={textStampBorderEnabled}
+            borderColor={textStampBorderColor}
+            borderWidthInput={textStampBorderWidthInput}
+            borderOpacityInput={textStampBorderOpacityInput}
+            backgroundEnabled={textStampBackgroundEnabled}
+            backgroundColor={textStampBackgroundColor}
+            backgroundOpacityInput={textStampBackgroundOpacityInput}
+            paddingInput={textStampPaddingInput}
             outputPath={textStampOutputPath}
           />
 
@@ -5360,7 +5695,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
               <strong>{textStampFeedback}</strong>
               {textStampResult && (
-                <span>{textStampResult.pages.length} target page{textStampResult.pages.length === 1 ? "" : "s"} · {textStampResult.text} · {textStampResult.position} · {textStampResult.color} · {textStampResult.font_size} pt · Opacity {textStampResult.opacity} · Rotation {textStampResult.rotation_degrees}° · {textStampResult.page_count} total pages · Output: {fileNameFromPath(textStampResult.output_path)}</span>
+                <span>{textStampResult.pages.length} target page{textStampResult.pages.length === 1 ? "" : "s"} · {textStampResult.text} · {textStampResult.position} · {textStampResult.color} · {textStampResult.font_size} pt · Opacity {textStampResult.opacity} · Rotation {textStampResult.rotation_degrees}° · {textStampResult.border_enabled ? `Border ${textStampResult.border_color}, ${textStampResult.border_width} pt, opacity ${textStampResult.border_opacity}` : "Border off"} · {textStampResult.background_enabled ? `Background ${textStampResult.background_color}, opacity ${textStampResult.background_opacity}` : "Background off"} · Padding {textStampResult.padding} pt · {textStampResult.page_count} total pages · Output: {fileNameFromPath(textStampResult.output_path)}</span>
               )}
             </div>
           )}
@@ -5398,7 +5733,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <h2 id="available-pdf-tools-title">Local PDF operations</h2>
             </div>
             <div className="pdf-tools-capability-list pdf-tools-capability-available">
-              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark', 'Page numbers', 'JPEG image watermark', 'Text stamp'].map((tool) => <span key={tool}>{tool}</span>)}
+              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark', 'Page numbers', 'JPEG image watermark', 'Text stamp · border/background'].map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
           </details>
@@ -5444,8 +5779,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <li>Delete pages removes whole pages only; it is not redaction. Visual masks are not safe redaction and do not remove underlying content.</li>
               <li>Image watermark is additive; it does not edit PDF text, remove existing images or page numbers, or provide redaction.</li>
               <li>Page numbers is additive; it does not edit PDF text, remove existing numbering, or provide redaction.</li>
-              <li>Text stamp is additive; it does not edit or remove existing PDF text, images, page numbers, or watermarks, and it is not redaction.</li>
-              <li>Text stamp border/background styling, real PDF preview, and thumbnails are not implemented.</li>
+              <li>Text stamp and its optional border/background are additive; they do not edit or remove underlying PDF content and are not redaction.</li>
+              <li>Filled rectangles and backgrounds are not safe redaction. Real PDF preview and thumbnails are not implemented.</li>
               <li>OCR and direct text editing are not implemented.</li>
             </ul>
           </section>

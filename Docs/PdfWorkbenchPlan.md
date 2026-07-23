@@ -386,3 +386,7 @@ Text stampのborder/background stylingと安全境界を設計します。Additi
 **v0.10.0 Step 2 - Text stamp border/background core / bridge**
 
 `pdf_text_stamp` core / bridgeへoptionalなborder/background stylingを追加します。PDF Workbench UIとpreviewはまだ追加しません。
+
+**v0.10.0 Step 3 - Text stamp border/background UI connection**
+
+既存のborder/background fieldsをcompact PDF Workbench UIへ接続し、limited colors、width、opacity、padding、validation、operation planを表示します。Additive visual stylingでありredactionではありません。

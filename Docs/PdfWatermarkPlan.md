@@ -178,3 +178,7 @@ Text stamp border/background remains in the planning stage. It is defined as add
 ### v0.10.0 Step 2 - Text stamp border/background core / bridge
 
 The existing `pdf_text_stamp` core / bridge now accepts optional rectangle border and background fill styling with bounded opacity, limited colors, and padding. The styling is additive and not redaction; UI, preview, OCR, and direct text editing remain unimplemented.
+
+### v0.10.0 Step 3 - Text stamp border/background UI connection
+
+PDF Workbench now connects the existing Text stamp border/background fields with compact controls, visible validation, plan details, and not-redaction guidance. Preview, OCR, redaction, and direct PDF text editing remain unimplemented.

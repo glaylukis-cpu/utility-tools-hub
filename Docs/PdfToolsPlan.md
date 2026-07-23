@@ -155,3 +155,7 @@ PDF Workbench now connects to `pdf_text_stamp` with input/output PDF selection, 
 ## v0.10.0 Text stamp border/background core / bridge
 
 The existing `pdf_text_stamp` core / bridge now supports optional rectangle border, background fill, limited colors, independent bounded opacity, and padding. Existing text-only requests remain compatible; UI, preview, OCR, redaction, and direct PDF text editing are not added.
+
+## v0.10.0 Text stamp border/background UI connection
+
+PDF Workbench now sends the existing optional border/background fields to `pdf_text_stamp` and shows compact controls, validation, plan details, result feedback, and a filled-background not-redaction warning. Preview, OCR, redaction, and direct PDF text editing remain unimplemented.
