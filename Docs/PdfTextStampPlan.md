@@ -268,3 +268,7 @@ Step 2 adds the additive `pdf_text_stamp` Rust core and shared execution bridge 
 ## 16. v0.9.0 Step 3 - Text stamp UI connection
 
 Step 3 connects `pdf_text_stamp` to the compact PDF Workbench with input and output PDF selection, input summary, short-text and page validation, position, margins, font size, opacity, rotation, black/red/gray color, a lightweight operation plan, and loading/success/error feedback. Empty Pages sends an empty list so the core targets all pages. Text stamp remains additive and is not redaction or direct PDF text editing; border/background styling, real preview, thumbnails, Image stamp, Overlay writing, OCR, and removal of existing text, images, page numbers, or watermarks remain unimplemented.
+
+## 17. v0.9.0 Step 4 - Text stamp QA and real-PDF checks
+
+Step 4 validates all-page and selected-page output with real generated PDFs, representative placement, color, opacity, and rotation, source preservation, validation boundaries, safety copy, and compact layouts. No new PDF processing, dependency, version, release, or direct-editing feature is added.

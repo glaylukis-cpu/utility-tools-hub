@@ -1422,7 +1422,7 @@ function TextStampOperationPlan({
         </p>
       )}
       <p className="pdf-tools-operation-plan-safety">
-        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This adds short text to a new PDF. It does not remove or replace existing content. Border/background styling and real preview/thumbnails are not included.
+        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This adds a short status label to a new PDF without removing existing text, images, page numbers, or watermarks. It is not a digital signature, identity verification, or an audit trail. Border/background styling and real preview/thumbnails are not included.
       </p>
     </div>
   );
@@ -5101,10 +5101,10 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <div className="pdf-tools-section-heading">
             <span>Additive text · All or selected pages</span>
             <h2 id="pdf-text-stamp-title">Text stamp</h2>
-            <p>Add a short, positioned text stamp to a new PDF.</p>
+            <p>Add a short status label such as APPROVED, REVIEWED, or PAID to a new PDF.</p>
           </div>
-          <p className="pdf-tools-helper">Leave Pages empty to stamp all pages. Text supports one line of up to 64 printable ASCII or Latin-1 characters.</p>
-          <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> This adds text without removing or replacing existing content. Border/background styling is not included.</p>
+          <p className="pdf-tools-helper">Leave Pages empty to stamp all pages. Use one printable ASCII / Latin-1 line of up to 64 characters; Japanese font embedding and multiple lines are not supported.</p>
+          <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> Adds a status label without removing existing text, images, page numbers, or watermarks. It is not a digital signature, identity verification, or an audit trail; border/background styling is not included.</p>
 
           <div className="pdf-tools-button-row">
             <button type="button" className="btn btn-outline" onClick={selectTextStampInput} disabled={isAnyOperationRunning}>
@@ -5164,7 +5164,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                   aria-describedby={textStampTextError ? "pdf-text-stamp-text-help pdf-text-stamp-text-error" : "pdf-text-stamp-text-help"}
                 />
               </label>
-              <p id="pdf-text-stamp-text-help" className="pdf-tools-field-help">Single line · 64 characters maximum · Printable ASCII / Latin-1</p>
+              <p id="pdf-text-stamp-text-help" className="pdf-tools-field-help">Single line · 64 characters maximum · Printable ASCII / Latin-1 · No Japanese font embedding</p>
               {textStampTextError && <p id="pdf-text-stamp-text-error" className="pdf-tools-field-error">{textStampTextError}</p>}
             </div>
 

@@ -1636,3 +1636,16 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 480px) {
+  .pdf-tools-page {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    width: 100vw;
+    max-width: none;
+    overflow-y: auto;
+    background: #f8f9fa;
+    padding: 16px;
+  }
+}

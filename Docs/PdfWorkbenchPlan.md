@@ -374,3 +374,7 @@ additiveなText stamp core / bridgeを追加します。UIとpreviewはまだ追
 **v0.9.0 Step 3 - Text stamp UI connection**
 
 `pdf_text_stamp`を11項目のcompact PDF Workbenchへ接続し、入力summary、all/selected pages、position、margins、font size、opacity、rotation、black/red/gray、operation plan、loading/success/errorを表示します。Text stampはadditiveであり、border/background、preview、thumbnails、OCR、redaction、PDF本文編集、既存contentの削除は追加しません。
+
+**v0.9.0 Step 4 - Text stamp QA / real-PDF checks**
+
+実生成PDFでall/selected pages、代表的なposition・color・opacity・rotation、source preservation、validation、安全文言、compact layoutを確認します。新しいPDF処理、dependency、version、release作業は追加しません。

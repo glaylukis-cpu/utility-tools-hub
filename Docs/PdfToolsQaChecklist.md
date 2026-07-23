@@ -401,3 +401,15 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm the operation plan shows input, text, pages, position, margins, font size, opacity, rotation, color, and output.
 - [ ] Confirm Text stamp is additive, is not redaction or direct PDF text editing, and does not remove existing text, images, page numbers, or watermarks.
 - [ ] Confirm border/background, real preview, thumbnails, Image stamp, Overlay writing, OCR, redaction, and direct text editing remain unimplemented.
+
+## v0.9.0 Step 4 Text stamp QA / real-PDF checks
+
+- [x] Confirm real all-page output reopens as a three-page A4 PDF and visibly places `APPROVED` in red at the top right of every page.
+- [x] Confirm real selected-page output reopens as a three-page A4 PDF and visibly places rotated, semi-transparent `REVIEWED` in gray at the bottom left of pages 1 and 3 only.
+- [x] Confirm source PDFs remain unchanged and output page counts match their inputs.
+- [x] Confirm printable ASCII / Latin-1 status labels, all positions, black/red/gray colors, margins, font size, opacity, and rotation are covered by automated core tests.
+- [x] Confirm empty, whitespace-only, Japanese, emoji, newline, and overlong text; invalid/duplicate/out-of-range pages; invalid numeric bounds; protected input; and source overwrite are rejected by validation or core tests.
+- [x] Confirm UI copy describes Text stamp as additive, not redaction, not direct PDF text editing, and not a digital signature, identity verification, or audit trail.
+- [x] Confirm browser layout has no document, selector, card, field-grid, or long-input-name overflow at 1280px, 1024px, 640px, and 390px; the 390px Workbench uses a full-viewport compact surface.
+- [ ] Confirm the installed/native app completes input/output selection and real PDF creation without exposing full paths or secrets in the console.
+- [ ] Confirm the installed/native app has no horizontal overflow at 1280px, 125% zoom, 640px, and 390px with long input/output names.
