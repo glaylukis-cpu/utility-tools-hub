@@ -413,3 +413,11 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [x] Confirm browser layout has no document, selector, card, field-grid, or long-input-name overflow at 1280px, 1024px, 640px, and 390px; the 390px Workbench uses a full-viewport compact surface.
 - [ ] Confirm the installed/native app completes input/output selection and real PDF creation without exposing full paths or secrets in the console.
 - [ ] Confirm the installed/native app has no horizontal overflow at 1280px, 125% zoom, 640px, and 390px with long input/output names.
+
+## v0.10.0 Step 1 Text stamp border/background planning
+
+- [ ] Confirm the Text stamp border/background plan exists and no implementation is added yet.
+- [ ] Confirm border/background are described as additive visual styling.
+- [ ] Confirm filled rectangles and visual masks are not described as safe redaction.
+- [ ] Confirm redaction, OCR, preview, thumbnails, and direct PDF text editing remain unimplemented.
+- [ ] Confirm existing PDF operations remain available and unchanged.

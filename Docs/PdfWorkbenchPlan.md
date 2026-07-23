@@ -378,3 +378,7 @@ additiveなText stamp core / bridgeを追加します。UIとpreviewはまだ追
 **v0.9.0 Step 4 - Text stamp QA / real-PDF checks**
 
 実生成PDFでall/selected pages、代表的なposition・color・opacity・rotation、source preservation、validation、安全文言、compact layoutを確認します。新しいPDF処理、dependency、version、release作業は追加しません。
+
+**v0.10.0 Step 1 - Text stamp border/background planning**
+
+Text stampのborder/background stylingと安全境界を設計します。Additiveな視認性向上のみを対象とし、新しいPDF処理実装やredactionは追加しません。

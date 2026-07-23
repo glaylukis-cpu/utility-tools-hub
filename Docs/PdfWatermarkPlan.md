@@ -170,3 +170,7 @@ The additive `pdf_text_stamp` core and shared bridge support validated short ASC
 ### v0.9.0 Step 3 - Text stamp UI connection
 
 PDF Workbench now connects to `pdf_text_stamp` with input summary, all-page or selected-page targeting, bounded stamp settings, limited color presets, operation plan, and local new-PDF feedback. Text stamp is additive; border/background, preview, thumbnails, OCR, redaction, direct text editing, and existing-content removal remain unimplemented.
+
+### v0.10.0 Step 1 - Text stamp border/background planning
+
+Text stamp border/background remains in the planning stage. It is defined as additive visual styling rather than redaction; no fill/stroke processing, UI, preview, OCR, direct text editing, or existing-content removal is implemented in this step.

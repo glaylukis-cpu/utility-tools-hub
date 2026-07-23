@@ -147,3 +147,7 @@ The additive `pdf_text_stamp` core and shared execution bridge write validated s
 ## v0.9.0 Text stamp UI connection
 
 PDF Workbench now connects to `pdf_text_stamp` with input/output PDF selection, input summary, short-text and page validation, bounded placement and styling fields, a lightweight plan, and loading/success/error feedback. The operation remains additive and writes a new PDF; border/background styling, real preview, thumbnails, Image stamp, Overlay writing, OCR, redaction, direct text editing, and existing-content removal remain unimplemented.
+
+## v0.10.0 Text stamp border/background planning
+
+`Docs/PdfTextStampPlan.md` now plans optional rectangle border, background fill, padding, opacity, placement geometry, safety copy, and staged delivery. Border/background remain unimplemented additive visual styling and are not redaction; no Rust, bridge, UI, CSS, PDF-processing, dependency, or version change is added.

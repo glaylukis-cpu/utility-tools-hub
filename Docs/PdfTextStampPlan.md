@@ -272,3 +272,141 @@ Step 3 connects `pdf_text_stamp` to the compact PDF Workbench with input and out
 ## 17. v0.9.0 Step 4 - Text stamp QA and real-PDF checks
 
 Step 4 validates all-page and selected-page output with real generated PDFs, representative placement, color, opacity, and rotation, source preservation, validation boundaries, safety copy, and compact layouts. No new PDF processing, dependency, version, release, or direct-editing feature is added.
+
+## 18. v0.10.0 Step 1 - Text stamp border/background foundation planning
+
+v0.10.0 Step 1 plans optional border and background styling for the existing Text stamp operation. It is a design, safety, and staged-delivery step only: no Rust core, bridge, React UI, CSS, request/response, `pdf_text_stamp`, PDF processing, dependency, or version change is added yet.
+
+### Feature goal
+
+- Improve the readability of short stamps such as `APPROVED`, `REVIEWED`, `PAID`, `VOID`, and `COPY`.
+- Allow a simple rectangle border and background fill to make a stamp stand out from page content.
+- Preserve the existing Text stamp position, margins, font size, text opacity, rotation, color, page selection, and new-PDF output behavior.
+- Treat border/background as additive visual styling only. It does not edit, delete, replace, sanitize, or securely hide existing PDF content.
+- Keep the boundaries that Text stamp is not redaction, a digital signature, identity verification, or an audit trail.
+
+### Candidate request model
+
+These fields are candidates for a later separately approved request/response change. Step 1 does not add them to the current contract.
+
+| Candidate input | Initial direction | Notes |
+| --- | --- | --- |
+| `border_enabled` | Boolean on/off | `false` preserves the current text-only output |
+| `border_color` | `black`, `red`, or `gray` | Limited presets only |
+| `border_width` | `0.5` to `6` pt | Rectangle stroke width; reject non-finite or out-of-range values |
+| `border_opacity` | Optional `0.1` to `1.0` | If omitted, inherit text opacity; an explicit value allows later independent control |
+| `background_enabled` | Boolean on/off | `false` preserves the current transparent background |
+| `background_color` | `white`, `yellow`, `red`, or `gray` | Black is excluded from the initial preset candidate because it is easily mistaken for a visual mask |
+| `background_opacity` | `0.1` to `1.0` | Visual coverage only; even `1.0` does not remove underlying content |
+| `padding` | One bounded non-negative pt value | Expands the estimated text bounds equally on all sides for the first slice |
+
+The later core/bridge step must define defaults and serialization explicitly, preserve compatibility for callers that do not send styling fields, and reject unknown presets or invalid numeric values. No such contract change occurs in Step 1.
+
+### Border model
+
+The narrow initial candidate is an axis-aligned rectangle derived from the text bounding estimate plus padding, then transformed with the stamp as one unit.
+
+- Support border on/off.
+- Use only black, red, and gray presets initially.
+- Bound border width to `0.5` through `6` pt.
+- Let an omitted border opacity inherit the existing text opacity; allow a later independent `border_opacity` only after ExtGState behavior is tested.
+- Draw a rectangle stroke only. The border must not clip, erase, replace, or otherwise alter page content.
+- Use the same padding and rectangle geometry as the background so fill, stroke, and text stay aligned.
+
+Rounded corners (`border_radius`) are not an initial candidate because portable PDF path construction, corner geometry, rotated bounds, and viewer QA add disproportionate complexity. Dashed borders, custom RGB colors, shadows, gradients, blend effects, and complex vector styles are also deferred.
+
+### Background fill model
+
+The initial background candidate is a solid rectangular fill behind the stamp text.
+
+- Support background on/off.
+- Use only white, yellow, red, and gray presets initially.
+- Bound background opacity to `0.1` through `1.0`.
+- Estimate text width and height using the same limited font metrics as Text stamp, then expand the rectangle by the shared padding.
+- Paint the background fill before the border and text so the border and stamp remain visible above it.
+- Keep fill opacity independent from text and stroke graphics state in the implementation design; do not let a graphics-state change leak into existing page content.
+
+An opaque fill or dark-looking rectangle can resemble a black box or visual mask. It only covers content visually: underlying text, images, annotations, metadata, and residual PDF objects remain in the document and may remain searchable, selectable, extractable, or recoverable. Background fill must never be named or marketed as redaction or safe redaction.
+
+### Placement and bounding-box model
+
+- Preserve the existing Text stamp position presets, margin X/Y, font size, rotation, page selection, and per-page placement behavior.
+- Use the reviewed text-width estimate as the inner bounds and add padding to obtain the shared fill/stroke rectangle.
+- Account for stroke width when checking the outer bounds; a thick border must not extend past an otherwise valid rectangle unnoticed.
+- Rotate background, border, and text around the same stamp-rectangle center with one reviewed transform.
+- Calculate geometry per target page and respect non-zero page-box origins.
+- Prefer the effective CropBox when defined and fall back to MediaBox according to one documented policy.
+- Reject output geometry that clearly leaves the effective page box, or return a precise warning in a later UI step; silent clipping is not acceptable.
+- Treat complete correction for inherited/existing page rotation as a follow-up geometry risk that requires dedicated fixtures.
+- Document that placement confidence is limited without real rendering or preview.
+
+Rotated bounds should be checked from all four transformed rectangle corners, not only from the unrotated width and height. Portrait, landscape, rotated, cropped, mixed-size, and non-zero-origin pages need separate real-PDF fixtures in the later QA step.
+
+### Safety copy
+
+Future Docs, operation-plan copy, and UI warnings should preserve these statements without implying content removal:
+
+- Border/background are additive visual styling.
+- They do not edit existing PDF text.
+- They do not remove existing PDF content.
+- They are not redaction.
+- A filled rectangle is not safe redaction.
+- Hidden text, images, annotations, and metadata remain unless a real redaction process removes and verifies them.
+- Existing images, text, page numbers, and watermarks are not removed.
+- `APPROVED` / `REVIEWED` style stamps are not digital signatures, identity verification, or audit trails.
+- Protected PDFs are not decrypted and permission restrictions are not bypassed.
+- Original PDFs are not overwritten by default; output is written to a new PDF.
+
+Real redaction is a separate safety-critical feature. It must remove targeted underlying content and relevant residual data, handle annotations and metadata according to an explicit policy, and verify the sanitized output. A visual rectangle alone does none of this.
+
+### Recommended Rust/lopdf implementation path
+
+1. **v0.10.0 Step 1 - Border/background design (current):** Define the candidate model, geometry, opacity policy, safety boundary, risks, stages, and QA only.
+2. **Step 2 - Border/background core / bridge:** In a separately approved task, extend the existing Text stamp path with validated optional fields, fill/stroke operators, resource-safe ExtGState handling, content-stream ordering, and structural tests.
+3. **Step 3 - Border/background UI connection:** Add compact controls, validation, operation-plan details, and prominent not-redaction copy without changing unrelated PDF operations.
+4. **Step 4 - Real PDF QA polish:** Test representative pages, rotations, bounds, opacity combinations, preset colors, printing/viewers, extraction of underlying content, protected input, and regressions.
+5. **Step 5 - Version bump / release:** Perform version and release work only after the implementation and QA steps are separately approved.
+6. **Step 6 - Color preset polish:** Review accessibility, print contrast, limited additional presets, and whether independent border opacity is justified.
+7. **Step 7 - Preview research:** Evaluate PDF.js/PDFium or another reviewed renderer as an independent feature; do not couple it to border/background delivery.
+8. **Step 8 - Safe redaction research:** Treat content removal and sanitization as a distinct safety-critical feature, never as an extension of background fill.
+
+The future core can reuse the existing Text stamp page selection, path checks, protected-PDF rejection, font resource, content-stream append, transform, and output verification patterns. The candidate drawing order is background fill first, border stroke second, and text last.
+
+Opacity needs an explicit graphics-state policy. PDF non-stroking alpha (`ca`) affects fills and text, while stroking alpha (`CA`) affects the border. A later implementation should use reviewed, collision-safe ExtGState resources for text/fill/stroke combinations, wrap new operators in balanced graphics-state save/restore operations, and avoid changing inherited page graphics state. Resource names must be allocated without replacing inherited or page-local entries.
+
+### Implementation risks
+
+- Text-width estimates can mis-size the rectangle, especially near page edges.
+- Padding and border width enlarge rotated bounds and can create clipping that text-only validation did not catch.
+- Incorrect content-stream order can place fill above the text or behave differently across viewers.
+- Reusing one ExtGState blindly can couple text, fill, and stroke opacity or leak state into existing content.
+- Resource-name collisions can replace inherited font or graphics-state resources.
+- Rotation around different centers can separate text, fill, and border.
+- CropBox, MediaBox, non-zero origins, mixed page sizes, and existing page rotation can move a logical preset away from its visual location.
+- Without rendering/preview, users cannot confirm coverage, contrast, or clipping before output.
+- An opaque background can be misunderstood as redaction even when extraction still exposes the underlying content.
+
+### Non-goals
+
+v0.10.0 Step 1 does not implement or promise:
+
+- safe redaction or calling a visual mask redaction;
+- direct editing or replacement of existing PDF text;
+- removal of existing text, images, page numbers, watermarks, annotations, hidden content, metadata, or residual objects;
+- OCR;
+- PDF.js/PDFium rendering, real preview, or thumbnails;
+- Japanese font embedding, arbitrary fonts, multiple lines, or advanced typography;
+- rounded corners, dashed borders, shadows, gradients, custom RGB, or complex vector styling;
+- Image stamp or general Overlay writing;
+- digital signatures, identity verification, or audit trails;
+- decryption, permission bypass, password handling, or password input UI;
+- Rust, bridge, React, CSS, PDF-processing, dependency, version, build-signing, or release changes.
+
+### Step 1 documentation QA
+
+- [ ] Confirm border/background are consistently described as additive visual styling.
+- [ ] Confirm a filled rectangle or visual mask is never described as safe redaction.
+- [ ] Confirm underlying text, images, annotations, and metadata are described as remaining in the PDF.
+- [ ] Confirm border, fill, padding, opacity, bounding-box, rotation-center, page-box, and no-preview risks are documented.
+- [ ] Confirm the staged path separates design, core/bridge, UI, real-PDF QA, release, preview research, and safe-redaction research.
+- [ ] Confirm existing PDF operations remain available and no implementation is added in Step 1.
