@@ -692,3 +692,90 @@ Research references for the feasibility spike:
 - digital signatures, identity verification, or audit trails;
 - decrypting protected PDFs, bypassing permission restrictions, or adding password handling; and
 - version, updater, signed-build, release, or repository-publishing changes.
+
+## 24. v0.12.0 Step 2 - PNG dependency feasibility spike
+
+v0.12.0 Step 2 evaluates PNG dependency feasibility without committing a decoder dependency or implementing PNG alpha. The `png` crate is the preferred candidate for a limited Image stamp prototype, but final adoption remains a Step 3 decision.
+
+### Baseline dependency state
+
+- The app remains v0.11.0 with no direct `png` or `image` dependency.
+- `lopdf` remains v0.34 with default features disabled and only `nom_parser` enabled. Its existing PDF stream support already brings `flate2`; no `lopdf` feature change is needed for this spike.
+- Baseline `cargo metadata` contained 567 packages across resolved targets, and the current-target `cargo tree` summary contained 394 unique lines.
+- PNG code was already present indirectly for Tauri infrastructure, but not as an app/PDF-tools runtime API: `png` 0.17.16 is reached through `ico` -> `tauri-codegen`, while `png` 0.18.1 is reached through `muda` on other targets.
+- A warm baseline `cargo check` completed in about 0.39 seconds. The frontend baseline build and the existing Rust checks passed before the spike.
+
+The transitive presence is useful because adding `png` 0.18.1 directly does not introduce an entirely new package family into the lockfile. It does not mean the PDF tools currently decode PNG or that the runtime binary already exposes PNG decoding.
+
+### Temporary `png` 0.18.1 evaluation
+
+`cargo add png` was used temporarily and then reverted. It added one line to `Cargo.toml` and one app dependency entry to `Cargo.lock`; the resolved metadata package count stayed at 567 because the same version was already present for another target. The current-target tree summary changed from 394 to 397 unique lines.
+
+The direct crate path consists of `png` plus `bitflags`, `crc32fast`, `fdeflate`, `flate2`, and `miniz_oxide`; these packages were already represented elsewhere in the broader dependency graph. No Tauri, `lopdf`, or existing PDF-tools conflict was observed.
+
+Observed local debug measurements are indicative only:
+
+| Measurement | Baseline | Temporary direct dependency | Observation |
+| --- | ---: | ---: | --- |
+| Warm/cached `cargo check` | about 0.39 s | about 4.15 s | The first direct-dependency check rebuilt PNG/DEFLATE-related crates; subsequent cached checks should be much lower. |
+| Debug `cargo build` | existing artifact | about 31.22 s | The dependency change caused a broad debug rebuild. There was one Windows linker-output warning, but no `png` compile warning or error. |
+| Debug `app.exe` | 28,363,776 bytes | 28,797,440 bytes | An observed increase of 433,664 bytes (about 1.53%). This is an unoptimized, unused-API spike and is not a release-size commitment. |
+
+Because no Rust code referenced the decoder, this measurement does not capture the final code path, optimization, or real release packaging. Step 3 must compare clean release artifacts with the actual narrowly used decoder before accepting a binary-size budget.
+
+### Decoder capability and rejection policy
+
+The `png` 0.18.1 API is sufficient for a narrow prototype:
+
+- `Info` exposes `width`, `height`, `color_type`, `bit_depth`, and `interlaced`, along with palette, `tRNS`, gamma, ICC, EXIF, and animation-related metadata.
+- `ColorType` distinguishes grayscale, RGB, indexed, grayscale-alpha, and RGBA. The initial prototype can explicitly accept only non-interlaced 8-bit RGB, RGBA, and grayscale before allocating a frame buffer.
+- Grayscale-alpha is technically straightforward to split into gray and alpha streams, but it remains outside the initial three-format commitment unless Step 3 adds explicit fixtures and bounds.
+- Indexed color and palette transparency can be expanded by crate transformations, but the first implementation should inspect the original header and reject them rather than silently broadening support.
+- Sixteen-bit input can be detected from `bit_depth` and rejected before decode. The initial path must not apply `STRIP_16` in a way that silently accepts a deferred format.
+- Interlaced input can be detected from `interlaced` and rejected before frame decode. Adam7 support remains deferred.
+- `read_info`, frame decoding, and checksum validation return errors for malformed data. The implementation must keep checksum validation enabled and treat every decoder error as a complete operation failure with no output PDF.
+- `Decoder::new_with_limits` / `set_limits` provide a byte allocation limit (64 MiB by default), but the crate documents it as best effort and does not count caller-owned output buffers. The app must independently bound source file bytes, dimensions, checked `width * height`, decoded bytes, output buffer size, and combined working allocation.
+- `output_buffer_size` returns `None` when the decoded frame cannot fit the platform address space, which is useful as an additional rejection rather than a replacement for app-level limits.
+
+For RGBA, a single checked pass can split each four-byte pixel into an RGB color stream and one-byte alpha stream. Peak memory must include the decoded RGBA buffer plus both PDF-ready buffers and compression working memory. For RGB or grayscale without alpha, no `SMask` is created. These operations are feasible with the focused crate, but they are not implemented in Step 2.
+
+Primary API references:
+
+- [`png::Decoder`](https://docs.rs/png/0.18.1/png/struct.Decoder.html)
+- [`png::Info`](https://docs.rs/png/0.18.1/png/struct.Info.html)
+- [`png::ColorType`](https://docs.rs/png/0.18.1/png/enum.ColorType.html)
+- [`png::Limits`](https://docs.rs/png/0.18.1/png/struct.Limits.html)
+- [`png::Reader`](https://docs.rs/png/0.18.1/png/struct.Reader.html)
+
+### `image` crate comparison
+
+The `image` crate offers a uniform decoder interface, format conversion, dimension/allocation limits, metadata access, and many optional codecs. Its default feature set covers PNG and numerous unrelated formats and also enables parallel processing. It could be narrowed with default features disabled and only the PNG feature enabled, but that still adds the general image abstraction on top of the PNG decoder.
+
+This breadth is useful for a future multi-format image library, but it is unnecessary for an Image stamp-only PNG alpha slice and increases dependency, build-time, binary-size, and security-review scope. `image` was therefore researched without adding it to the project and remains non-preferred for Step 3.
+
+### PDF `SMask` implementation feasibility
+
+The existing Image stamp placement and page-resource path can remain the outer operation. A future narrow PNG implementation would add a decode/embed boundary that:
+
+1. validates the source PNG and obtains checked dimensions, color type, bit depth, and interlace state;
+2. creates a `DeviceRGB` or `DeviceGray` color buffer and, for supported alpha input, a same-size 8-bit DeviceGray alpha buffer;
+3. compresses the color and alpha data as separate `FlateDecode` streams;
+4. creates the color Image XObject with `Width`, `Height`, `BitsPerComponent`, and `ColorSpace`;
+5. creates the DeviceGray Image XObject used by the color object's `SMask` entry;
+6. omits `DecodeParms` for plain rows, or supplies matching predictor parameters only if a PDF predictor is deliberately implemented and tested;
+7. keeps per-pixel PNG alpha in `SMask` and whole-image UI opacity in the existing `ExtGState`, so their visual effect combines rather than one replacing the other;
+8. adds shared XObjects and graphics state to each targeted page with collision-free resource names; and
+9. reuses the current width/aspect-ratio, position, margins, rotation, page targeting, protected-input rejection, source-preservation, and new-output rules.
+
+The decode/embed boundary could later be shared with Image watermark, but placement policy should remain separate and existing JPEG behavior must not be refactored until PNG Image stamp fixtures pass. Transparent images remain additive visual styling: they do not remove underlying PDF content and are not safe redaction, digital signatures, or audit trails.
+
+### Step 2 recommendation and next decision
+
+- Mark `png` 0.18.1 as feasibility-tested and preferred over `image` for a narrow prototype, without committing a dependency in Step 2.
+- In Step 3, decide whether to add `png` as a production dependency after defining app-level resource limits and clean release-size acceptance criteria.
+- If approved, implement Image stamp only and accept non-interlaced 8-bit RGB, RGBA, and grayscale PNG. Use `SMask` only for supported per-pixel alpha.
+- Defer grayscale-alpha unless fixtures and bounds are explicitly added; also defer indexed color, palette transparency, 16-bit, interlaced, gamma correction, full ICC/color management, APNG, SVG, and WebP.
+- Consider Image watermark only after the Image stamp decode/embed path is verified and can be shared without changing JPEG behavior.
+- Preserve all additive/not-redaction, protected-input, and new-output safety boundaries.
+
+The temporary `Cargo.toml` and `Cargo.lock` changes were restored before documentation edits. No direct `png` or `image` dependency remains, and no Rust, PDF-processing, React, CSS, UI, or version change is part of Step 2.

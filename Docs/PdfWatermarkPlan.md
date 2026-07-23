@@ -198,3 +198,7 @@ PDF Workbench now connects `pdf_image_stamp` with JPEG-only selection, seven pos
 ### v0.12.0 Step 1 - PNG alpha research / design
 
 PNG alpha support for transparent Image stamp and Image watermark artwork is in research only. The design covers PNG decoding, bounded color/bit-depth handling, separate PDF color and DeviceGray `SMask` Image XObjects, dependency and memory risks, and additive/not-redaction safety boundaries; no decoder, dependency, PDF processing, UI, preview, OCR, redaction, or direct PDF text editing is added.
+
+### v0.12.0 Step 2 - PNG dependency feasibility
+
+The PNG feasibility spike identifies the focused `png` crate as the preferred candidate for a future narrow Image stamp prototype, while leaving final adoption to Step 3. The temporary dependency was reverted; no committed dependency, PNG/`SMask` processing, UI, preview, OCR, redaction, or direct PDF text editing is added, and transparent images remain additive rather than safe redaction.

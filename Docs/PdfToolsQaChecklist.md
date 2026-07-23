@@ -499,3 +499,12 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [x] Confirm stamp-like and seal-like images are not described as digital signatures or audit trails.
 - [x] Confirm preview, OCR, redaction, and direct PDF text editing remain unimplemented.
 - [x] Confirm existing PDF operations and JPEG-only Image stamp / Image watermark remain available and unchanged.
+
+## v0.12.0 Step 2 PNG dependency feasibility spike
+
+- [x] Confirm PNG dependency feasibility, dependency-tree, build, binary-size, and resource-limit findings are documented.
+- [x] Confirm the focused `png` crate is evaluated as the preferred candidate without final adoption.
+- [x] Confirm the temporary Cargo dependency is reverted and no direct `png` or `image` dependency remains.
+- [x] Confirm separate color and DeviceGray `SMask` Image XObjects are documented without implementation.
+- [x] Confirm transparent images remain additive and are not described as safe redaction, digital signatures, or audit trails.
+- [x] Confirm preview, OCR, redaction, and direct PDF text editing remain unimplemented and existing PDF operations remain unchanged.

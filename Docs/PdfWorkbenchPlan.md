@@ -414,3 +414,7 @@ compact PDF Workbench上でImage stampのUI、validation、operation plan、実P
 **v0.12.0 Step 1 - PNG alpha research / design**
 
 Image stamp / Image watermark向けPNG alpha対応を、additive / not-redactionの安全境界を維持して調査します。このStepでは新しいPDF処理、dependency、UI、preview、OCR、redaction、PDF本文編集を追加しません。
+
+**v0.12.0 Step 2 - PNG dependency feasibility spike**
+
+PNG alpha向けdependency候補を評価し、限定的なImage stamp prototypeには`png` crateを優先候補とします。一時dependencyはrevert済みで、新しいPDF処理、確定dependency、UI、preview、OCR、redaction、PDF本文編集は追加しません。
