@@ -563,3 +563,7 @@ The initial scope also defers custom RGB conversion, CMYK/YCCK JPEG, complete EX
 ## 20. v0.11.0 Step 2 - JPEG-only Image stamp core / bridge
 
 v0.11.0 Step 2 adds the JPEG-only `pdf_image_stamp` core / bridge. Image stamp can place baseline grayscale/RGB JPEG stamp-like images on all or selected pages with preset position, margins, width with preserved aspect ratio, opacity, and rotation; UI, PNG alpha, preview, OCR, redaction, direct text editing, digital signatures, and audit trails are not added yet.
+
+## 21. v0.11.0 Step 3 - Image stamp UI connection
+
+PDF Workbench now connects the existing `pdf_image_stamp` route with PDF/JPEG/output selection, optional pages, seven position presets, bounded margins, width, opacity, rotation, an operation plan, and local result feedback. The operation remains additive and writes a new PDF; PNG alpha, preview, thumbnails, drag positioning, OCR, redaction, direct PDF text editing, digital signatures, and audit trails remain unimplemented.

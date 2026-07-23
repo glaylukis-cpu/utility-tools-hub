@@ -167,3 +167,7 @@ PDF Workbench now sends the existing optional border/background fields to `pdf_t
 ## v0.11.0 JPEG-only Image stamp core / bridge
 
 The additive `pdf_image_stamp` core and shared execution bridge can place validated baseline grayscale/RGB JPEG stamp-like images on all or selected pages using position presets, margins, width with preserved aspect ratio, opacity, and rotation. UI, PNG alpha, rendering, preview, OCR, redaction, direct PDF text editing, digital signatures, and audit trails remain unimplemented.
+
+## v0.11.0 Image stamp UI connection
+
+PDF Workbench now sends validated PDF/JPEG/output paths, optional page targets, preset position, margins, width, opacity, and rotation to the existing `pdf_image_stamp` shared route. The compact UI includes input summary, operation plan, safety guidance, and loading/success/error feedback; no Rust, PDF-processing, dependency, preview, OCR, redaction, or direct text-editing change is included.

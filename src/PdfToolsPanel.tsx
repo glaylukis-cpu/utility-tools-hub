@@ -90,6 +90,21 @@ type PdfImageWatermarkResult = {
   rotation_degrees: number;
 };
 
+type PdfImageStampResult = {
+  input_path: string;
+  output_path: string;
+  image_path: string;
+  pages: number[];
+  page_count: number;
+  position: ImageStampPosition;
+  width: number;
+  height: number;
+  opacity: number;
+  rotation_degrees: number;
+  margin_x: number;
+  margin_y: number;
+};
+
 type PdfPageNumbersResult = {
   input_path: string;
   output_path: string;
@@ -176,7 +191,8 @@ type PdfWorkbenchOperation =
   | "textWatermark"
   | "pageNumbers"
   | "imageWatermark"
-  | "textStamp";
+  | "textStamp"
+  | "imageStamp";
 
 type PageNumberFormat =
   | "number"
@@ -202,6 +218,8 @@ type TextStampPosition =
   | "bottom-center"
   | "bottom-right";
 
+type ImageStampPosition = TextStampPosition;
+
 type TextStampColor = "black" | "red" | "gray";
 type TextStampBorderColor = TextStampColor;
 type TextStampBackgroundColor = "white" | "yellow" | "red" | "gray";
@@ -221,11 +239,12 @@ const pdfWorkbenchOperations: ReadonlyArray<{
   { id: "pageNumbers", label: "Page numbers" },
   { id: "imageWatermark", label: "Image watermark" },
   { id: "textStamp", label: "Text stamp" },
+  { id: "imageStamp", label: "Image stamp" },
 ];
 
 const plannedPageTools = [
-  "PNG alpha image watermark",
-  "Image stamp",
+  "PNG alpha image support",
+  "Drag positioning",
   "Text stamp color presets polish",
   "Drag-and-drop reorder",
   "Real PDF page preview",
@@ -249,6 +268,7 @@ const PDF_REORDER_TOOL_ID = "pdf_reorder";
 const PDF_TEXT_WATERMARK_TOOL_ID = "pdf_text_watermark";
 const PDF_PAGE_NUMBERS_TOOL_ID = "pdf_page_numbers";
 const PDF_IMAGE_WATERMARK_TOOL_ID = "pdf_image_watermark";
+const PDF_IMAGE_STAMP_TOOL_ID = "pdf_image_stamp";
 const PDF_TEXT_STAMP_TOOL_ID = "pdf_text_stamp";
 const PDF_INSPECT_TOOL_ID = "pdf_inspect";
 const POLL_INTERVAL_MS = 500;
@@ -281,6 +301,9 @@ const textStampPositionOptions: ReadonlyArray<{ value: TextStampPosition; label:
   { value: "bottom-center", label: "Bottom center" },
   { value: "bottom-right", label: "Bottom right" },
 ];
+
+const imageStampPositionOptions: ReadonlyArray<{ value: ImageStampPosition; label: string }> =
+  textStampPositionOptions;
 
 const textStampColorOptions: ReadonlyArray<{ value: TextStampColor; label: string }> = [
   { value: "black", label: "Black" },
@@ -515,6 +538,50 @@ function imageWatermarkFailureMessage(reason?: string | null): string {
 }
 
 function imageWatermarkImageValidationMessage(image: SelectedImage | null): string | null {
+  if (!image) return "Select a JPEG image.";
+  if (!/\.(jpe?g)$/i.test(image.name)) {
+    return "JPEG/JPG only. PNG, WebP, and SVG are not supported.";
+  }
+  if (!image.path) return "Select the JPEG again with the desktop file picker.";
+  return null;
+}
+
+function imageStampFailureMessage(reason?: string | null): string {
+  const knownMessages: Record<string, string> = {
+    "every input file must use the .pdf extension": "The input file must use the .pdf extension.",
+    "the output file must use the .pdf extension": "The output file must use the .pdf extension.",
+    "an input PDF file does not exist": "The selected PDF could not be found. Select it again.",
+    "the output directory does not exist": "The selected output folder no longer exists. Choose the output PDF again.",
+    "the output file must differ from every input file": "The output PDF must be different from the input PDF.",
+    "the watermark image must use the .jpg or .jpeg extension": "Select a JPEG image with the .jpg or .jpeg extension. PNG, WebP, and SVG are not supported.",
+    "the watermark image file does not exist": "The selected JPEG image could not be found. Select it again.",
+    "the watermark JPEG file is too large": "The JPEG image exceeds the supported file-size limit.",
+    "the watermark image is not a valid baseline JPEG file": "The image is not a valid supported baseline JPEG.",
+    "the watermark JPEG must use 8-bit baseline sequential encoding": "Progressive or non-baseline JPEG encoding is not supported.",
+    "the watermark JPEG must use grayscale or three-component color": "Only grayscale or RGB JPEG images are supported. CMYK/YCCK JPEG is not supported.",
+    "the watermark JPEG dimensions are zero or exceed the supported limit": "The JPEG dimensions are zero or exceed the supported limit.",
+    "the image stamp position is not supported": "Select one of the supported stamp positions.",
+    "image stamp margins must be finite values from 0 to 144 points and fit the page": "Margins must be between 0 and 144 points and fit the selected PDF pages.",
+    "image stamp width must be a finite value from 8 to 1440 points": "Width must be between 8 and 1440 points.",
+    "image stamp opacity must be greater than 0 and no greater than 1": "Opacity must be greater than 0 and no greater than 1.",
+    "image stamp rotation must be a finite value from -360 to 360 degrees": "Rotation must be between -360 and 360 degrees.",
+    "the image stamp does not fit inside a selected PDF page": "The rotated image stamp does not fit inside one or more selected PDF pages. Reduce its width, margins, or rotation.",
+    "page numbers must be one or greater": "Page numbers must be whole numbers greater than zero.",
+    "a selected page is outside the input PDF page range": "The page selection contains a page outside the input PDF range.",
+    "duplicate page numbers are not supported": "Enter each target page only once.",
+    "encrypted or permission-protected PDF files are not supported yet":
+      "Protected PDFs are not supported. Utility Tools Hub does not decrypt PDFs or bypass permissions.",
+    "an input file is not a supported PDF document": "The input file is not a supported PDF document.",
+    "the output PDF could not be saved": "The output PDF could not be saved. Choose a writable location and try again.",
+  };
+
+  return (
+    (reason ? knownMessages[reason.trim()] : undefined) ??
+    "Image stamp failed. Check the input PDF, baseline JPEG image, settings, and writable output location, then try again."
+  );
+}
+
+function imageStampImageValidationMessage(image: SelectedImage | null): string | null {
   if (!image) return "Select a JPEG image.";
   if (!/\.(jpe?g)$/i.test(image.name)) {
     return "JPEG/JPG only. PNG, WebP, and SVG are not supported.";
@@ -1235,6 +1302,117 @@ function ImageWatermarkOperationPlan({
   );
 }
 
+function ImageStampOperationPlan({
+  summary,
+  image,
+  pagesInput,
+  position,
+  marginXInput,
+  marginYInput,
+  widthInput,
+  opacityInput,
+  rotationInput,
+  outputPath,
+}: {
+  summary: OperationInputSummaryState;
+  image: SelectedImage | null;
+  pagesInput: string;
+  position: ImageStampPosition;
+  marginXInput: string;
+  marginYInput: string;
+  widthInput: string;
+  opacityInput: string;
+  rotationInput: string;
+  outputPath: string | null;
+}) {
+  const result = summary.result;
+  const parsedPages = parseOptionalPageSelection(pagesInput, result?.page_count ?? null);
+  const imageError = imageStampImageValidationMessage(image);
+  const marginX = parseFiniteNumber(marginXInput);
+  const marginY = parseFiniteNumber(marginYInput);
+  const width = parseFiniteNumber(widthInput);
+  const opacity = parseFiniteNumber(opacityInput);
+  const rotation = parseFiniteNumber(rotationInput);
+  const marginXError = boundedNumberValidationMessage(marginXInput, "Margin X", 0, 144);
+  const marginYError = boundedNumberValidationMessage(marginYInput, "Margin Y", 0, 144);
+  const widthError = boundedNumberValidationMessage(widthInput, "Width", 8, 1440);
+  const opacityError = opacity === null || opacity <= 0 || opacity > 1
+    ? "Opacity must be greater than 0 and no greater than 1."
+    : null;
+  const rotationError = rotation === null || rotation < -360 || rotation > 360
+    ? "Rotation must be between -360 and 360 degrees."
+    : null;
+  const outputError = outputPdfValidationMessage(outputPath);
+  const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
+  const positionLabel = imageStampPositionOptions.find((option) => option.value === position)?.label ?? position;
+  const isValid = Boolean(
+    result &&
+      image &&
+      !imageError &&
+      !parsedPages.error &&
+      !marginXError &&
+      !marginYError &&
+      !widthError &&
+      !opacityError &&
+      !rotationError &&
+      !outputError &&
+      !isProtected,
+  );
+
+  return (
+    <div className="pdf-tools-operation-plan" aria-label="Image stamp operation plan preview">
+      <div className="pdf-tools-operation-plan-heading">
+        <div>
+          <span>Lightweight plan</span>
+          <strong>JPEG image stamp</strong>
+        </div>
+        <span className={`pdf-tools-operation-plan-status ${isValid ? "is-valid" : "is-check"}`}>
+          {isValid ? "Valid" : "Needs check"}
+        </span>
+      </div>
+      <p className="pdf-tools-operation-plan-note">Planning aid only — not a real PDF or image preview. Placement and thumbnails are not rendered.</p>
+      <dl className="pdf-tools-operation-plan-details">
+        <div><dt>Input PDF</dt><dd>{result?.file_name ?? "Not selected"}</dd></div>
+        <div><dt>JPEG image</dt><dd>{image?.name ?? "Not selected"}</dd></div>
+        <div><dt>Target pages</dt><dd>{pagesInput.trim() || "All pages"}</dd></div>
+        <div><dt>Position</dt><dd>{positionLabel}</dd></div>
+        <div><dt>Margins</dt><dd>{marginXError || marginYError || marginX === null || marginY === null ? "Invalid" : `X ${marginX} pt · Y ${marginY} pt`}</dd></div>
+        <div><dt>Width</dt><dd>{widthError || width === null ? "Invalid" : `${width} pt · aspect ratio preserved`}</dd></div>
+        <div><dt>Opacity</dt><dd>{opacityError || opacity === null ? "Invalid" : opacity}</dd></div>
+        <div><dt>Rotation</dt><dd>{rotationError || rotation === null ? "Invalid" : `${rotation}°`}</dd></div>
+        <div><dt>Format</dt><dd>Baseline grayscale/RGB JPEG only</dd></div>
+        <div><dt>Output PDF</dt><dd>{outputPath ? `New PDF · ${fileNameFromPath(outputPath)}` : "Not selected"}</dd></div>
+      </dl>
+      <div className="pdf-tools-operation-plan-targets">
+        <span>Selected page targets</span>
+        {parsedPages.error ? (
+          <span className="pdf-tools-operation-plan-empty">Review the page selection warning below.</span>
+        ) : pagesInput.trim() ? (
+          <PlanPageChips pages={parsedPages.pages} />
+        ) : (
+          <span className="pdf-tools-operation-plan-empty">All pages will receive the additive image stamp.</span>
+        )}
+      </div>
+      {imageError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Check image:</strong> {imageError}</p>}
+      {parsedPages.error && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Check page selection:</strong> {parsedPages.error}</p>}
+      {marginXError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid margin:</strong> {marginXError}</p>}
+      {marginYError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid margin:</strong> {marginYError}</p>}
+      {widthError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid width:</strong> {widthError}</p>}
+      {opacityError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid opacity:</strong> {opacityError}</p>}
+      {rotationError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Invalid rotation:</strong> {rotationError}</p>}
+      {outputError && <p className="pdf-tools-operation-plan-warning" role="alert"><strong>Output required:</strong> {outputError}</p>}
+      {isProtected && (
+        <p className="pdf-tools-operation-plan-warning is-protected" role="alert">
+          <strong>Protected PDF:</strong> Image stamp is unavailable. Utility Tools Hub does not decrypt PDFs or bypass permissions.
+        </p>
+      )}
+      <p className="pdf-tools-operation-plan-safety">
+        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This places a JPEG image in a new PDF without removing existing text, images, page numbers, or watermarks. Covering content does not remove it. Stamp-like images are not digital signatures or audit trails.
+      </p>
+    </div>
+  );
+}
+
 function PageNumbersOperationPlan({
   summary,
   pagesInput,
@@ -1531,6 +1709,8 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const pageNumbersFileInputRef = useRef<HTMLInputElement>(null);
   const imageWatermarkPdfFileInputRef = useRef<HTMLInputElement>(null);
   const imageWatermarkImageFileInputRef = useRef<HTMLInputElement>(null);
+  const imageStampPdfFileInputRef = useRef<HTMLInputElement>(null);
+  const imageStampImageFileInputRef = useRef<HTMLInputElement>(null);
   const textStampFileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
@@ -1627,6 +1807,21 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [imageWatermarkFeedback, setImageWatermarkFeedback] = useState<string | null>(null);
   const [imageWatermarkError, setImageWatermarkError] = useState<string | null>(null);
 
+  const [imageStampInput, setImageStampInput] = useState<SelectedPdf | null>(null);
+  const [imageStampImage, setImageStampImage] = useState<SelectedImage | null>(null);
+  const [imageStampPagesInput, setImageStampPagesInput] = useState("");
+  const [imageStampPosition, setImageStampPosition] = useState<ImageStampPosition>("top-right");
+  const [imageStampMarginXInput, setImageStampMarginXInput] = useState("36");
+  const [imageStampMarginYInput, setImageStampMarginYInput] = useState("36");
+  const [imageStampWidthInput, setImageStampWidthInput] = useState("120");
+  const [imageStampOpacityInput, setImageStampOpacityInput] = useState("1");
+  const [imageStampRotationInput, setImageStampRotationInput] = useState("0");
+  const [imageStampOutputPath, setImageStampOutputPath] = useState<string | null>(null);
+  const [imageStampResult, setImageStampResult] = useState<PdfImageStampResult | null>(null);
+  const [isAddingImageStamp, setIsAddingImageStamp] = useState(false);
+  const [imageStampFeedback, setImageStampFeedback] = useState<string | null>(null);
+  const [imageStampError, setImageStampError] = useState<string | null>(null);
+
   const [textStampInput, setTextStampInput] = useState<SelectedPdf | null>(null);
   const [textStampText, setTextStampText] = useState("APPROVED");
   const [textStampPagesInput, setTextStampPagesInput] = useState("");
@@ -1665,6 +1860,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const [watermarkInputSummary, setWatermarkInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [pageNumbersInputSummary, setPageNumbersInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [imageWatermarkInputSummary, setImageWatermarkInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
+  const [imageStampInputSummary, setImageStampInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
   const [textStampInputSummary, setTextStampInputSummary] = useState<OperationInputSummaryState>(emptyOperationInputSummary);
 
   const nativeDialogAvailable = isTauri();
@@ -1729,6 +1925,32 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const imageWatermarkInputIsProtected = Boolean(
     imageWatermarkInputSummary.result &&
       (imageWatermarkInputSummary.result.is_encrypted || imageWatermarkInputSummary.result.is_protected),
+  );
+  const parsedImageStampPages = parseOptionalPageSelection(
+    imageStampPagesInput,
+    imageStampInputSummary.result?.page_count ?? null,
+  );
+  const imageStampImageError = imageStampImageValidationMessage(imageStampImage);
+  const imageStampMarginX = parseFiniteNumber(imageStampMarginXInput);
+  const imageStampMarginY = parseFiniteNumber(imageStampMarginYInput);
+  const imageStampWidth = parseFiniteNumber(imageStampWidthInput);
+  const imageStampOpacity = parseFiniteNumber(imageStampOpacityInput);
+  const imageStampRotation = parseFiniteNumber(imageStampRotationInput);
+  const imageStampMarginXError = boundedNumberValidationMessage(imageStampMarginXInput, "Margin X", 0, 144);
+  const imageStampMarginYError = boundedNumberValidationMessage(imageStampMarginYInput, "Margin Y", 0, 144);
+  const imageStampWidthError = boundedNumberValidationMessage(imageStampWidthInput, "Width", 8, 1440);
+  const imageStampOpacityError =
+    imageStampOpacity === null || imageStampOpacity <= 0 || imageStampOpacity > 1
+      ? "Opacity must be greater than 0 and no greater than 1."
+      : null;
+  const imageStampRotationError =
+    imageStampRotation === null || imageStampRotation < -360 || imageStampRotation > 360
+      ? "Rotation must be between -360 and 360 degrees."
+      : null;
+  const imageStampOutputError = outputPdfValidationMessage(imageStampOutputPath);
+  const imageStampInputIsProtected = Boolean(
+    imageStampInputSummary.result &&
+      (imageStampInputSummary.result.is_encrypted || imageStampInputSummary.result.is_protected),
   );
   const parsedTextStampPages = parseOptionalPageSelection(
     textStampPagesInput,
@@ -3217,6 +3439,211 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     );
   };
 
+  const selectImageStampInput = async () => {
+    if (isRunningRef.current) return;
+    setImageStampFeedback(null);
+    setImageStampError(null);
+    setImageStampResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select PDF for image stamp",
+          filters: [{ name: "PDF document", extensions: ["pdf"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+          setImageStampError("Select a file with the .pdf extension.");
+          return;
+        }
+
+        const fileName = fileNameFromPath(selectedPath);
+        setImageStampInput({ name: fileName, path: selectedPath });
+        setImageStampFeedback(`Input selected: ${fileName}`);
+        await inspectOperationInput(selectedPath, setImageStampInputSummary);
+        return;
+      } catch {
+        setImageStampError("The native PDF picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    imageStampPdfFileInputRef.current?.click();
+  };
+
+  const selectBrowserImageStampInput = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setImageStampFeedback(null);
+    setImageStampResult(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setImageStampInput(null);
+      setImageStampInputSummary(emptyOperationInputSummary());
+      setImageStampError("Please select a PDF file.");
+      input.value = "";
+      return;
+    }
+
+    setImageStampInput({ name: file.name });
+    setImageStampInputSummary({
+      loading: false,
+      error: "Desktop file path selection is required to inspect this PDF.",
+      result: null,
+    });
+    setImageStampError("Desktop file path selection is required to add an image stamp.");
+    input.value = "";
+  };
+
+  const selectImageStampJpeg = async () => {
+    if (isRunningRef.current) return;
+    setImageStampFeedback(null);
+    setImageStampError(null);
+    setImageStampResult(null);
+
+    if (nativeDialogAvailable) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await open({
+          multiple: false,
+          directory: false,
+          title: "Select JPEG image stamp",
+          filters: [{ name: "JPEG image", extensions: ["jpg", "jpeg"] }],
+        });
+        if (typeof selectedPath !== "string") return;
+        const fileName = fileNameFromPath(selectedPath);
+        if (!/\.(jpe?g)$/i.test(fileName)) {
+          setImageStampImage(null);
+          setImageStampError("JPEG/JPG only. PNG, WebP, and SVG are not supported.");
+          return;
+        }
+
+        setImageStampImage({ name: fileName, path: selectedPath });
+        setImageStampFeedback(`JPEG selected: ${fileName}`);
+        return;
+      } catch {
+        setImageStampError("The native JPEG picker is unavailable. Desktop file path selection is required.");
+      }
+    }
+
+    imageStampImageFileInputRef.current?.click();
+  };
+
+  const selectBrowserImageStampJpeg = (file: File | undefined, input: HTMLInputElement) => {
+    if (!file) return;
+    setImageStampFeedback(null);
+    setImageStampResult(null);
+
+    if (!/\.(jpe?g)$/i.test(file.name)) {
+      setImageStampImage(null);
+      setImageStampError("JPEG/JPG only. PNG, WebP, and SVG are not supported.");
+      input.value = "";
+      return;
+    }
+
+    setImageStampImage({ name: file.name });
+    setImageStampError("Select the JPEG again with the desktop file picker to run Image stamp.");
+    input.value = "";
+  };
+
+  const selectImageStampOutputPdf = async () => {
+    if (!nativeDialogAvailable || isRunningRef.current) return;
+    setImageStampFeedback(null);
+    setImageStampError(null);
+    setImageStampResult(null);
+
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await save({
+        defaultPath: "image-stamped-document.pdf",
+        title: "Select image-stamp output PDF",
+        filters: [{ name: "PDF document", extensions: ["pdf"] }],
+      });
+      if (!selectedPath) return;
+      if (!selectedPath.toLowerCase().endsWith(".pdf")) {
+        setImageStampError("The output file must use the .pdf extension.");
+        return;
+      }
+
+      setImageStampOutputPath(selectedPath);
+      setImageStampFeedback(`Output selected: ${fileNameFromPath(selectedPath)}`);
+    } catch {
+      setImageStampError("The image-stamp output PDF could not be selected.");
+    }
+  };
+
+  const addImageStamp = async () => {
+    if (isRunningRef.current) return;
+    if (
+      !imageStampInput?.path ||
+      !imageStampInputSummary.result ||
+      !imageStampImage?.path ||
+      imageStampImageError ||
+      parsedImageStampPages.error ||
+      imageStampMarginXError ||
+      imageStampMarginYError ||
+      imageStampWidthError ||
+      imageStampOpacityError ||
+      imageStampRotationError ||
+      imageStampOutputError ||
+      imageStampInputIsProtected ||
+      imageStampMarginX === null ||
+      imageStampMarginY === null ||
+      imageStampWidth === null ||
+      imageStampOpacity === null ||
+      imageStampRotation === null ||
+      !imageStampOutputPath
+    ) {
+      setImageStampError(
+        imageStampImageError ??
+          parsedImageStampPages.error ??
+          imageStampMarginXError ??
+          imageStampMarginYError ??
+          imageStampWidthError ??
+          imageStampOpacityError ??
+          imageStampRotationError ??
+          imageStampOutputError ??
+          (imageStampInputIsProtected
+            ? "Protected PDFs are not supported. Utility Tools Hub does not decrypt PDFs or bypass permissions."
+            : null) ??
+          "Select a desktop PDF, baseline JPEG image, and output PDF, then review the operation plan.",
+      );
+      return;
+    }
+
+    setImageStampResult(null);
+    setImageStampFeedback(null);
+    setImageStampError(null);
+
+    await executeAdditionalPdfTool<PdfImageStampResult>(
+      PDF_IMAGE_STAMP_TOOL_ID,
+      {
+        input_path: imageStampInput.path,
+        output_path: imageStampOutputPath,
+        image_path: imageStampImage.path,
+        pages: parsedImageStampPages.pages,
+        position: imageStampPosition,
+        margin_x: imageStampMarginX,
+        margin_y: imageStampMarginY,
+        width: imageStampWidth,
+        opacity: imageStampOpacity,
+        rotation_degrees: imageStampRotation,
+      },
+      setIsAddingImageStamp,
+      (result) => {
+        setImageStampResult(result);
+        setImageStampFeedback("Image stamp completed successfully.");
+        setImageStampError(null);
+      },
+      (reason) => {
+        setImageStampResult(null);
+        setImageStampFeedback(null);
+        setImageStampError(imageStampFailureMessage(reason));
+      },
+    );
+  };
+
   const selectTextStampInput = async () => {
     if (isRunningRef.current) return;
     setTextStampFeedback(null);
@@ -3411,6 +3838,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     watermarkInputSummary.loading ||
     pageNumbersInputSummary.loading ||
     imageWatermarkInputSummary.loading ||
+    imageStampInputSummary.loading ||
     textStampInputSummary.loading ||
     isMerging ||
     isSplitting ||
@@ -3421,6 +3849,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     isWatermarking ||
     isAddingPageNumbers ||
     isAddingImageWatermark ||
+    isAddingImageStamp ||
     isAddingTextStamp;
   const mergeTotalPages = mergeInputSummaries.reduce(
     (total, summary) => total + (summary.result?.page_count ?? 0),
@@ -3504,6 +3933,21 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     imageWatermarkOpacityError === null &&
     imageWatermarkRotationError === null &&
     !imageWatermarkInputIsProtected &&
+    !isAnyOperationRunning;
+  const canAddImageStamp =
+    nativeDialogAvailable &&
+    typeof imageStampInput?.path === "string" &&
+    imageStampInputSummary.result !== null &&
+    typeof imageStampImage?.path === "string" &&
+    imageStampImageError === null &&
+    parsedImageStampPages.error === null &&
+    imageStampMarginXError === null &&
+    imageStampMarginYError === null &&
+    imageStampWidthError === null &&
+    imageStampOpacityError === null &&
+    imageStampRotationError === null &&
+    imageStampOutputError === null &&
+    !imageStampInputIsProtected &&
     !isAnyOperationRunning;
   const canAddTextStamp =
     nativeDialogAvailable &&
@@ -3658,6 +4102,31 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                       : !imageWatermarkOutputPath
                         ? "Select an output PDF."
                         : null;
+  const imageStampDisabledReason = !nativeDialogAvailable
+    ? "PDF processing is available in the desktop app."
+    : !imageStampInput?.path
+      ? "Select one input PDF."
+      : imageStampInputSummary.loading
+        ? "Wait for the input PDF summary to finish."
+        : !imageStampInputSummary.result
+          ? "A valid input PDF summary is required."
+          : imageStampInputIsProtected
+            ? "Protected PDFs are not supported. Decryption and permission bypass are not provided."
+            : imageStampImageError
+              ? imageStampImageError
+              : parsedImageStampPages.error
+                ? parsedImageStampPages.error
+                : imageStampMarginXError
+                  ? imageStampMarginXError
+                  : imageStampMarginYError
+                    ? imageStampMarginYError
+                    : imageStampWidthError
+                      ? imageStampWidthError
+                      : imageStampOpacityError
+                        ? imageStampOpacityError
+                        : imageStampRotationError
+                          ? imageStampRotationError
+                          : imageStampOutputError;
   const textStampDisabledReason = !nativeDialogAvailable
     ? "PDF processing is available in the desktop app."
     : !textStampInput?.path
@@ -3730,7 +4199,9 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                     ? pageNumbersInput?.name ?? "No file selected"
                     : selectedOperation === "imageWatermark"
                       ? imageWatermarkInput?.name ?? "No file selected"
-                      : textStampInput?.name ?? "No file selected";
+                      : selectedOperation === "imageStamp"
+                        ? imageStampInput?.name ?? "No file selected"
+                        : textStampInput?.name ?? "No file selected";
   const operationStatuses: ReadonlyArray<{
     id: PdfWorkbenchOperation;
     label: string;
@@ -3748,6 +4219,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
     { id: "pageNumbers", label: "Page numbers", status: isAddingPageNumbers ? "Running" : pageNumbersError ? "Needs attention" : pageNumbersResult ? "Completed" : "Ready", className: isAddingPageNumbers ? "is-running" : pageNumbersError ? "is-error" : pageNumbersResult ? "is-success" : "" },
     { id: "imageWatermark", label: "Image watermark", status: isAddingImageWatermark ? "Running" : imageWatermarkError ? "Needs attention" : imageWatermarkResult ? "Completed" : "Ready", className: isAddingImageWatermark ? "is-running" : imageWatermarkError ? "is-error" : imageWatermarkResult ? "is-success" : "" },
     { id: "textStamp", label: "Text stamp", status: isAddingTextStamp ? "Running" : textStampError ? "Needs attention" : textStampResult ? "Completed" : "Ready", className: isAddingTextStamp ? "is-running" : textStampError ? "is-error" : textStampResult ? "is-success" : "" },
+    { id: "imageStamp", label: "Image stamp", status: isAddingImageStamp ? "Running" : imageStampError ? "Needs attention" : imageStampResult ? "Completed" : "Ready", className: isAddingImageStamp ? "is-running" : imageStampError ? "is-error" : imageStampResult ? "is-success" : "" },
   ];
   const activeOperationStatus = operationStatuses.find(
     (operation) => operation.id === selectedOperation,
@@ -3764,11 +4236,11 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
           <h1>PDF Workbench</h1>
           <p>Local page operations with clear file, operation, result, and safety areas</p>
         </div>
-        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete · Reorder · Text watermark · Page numbers · Image watermark · Text stamp</span>
+        <span className="pdf-tools-planned-badge">Inspect · Merge · Split · Extract · Rotate · Delete · Reorder · Text watermark · Page numbers · Image watermark · Text stamp · Image stamp</span>
       </div>
 
       <div className="pdf-tools-notice" role="note">
-        <strong>PDF Workbench supports local page operations, additive text and JPEG image watermarks, page numbers, and short text stamps with optional border/background.</strong>
+        <strong>PDF Workbench supports local page operations, additive text and JPEG image watermarks, page numbers, short text stamps, and JPEG image stamps.</strong>
         <span>Preview, thumbnails, OCR, redaction, and direct text editing are not implemented.</span>
       </div>
 
@@ -3891,6 +4363,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                 <div><dt>Page numbers</dt><dd>{pageNumbersInput?.name ?? "None"}</dd></div>
                 <div><dt>Image watermark</dt><dd>{imageWatermarkInput?.name ?? "None"}</dd></div>
                 <div><dt>Text stamp</dt><dd>{textStampInput?.name ?? "None"}</dd></div>
+                <div><dt>Image stamp</dt><dd>{imageStampInput?.name ?? "None"}</dd></div>
               </dl>
             </details>
             <div className="pdf-tools-local-notes">
@@ -5254,6 +5727,243 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
         </section>
         )}
 
+        {selectedOperation === "imageStamp" && (
+        <section id="pdf-operation-imageStamp" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card pdf-tools-watermark-card" aria-labelledby="pdf-image-stamp-title">
+          <div className="pdf-tools-section-heading">
+            <span>Additive image · JPEG only</span>
+            <h2 id="pdf-image-stamp-title">Image stamp</h2>
+            <p>Place one baseline grayscale/RGB JPEG image at a preset position on all or selected pages and save a new PDF.</p>
+          </div>
+          <p className="pdf-tools-helper">JPEG/JPG only. Width preserves the image aspect ratio. PNG alpha, SVG, WebP, CMYK/YCCK JPEG, progressive JPEG, image preview, and thumbnails are not supported.</p>
+          <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> Image stamp adds a visible image without removing or replacing underlying text, images, page numbers, or watermarks. Covering content does not safely hide it. Stamp-like images are not digital signatures or audit trails.</p>
+
+          <div className="pdf-tools-button-row">
+            <button type="button" className="btn btn-outline" onClick={selectImageStampInput} disabled={isAnyOperationRunning}>
+              Select input PDF
+            </button>
+            <button type="button" className="btn btn-outline" onClick={selectImageStampJpeg} disabled={isAnyOperationRunning}>
+              Select JPEG image
+            </button>
+            <button
+              type="button"
+              className={nativeDialogAvailable ? "btn btn-outline" : "btn btn-disabled"}
+              onClick={selectImageStampOutputPdf}
+              disabled={!nativeDialogAvailable || isAnyOperationRunning}
+            >
+              {nativeDialogAvailable ? "Select output PDF" : "Output PDF (Desktop only)"}
+            </button>
+          </div>
+          <input
+            ref={imageStampPdfFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(event) =>
+              selectBrowserImageStampInput(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+          <input
+            ref={imageStampImageFileInputRef}
+            className="pdf-tools-hidden-input"
+            type="file"
+            accept=".jpg,.jpeg,image/jpeg"
+            onChange={(event) =>
+              selectBrowserImageStampJpeg(event.currentTarget.files?.[0], event.currentTarget)
+            }
+          />
+
+          <dl className="pdf-tools-selection-details">
+            <div><dt>Input PDF</dt><dd>{imageStampInput?.name ?? "Not selected"}</dd></div>
+            <div><dt>JPEG image</dt><dd>{imageStampImage?.name ?? "Not selected"}</dd></div>
+            <div><dt>Position</dt><dd>{imageStampPositionOptions.find((option) => option.value === imageStampPosition)?.label}</dd></div>
+            <div>
+              <dt>Output PDF</dt>
+              <dd className="pdf-tools-path">
+                {imageStampOutputPath ? fileNameFromPath(imageStampOutputPath) : "Not selected"}
+              </dd>
+            </div>
+          </dl>
+
+          <OperationInputSummary
+            fileName={imageStampInput?.name}
+            summary={imageStampInputSummary}
+            guidance="Page count checks selected targets. Protected PDFs are not decrypted or bypassed."
+          />
+
+          <label className="pdf-tools-field">
+            <span>Pages (optional)</span>
+            <input
+              type="text"
+              inputMode="text"
+              value={imageStampPagesInput}
+              onChange={(event) => {
+                setImageStampPagesInput(event.currentTarget.value);
+                setImageStampResult(null);
+                setImageStampFeedback(null);
+                setImageStampError(null);
+              }}
+              disabled={isAnyOperationRunning}
+              placeholder="All pages, or 1,3,5-7"
+              aria-invalid={Boolean(parsedImageStampPages.error)}
+              aria-describedby={parsedImageStampPages.error ? "pdf-image-stamp-pages-help pdf-image-stamp-pages-error" : "pdf-image-stamp-pages-help"}
+            />
+          </label>
+          <p id="pdf-image-stamp-pages-help" className="pdf-tools-field-help">Empty = all pages · Examples: 1,3 or 1-3,5</p>
+          {parsedImageStampPages.error && <p id="pdf-image-stamp-pages-error" className="pdf-tools-field-error">{parsedImageStampPages.error}</p>}
+
+          <div className="pdf-tools-parameter-fields pdf-tools-image-stamp-fields">
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Position</span>
+                <select
+                  value={imageStampPosition}
+                  onChange={(event) => {
+                    setImageStampPosition(event.currentTarget.value as ImageStampPosition);
+                    setImageStampResult(null);
+                    setImageStampFeedback(null);
+                    setImageStampError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                >
+                  {imageStampPositionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Margin X (pt)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={imageStampMarginXInput}
+                  onChange={(event) => {
+                    setImageStampMarginXInput(event.currentTarget.value);
+                    setImageStampResult(null);
+                    setImageStampFeedback(null);
+                    setImageStampError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(imageStampMarginXError)}
+                  aria-describedby={imageStampMarginXError ? "pdf-image-stamp-margin-x-error" : undefined}
+                />
+              </label>
+              {imageStampMarginXError && <p id="pdf-image-stamp-margin-x-error" className="pdf-tools-field-error">{imageStampMarginXError}</p>}
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Margin Y (pt)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={imageStampMarginYInput}
+                  onChange={(event) => {
+                    setImageStampMarginYInput(event.currentTarget.value);
+                    setImageStampResult(null);
+                    setImageStampFeedback(null);
+                    setImageStampError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(imageStampMarginYError)}
+                  aria-describedby={imageStampMarginYError ? "pdf-image-stamp-margin-y-error" : undefined}
+                />
+              </label>
+              {imageStampMarginYError && <p id="pdf-image-stamp-margin-y-error" className="pdf-tools-field-error">{imageStampMarginYError}</p>}
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Width (pt)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={imageStampWidthInput}
+                  onChange={(event) => {
+                    setImageStampWidthInput(event.currentTarget.value);
+                    setImageStampResult(null);
+                    setImageStampFeedback(null);
+                    setImageStampError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(imageStampWidthError)}
+                  aria-describedby={imageStampWidthError ? "pdf-image-stamp-width-error" : undefined}
+                />
+              </label>
+              {imageStampWidthError && <p id="pdf-image-stamp-width-error" className="pdf-tools-field-error">{imageStampWidthError}</p>}
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Opacity</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={imageStampOpacityInput}
+                  onChange={(event) => {
+                    setImageStampOpacityInput(event.currentTarget.value);
+                    setImageStampResult(null);
+                    setImageStampFeedback(null);
+                    setImageStampError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(imageStampOpacityError)}
+                  aria-describedby={imageStampOpacityError ? "pdf-image-stamp-opacity-error" : undefined}
+                />
+              </label>
+              {imageStampOpacityError && <p id="pdf-image-stamp-opacity-error" className="pdf-tools-field-error">{imageStampOpacityError}</p>}
+            </div>
+            <div className="pdf-tools-parameter-field-group">
+              <label className="pdf-tools-field">
+                <span>Rotation (degrees)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={imageStampRotationInput}
+                  onChange={(event) => {
+                    setImageStampRotationInput(event.currentTarget.value);
+                    setImageStampResult(null);
+                    setImageStampFeedback(null);
+                    setImageStampError(null);
+                  }}
+                  disabled={isAnyOperationRunning}
+                  aria-invalid={Boolean(imageStampRotationError)}
+                  aria-describedby={imageStampRotationError ? "pdf-image-stamp-rotation-error" : undefined}
+                />
+              </label>
+              {imageStampRotationError && <p id="pdf-image-stamp-rotation-error" className="pdf-tools-field-error">{imageStampRotationError}</p>}
+            </div>
+          </div>
+
+          <ImageStampOperationPlan
+            summary={imageStampInputSummary}
+            image={imageStampImage}
+            pagesInput={imageStampPagesInput}
+            position={imageStampPosition}
+            marginXInput={imageStampMarginXInput}
+            marginYInput={imageStampMarginYInput}
+            widthInput={imageStampWidthInput}
+            opacityInput={imageStampOpacityInput}
+            rotationInput={imageStampRotationInput}
+            outputPath={imageStampOutputPath}
+          />
+
+          <button type="button" className="btn btn-primary" onClick={addImageStamp} disabled={!canAddImageStamp}>
+            {isAddingImageStamp ? "Adding image stamp..." : "Add image stamp"}
+          </button>
+          {!canAddImageStamp && !isAddingImageStamp && (
+            <p className="pdf-tools-operation-requirements">To enable Image stamp: {imageStampDisabledReason}</p>
+          )}
+
+          {isAddingImageStamp && <div className="pdf-tools-feedback pdf-tools-feedback-loading pdf-tools-operation-feedback" role="status">Adding the JPEG image stamp to a new PDF...</div>}
+          {imageStampError && <div className="pdf-tools-feedback pdf-tools-feedback-error pdf-tools-operation-feedback" role="alert">{imageStampError}</div>}
+          {!imageStampError && !isAddingImageStamp && imageStampFeedback && (
+            <div className="pdf-tools-feedback pdf-tools-operation-feedback" role="status">
+              <strong>{imageStampFeedback}</strong>
+              {imageStampResult && (
+                <span>{imageStampResult.pages.length} target page{imageStampResult.pages.length === 1 ? "" : "s"} · {imageStampResult.position} · {imageStampResult.width} × {imageStampResult.height} pt · Margins {imageStampResult.margin_x}/{imageStampResult.margin_y} pt · Opacity {imageStampResult.opacity} · Rotation {imageStampResult.rotation_degrees}° · {imageStampResult.page_count} total pages · Output: {fileNameFromPath(imageStampResult.output_path)}</span>
+              )}
+            </div>
+          )}
+        </section>
+        )}
+
         {selectedOperation === "textStamp" && (
         <section id="pdf-operation-textStamp" role="tabpanel" className="pdf-tools-panel pdf-tools-operation-card" aria-labelledby="pdf-text-stamp-title">
           <div className="pdf-tools-section-heading">
@@ -5733,7 +6443,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <h2 id="available-pdf-tools-title">Local PDF operations</h2>
             </div>
             <div className="pdf-tools-capability-list pdf-tools-capability-available">
-              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark', 'Page numbers', 'JPEG image watermark', 'Text stamp · border/background'].map((tool) => <span key={tool}>{tool}</span>)}
+              {['Inspect PDF summary', 'Merge PDFs', 'Split PDF', 'Extract pages', 'Rotate pages', 'Delete pages', 'Reorder pages', 'Text watermark', 'Page numbers', 'JPEG image watermark', 'Text stamp · border/background', 'Image stamp · JPEG only'].map((tool) => <span key={tool}>{tool}</span>)}
             </div>
           </section>
           </details>
@@ -5778,6 +6488,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
               <li>Protected PDFs are rejected. Utility Tools Hub does not decrypt PDFs or bypass permissions.</li>
               <li>Delete pages removes whole pages only; it is not redaction. Visual masks are not safe redaction and do not remove underlying content.</li>
               <li>Image watermark is additive; it does not edit PDF text, remove existing images or page numbers, or provide redaction.</li>
+              <li>Image stamp is additive; it does not edit or remove existing PDF content and is not redaction. Stamp-like images are not digital signatures or audit trails.</li>
               <li>Page numbers is additive; it does not edit PDF text, remove existing numbering, or provide redaction.</li>
               <li>Text stamp and its optional border/background are additive; they do not edit or remove existing PDF text, images, page numbers, or watermarks and are not redaction.</li>
               <li>Filled rectangles and backgrounds are not safe redaction. Real PDF preview and thumbnails are not implemented.</li>

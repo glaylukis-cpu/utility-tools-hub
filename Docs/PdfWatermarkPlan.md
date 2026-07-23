@@ -190,3 +190,7 @@ Image stamp is in the design stage as JPEG-only additive visual styling with pos
 ### v0.11.0 Step 2 - JPEG-only Image stamp core / bridge
 
 The additive `pdf_image_stamp` core / bridge now places validated baseline grayscale/RGB JPEG images using preset position, margins, width, opacity, and rotation. Image stamp UI, PNG alpha, preview, OCR, redaction, direct PDF text editing, digital signatures, and audit trails remain unimplemented.
+
+### v0.11.0 Step 3 - Image stamp UI connection
+
+PDF Workbench now connects `pdf_image_stamp` with JPEG-only selection, seven position presets, bounded settings, page validation, operation-plan details, and new-PDF feedback. Image stamp remains additive; PNG alpha, preview, OCR, redaction, direct PDF text editing, digital signatures, and audit trails remain unimplemented.

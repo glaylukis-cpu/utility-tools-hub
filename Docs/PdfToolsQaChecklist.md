@@ -469,3 +469,14 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm protected PDFs are rejected without decryption, password handling, or permission bypass.
 - [ ] Confirm PNG alpha, preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
 - [ ] Confirm Image stamp UI remains unimplemented.
+
+## v0.11.0 Step 3 Image stamp UI connection
+
+- [ ] Confirm Image stamp appears after the existing 11 operations and preserves their selections and values when switching.
+- [ ] Confirm PDF/JPEG/output selection, blank/all or selected pages, seven positions, margins `0`-`144`, width `8`-`1440`, opacity above `0` through `1`, and rotation `-360` through `360` validate visibly.
+- [ ] Confirm `pdf_image_stamp` receives `pages: []` for blank Pages and all bounded fields through the existing shared execution flow with `options: {}`.
+- [ ] Confirm the operation plan and success feedback show targets, position, margins, width, opacity, rotation, JPEG-only format, and new-PDF output without exposing full local paths.
+- [ ] Confirm additive/not-redaction guidance says underlying content is not removed and stamp-like images are not digital signatures or audit trails.
+- [ ] Confirm the operation selector, Image stamp card, long file names, controls, and operation plan do not overflow at 1280px, 768px, 640px, or 125% equivalent width.
+- [ ] Confirm PNG alpha, SVG, WebP, preview, thumbnails, drag positioning, OCR, redaction, and direct PDF text editing remain unimplemented.
+- [ ] Confirm existing PDF operations and the JPEG Image watermark workflow remain available and unchanged.
