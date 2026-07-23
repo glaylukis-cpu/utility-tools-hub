@@ -323,3 +323,13 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm output PDF loading, success, and safe error feedback is visible.
 - [ ] Confirm Image watermark remains additive and is not redaction or direct PDF text editing.
 - [ ] Confirm PNG/WebP/SVG, preview, OCR, redaction, and direct editing remain unimplemented.
+
+## v0.8.0 Step 5 JPEG Image watermark QA
+
+- [x] Confirm the JPEG-only warning and pages, width, opacity, and rotation validation are visible.
+- [x] Confirm all-pages and selected-pages outputs open and keep the input page count.
+- [x] Confirm JPEG watermarks render at center with representative width, opacity, and rotation values.
+- [x] Confirm long PDF/JPEG names, the operation plan, and warnings stay inside the compact layout.
+- [x] Confirm Image watermark remains additive and is not redaction, direct PDF text editing, or removal of existing images, text, or page numbers.
+- [x] Confirm PNG/WebP/SVG, progressive and CMYK JPEG, preview, OCR, redaction, and direct editing remain unsupported.
+- [x] Confirm existing PDF operation cards remain available and existing Rust tests still execute.

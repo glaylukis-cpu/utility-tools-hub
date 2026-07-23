@@ -448,3 +448,7 @@ Step 3 adds the additive `pdf_image_watermark` Rust core and shared execution br
 ## 15. v0.8.0 Step 4 - JPEG Image watermark UI connection
 
 Step 4 connects JPEG-only Image watermark to the compact PDF Workbench UI with input PDF, JPEG image, target pages, width, opacity, rotation, center placement, output, validation, operation plan, and result feedback. PNG alpha, WebP, SVG, preview, OCR, redaction, direct PDF text editing, Image stamp UI, and Text stamp UI remain unimplemented.
+
+## 16. v0.8.0 Step 5 - JPEG Image watermark QA
+
+Step 5 validates the JPEG-only Image watermark UI and real all-pages / selected-pages PDF output. PNG alpha, WebP, SVG, preview, OCR, redaction, direct PDF text editing, Image stamp UI, and Text stamp UI are not added.
