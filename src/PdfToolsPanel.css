@@ -1037,6 +1037,13 @@
   line-height: 1.45;
 }
 
+.pdf-tools-text-stamp-field-help {
+  max-width: 100%;
+  margin: 5px 0 0;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .pdf-tools-watermark-field-group .pdf-tools-field-error,
 .pdf-tools-parameter-field-group .pdf-tools-field-error {
   margin: 7px 0 0;

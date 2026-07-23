@@ -5103,7 +5103,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <h2 id="pdf-text-stamp-title">Text stamp</h2>
             <p>Add a short status label such as APPROVED, REVIEWED, or PAID to a new PDF.</p>
           </div>
-          <p className="pdf-tools-helper">Leave Pages empty to stamp all pages. Use one printable ASCII / Latin-1 line of up to 64 characters; Japanese font embedding and multiple lines are not supported.</p>
+          <p className="pdf-tools-helper">Leave Pages empty to stamp all pages. Stamp text supports one printable ASCII / Latin-1 line, up to 64 characters. Japanese font embedding and multiple lines are not supported.</p>
           <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> Adds a status label without removing existing text, images, page numbers, or watermarks. It is not a digital signature, identity verification, or an audit trail; border/background styling is not included.</p>
 
           <div className="pdf-tools-button-row">
@@ -5164,7 +5164,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                   aria-describedby={textStampTextError ? "pdf-text-stamp-text-help pdf-text-stamp-text-error" : "pdf-text-stamp-text-help"}
                 />
               </label>
-              <p id="pdf-text-stamp-text-help" className="pdf-tools-field-help">Single line · 64 characters maximum · Printable ASCII / Latin-1 · No Japanese font embedding</p>
+              <p id="pdf-text-stamp-text-help" className="pdf-tools-field-help pdf-tools-text-stamp-field-help">Short stamp text · Max 64 chars.</p>
               {textStampTextError && <p id="pdf-text-stamp-text-error" className="pdf-tools-field-error">{textStampTextError}</p>}
             </div>
 
@@ -5187,7 +5187,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
                   aria-describedby={parsedTextStampPages.error ? "pdf-text-stamp-pages-help pdf-text-stamp-pages-error" : "pdf-text-stamp-pages-help"}
                 />
               </label>
-              <p id="pdf-text-stamp-pages-help" className="pdf-tools-field-help">1-based pages · Examples: 1, 1,3, 1-3, or 1,3,5-7</p>
+              <p id="pdf-text-stamp-pages-help" className="pdf-tools-field-help pdf-tools-text-stamp-field-help">Empty = all pages · Examples: 1,3 or 1-3</p>
               {parsedTextStampPages.error && <p id="pdf-text-stamp-pages-error" className="pdf-tools-field-error">{parsedTextStampPages.error}</p>}
             </div>
 
