@@ -779,3 +779,9 @@ The decode/embed boundary could later be shared with Image watermark, but placem
 - Preserve all additive/not-redaction, protected-input, and new-output safety boundaries.
 
 The temporary `Cargo.toml` and `Cargo.lock` changes were restored before documentation edits. No direct `png` or `image` dependency remains, and no Rust, PDF-processing, React, CSS, UI, or version change is part of Step 2.
+
+## 25. v0.12.0 Step 3 - PNG alpha core prototype for Image stamp
+
+v0.12.0 Step 3 adds a PNG alpha core prototype to the existing `pdf_image_stamp` route. It accepts JPEG plus limited non-interlaced 8-bit RGB, RGBA, and grayscale PNG; RGBA is split into a DeviceRGB color Image XObject and shared DeviceGray `SMask`, while UI opacity remains in the existing `ExtGState`.
+
+PNG Image watermark, UI connection, indexed/grayscale-alpha/16-bit/interlaced PNG, preview, OCR, redaction, and direct PDF text editing are not added. PNG alpha remains additive visual styling, does not remove underlying content, and is not safe redaction, a digital signature, or an audit trail.

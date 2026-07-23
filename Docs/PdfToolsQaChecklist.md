@@ -508,3 +508,12 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [x] Confirm separate color and DeviceGray `SMask` Image XObjects are documented without implementation.
 - [x] Confirm transparent images remain additive and are not described as safe redaction, digital signatures, or audit trails.
 - [x] Confirm preview, OCR, redaction, and direct PDF text editing remain unimplemented and existing PDF operations remain unchanged.
+
+## v0.12.0 Step 3 Image stamp PNG alpha core prototype
+
+- [x] Confirm `pdf_image_stamp` can process non-interlaced 8-bit RGB, RGBA, and grayscale PNG through the shared bridge.
+- [x] Confirm RGBA creates a shared DeviceGray `SMask`, while RGB and grayscale have no soft mask.
+- [x] Confirm PNG alpha remains additive, does not remove underlying content, and is not safe redaction, a digital signature, or an audit trail.
+- [x] Confirm unsupported PNG types, malformed/oversized input, protected PDFs, and unsupported image extensions are rejected.
+- [x] Confirm Image watermark remains JPEG-only and PNG UI/core support is not added to it.
+- [x] Confirm preview, OCR, redaction, and direct PDF text editing remain unimplemented.

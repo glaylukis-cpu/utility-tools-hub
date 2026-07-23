@@ -418,3 +418,7 @@ Image stamp / Image watermark向けPNG alpha対応を、additive / not-redaction
 **v0.12.0 Step 2 - PNG dependency feasibility spike**
 
 PNG alpha向けdependency候補を評価し、限定的なImage stamp prototypeには`png` crateを優先候補とします。一時dependencyはrevert済みで、新しいPDF処理、確定dependency、UI、preview、OCR、redaction、PDF本文編集は追加しません。
+
+**v0.12.0 Step 3 - Image stamp PNG alpha core prototype**
+
+`pdf_image_stamp` coreへ限定的な8-bit PNGとRGBA `SMask`処理を追加します。PDF Workbench UIはまだJPEG-only表示のままで、PNG接続は次Stepに回します。

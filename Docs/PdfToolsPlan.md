@@ -179,3 +179,7 @@ PNG alpha support for Image stamp and Image watermark is in research only. `Docs
 ## v0.12.0 PNG dependency feasibility spike
 
 The feasibility spike evaluates `png` 0.18.1 as the preferred candidate for a future Image stamp-only, non-interlaced 8-bit RGB/RGBA/grayscale prototype. Dependency-tree, build/debug-size, decoder-limit, malformed-input, alpha-split, and PDF `SMask` considerations are documented; the temporary Cargo dependency was reverted and no Rust, PDF-processing, UI, preview, OCR, redaction, or direct text-editing implementation is added.
+
+## v0.12.0 Image stamp PNG alpha core prototype
+
+The existing `pdf_image_stamp` core and shared bridge now accept limited non-interlaced 8-bit RGB/RGBA/grayscale PNG alongside JPEG. RGBA uses a shared DeviceGray `SMask`; Image watermark PNG support, UI connection, preview, OCR, redaction, and direct PDF text editing remain unimplemented.

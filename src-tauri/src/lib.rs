@@ -2054,6 +2054,40 @@ mod tests {
     }
 
     #[test]
+    fn registry_parses_pdf_image_stamp_png_request() {
+        let tool = ToolRegistry::resolve(PDF_IMAGE_STAMP_TOOL_ID)
+            .expect("image stamp tool should resolve");
+        let request = ToolRequest {
+            tool_id: PDF_IMAGE_STAMP_TOOL_ID.to_string(),
+            input: serde_json::json!({
+                "input_path": "input.pdf",
+                "output_path": "stamped.pdf",
+                "image_path": "stamp.png",
+                "pages": [],
+                "position": "center",
+                "margin_x": 12.0,
+                "margin_y": 12.0,
+                "width": 96.0,
+                "opacity": 0.5,
+                "rotation_degrees": 30.0
+            }),
+            options: serde_json::json!({}),
+        };
+
+        let validated = tool
+            .parse_request(request)
+            .expect("PNG image stamp request should parse");
+        let ValidatedToolRequest::PdfImageStamp(request) = validated else {
+            panic!("expected an image stamp request");
+        };
+        assert_eq!(request.image_path, "stamp.png");
+        assert_eq!(request.pages, Some(vec![]));
+        assert_eq!(request.position.as_deref(), Some("center"));
+        assert_eq!(request.opacity, Some(0.5));
+        assert_eq!(request.rotation_degrees, Some(30.0));
+    }
+
+    #[test]
     fn registry_resolves_pdf_page_numbers_tool_id() {
         assert!(matches!(
             ToolRegistry::resolve(PDF_PAGE_NUMBERS_TOOL_ID),

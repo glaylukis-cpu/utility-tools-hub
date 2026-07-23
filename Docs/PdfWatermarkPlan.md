@@ -202,3 +202,7 @@ PNG alpha support for transparent Image stamp and Image watermark artwork is in 
 ### v0.12.0 Step 2 - PNG dependency feasibility
 
 The PNG feasibility spike identifies the focused `png` crate as the preferred candidate for a future narrow Image stamp prototype, while leaving final adoption to Step 3. The temporary dependency was reverted; no committed dependency, PNG/`SMask` processing, UI, preview, OCR, redaction, or direct PDF text editing is added, and transparent images remain additive rather than safe redaction.
+
+### v0.12.0 Step 3 - Image stamp PNG alpha core prototype
+
+The existing `pdf_image_stamp` core now accepts limited non-interlaced 8-bit RGB/RGBA/grayscale PNG and uses a PDF `SMask` for RGBA alpha. Image watermark remains JPEG-only, and no PNG UI, preview, OCR, redaction, or direct PDF text editing is added.

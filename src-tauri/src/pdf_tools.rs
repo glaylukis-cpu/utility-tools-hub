@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::fmt;
 use std::fs;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -243,6 +244,10 @@ pub enum PdfToolError {
     UnsupportedJpegEncoding,
     UnsupportedJpegComponents,
     InvalidJpegDimensions,
+    InvalidPng,
+    UnsupportedPngType,
+    InvalidPngDimensions,
+    PngDecodedDataTooLarge,
     InvalidImageWatermarkWidth,
     InvalidImageWatermarkOpacity,
     InvalidImageWatermarkRotation,
@@ -337,7 +342,7 @@ impl fmt::Display for PdfToolError {
                 "the watermark image must use the .jpg or .jpeg extension"
             }
             Self::ImageNotFound => "the watermark image file does not exist",
-            Self::ImageFileTooLarge => "the watermark JPEG file is too large",
+            Self::ImageFileTooLarge => "the image file is too large",
             Self::InvalidJpeg => "the watermark image is not a valid baseline JPEG file",
             Self::UnsupportedJpegEncoding => {
                 "the watermark JPEG must use 8-bit baseline sequential encoding"
@@ -347,6 +352,16 @@ impl fmt::Display for PdfToolError {
             }
             Self::InvalidJpegDimensions => {
                 "the watermark JPEG dimensions are zero or exceed the supported limit"
+            }
+            Self::InvalidPng => "the image stamp is not a valid PNG file",
+            Self::UnsupportedPngType => {
+                "PNG alpha is supported only for non-interlaced 8-bit RGB, RGBA, or grayscale PNG images"
+            }
+            Self::InvalidPngDimensions => {
+                "the PNG image dimensions are zero or exceed the supported limit"
+            }
+            Self::PngDecodedDataTooLarge => {
+                "the decoded PNG image data exceeds the supported memory limit"
             }
             Self::InvalidImageWatermarkWidth => {
                 "image watermark width must be a finite value from 8 to 1440 points"
@@ -1201,6 +1216,10 @@ pub fn add_text_stamp(
 const MAX_JPEG_FILE_SIZE_BYTES: u64 = 20 * 1024 * 1024;
 const MAX_JPEG_DIMENSION: u32 = 20_000;
 const MAX_JPEG_PIXELS: u64 = 100_000_000;
+const MAX_PNG_FILE_SIZE_BYTES: u64 = 20 * 1024 * 1024;
+const MAX_PNG_DIMENSION: u32 = 20_000;
+const MAX_PNG_PIXELS: u64 = 100_000_000;
+const MAX_PNG_DECODED_BYTES: usize = 128 * 1024 * 1024;
 const DEFAULT_IMAGE_WATERMARK_WIDTH: f32 = 180.0;
 const MIN_IMAGE_WATERMARK_WIDTH: f32 = 8.0;
 const MAX_IMAGE_WATERMARK_WIDTH: f32 = 1440.0;
@@ -1272,6 +1291,48 @@ struct JpegMetadata {
     width: u32,
     height: u32,
     components: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImageColorSpace {
+    Grayscale,
+    Rgb,
+}
+
+impl ImageColorSpace {
+    fn pdf_name(self) -> &'static str {
+        match self {
+            Self::Grayscale => "DeviceGray",
+            Self::Rgb => "DeviceRGB",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DecodedPngImage {
+    width: u32,
+    height: u32,
+    color_space: ImageColorSpace,
+    color_data: Vec<u8>,
+    alpha_data: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ImageStampData {
+    Jpeg {
+        bytes: Vec<u8>,
+        metadata: JpegMetadata,
+    },
+    Png(DecodedPngImage),
+}
+
+impl ImageStampData {
+    fn dimensions(&self) -> (u32, u32) {
+        match self {
+            Self::Jpeg { metadata, .. } => (metadata.width, metadata.height),
+            Self::Png(image) => (image.width, image.height),
+        }
+    }
 }
 
 /// Adds one shared baseline JPEG Image XObject to all or selected pages.
@@ -1384,9 +1445,9 @@ pub fn add_image_watermark(
     })
 }
 
-/// Adds one shared baseline JPEG Image XObject to all or selected pages at a
-/// stamp-oriented position. The operation is additive, writes a new PDF, and
-/// does not remove or edit existing PDF content.
+/// Adds one shared baseline JPEG or limited PNG Image XObject to all or selected
+/// pages at a stamp-oriented position. The operation is additive, writes a new
+/// PDF, and does not remove or edit existing PDF content.
 pub fn add_image_stamp(
     input_path: PathBuf,
     output_path: PathBuf,
@@ -1424,8 +1485,9 @@ pub fn add_image_stamp(
         return Err(PdfToolError::InvalidImageStampRotation);
     }
 
-    let (jpeg_bytes, jpeg_metadata) = read_jpeg_watermark(&image_path)?;
-    let height = width * jpeg_metadata.height as f32 / jpeg_metadata.width as f32;
+    let image_data = read_image_stamp(&image_path)?;
+    let (image_width, image_height) = image_data.dimensions();
+    let height = width * image_height as f32 / image_width as f32;
     if !height.is_finite() || height <= 0.0 {
         return Err(PdfToolError::InvalidImageStampWidth);
     }
@@ -1439,25 +1501,7 @@ pub fn add_image_stamp(
     };
     let selected_page_ids = validate_selected_pages(&pages, &available_pages)?;
 
-    let color_space = if jpeg_metadata.components == 1 {
-        "DeviceGray"
-    } else {
-        "DeviceRGB"
-    };
-    let image_stream = lopdf::Stream::new(
-        dictionary! {
-            "Type" => "XObject",
-            "Subtype" => "Image",
-            "Width" => i64::from(jpeg_metadata.width),
-            "Height" => i64::from(jpeg_metadata.height),
-            "ColorSpace" => color_space,
-            "BitsPerComponent" => 8,
-            "Filter" => "DCTDecode",
-        },
-        jpeg_bytes,
-    )
-    .with_compression(false);
-    let image_id = document.add_object(image_stream);
+    let image_id = add_image_stamp_xobject(&mut document, image_data)?;
     let graphics_state_id = document.add_object(dictionary! {
         "Type" => "ExtGState",
         "ca" => Object::Real(opacity),
@@ -1507,6 +1551,300 @@ pub fn add_image_stamp(
         margin_x,
         margin_y,
     })
+}
+
+fn read_image_stamp(image_path: &Path) -> Result<ImageStampData, PdfToolError> {
+    if has_jpeg_extension(image_path) {
+        let (bytes, metadata) = read_jpeg_watermark(image_path)?;
+        return Ok(ImageStampData::Jpeg { bytes, metadata });
+    }
+    if has_png_extension(image_path) {
+        return read_png_stamp(image_path).map(ImageStampData::Png);
+    }
+
+    Err(PdfToolError::InvalidImageExtension)
+}
+
+fn add_image_stamp_xobject(
+    document: &mut Document,
+    image_data: ImageStampData,
+) -> Result<ObjectId, PdfToolError> {
+    match image_data {
+        ImageStampData::Jpeg { bytes, metadata } => {
+            let color_space = if metadata.components == 1 {
+                "DeviceGray"
+            } else {
+                "DeviceRGB"
+            };
+            let image_stream = lopdf::Stream::new(
+                dictionary! {
+                    "Type" => "XObject",
+                    "Subtype" => "Image",
+                    "Width" => i64::from(metadata.width),
+                    "Height" => i64::from(metadata.height),
+                    "ColorSpace" => color_space,
+                    "BitsPerComponent" => 8,
+                    "Filter" => "DCTDecode",
+                },
+                bytes,
+            )
+            .with_compression(false);
+            Ok(document.add_object(image_stream))
+        }
+        ImageStampData::Png(image) => {
+            let soft_mask_id = match image.alpha_data {
+                Some(alpha_data) => {
+                    ensure_pdf_version_at_least(document, 1, 4);
+                    let soft_mask_stream = compressed_png_image_stream(
+                        dictionary! {
+                            "Type" => "XObject",
+                            "Subtype" => "Image",
+                            "Width" => i64::from(image.width),
+                            "Height" => i64::from(image.height),
+                            "ColorSpace" => "DeviceGray",
+                            "BitsPerComponent" => 8,
+                        },
+                        alpha_data,
+                    )?;
+                    Some(document.add_object(soft_mask_stream))
+                }
+                None => None,
+            };
+
+            let mut image_dictionary = dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => i64::from(image.width),
+                "Height" => i64::from(image.height),
+                "ColorSpace" => image.color_space.pdf_name(),
+                "BitsPerComponent" => 8,
+            };
+            if let Some(soft_mask_id) = soft_mask_id {
+                image_dictionary.set("SMask", Object::Reference(soft_mask_id));
+            }
+            let image_stream = compressed_png_image_stream(image_dictionary, image.color_data)?;
+            Ok(document.add_object(image_stream))
+        }
+    }
+}
+
+fn compressed_png_image_stream(
+    dictionary: Dictionary,
+    data: Vec<u8>,
+) -> Result<lopdf::Stream, PdfToolError> {
+    let mut stream = lopdf::Stream::new(dictionary, data);
+    stream.compress().map_err(|_| PdfToolError::InvalidPng)?;
+    if stream.dict.get(b"Filter").is_err() {
+        let encoded = zlib_stored_stream(&stream.content)?;
+        stream.set_content(encoded);
+        stream.dict.set("Filter", "FlateDecode");
+    }
+    Ok(stream)
+}
+
+fn zlib_stored_stream(data: &[u8]) -> Result<Vec<u8>, PdfToolError> {
+    const MAX_BLOCK_BYTES: usize = u16::MAX as usize;
+    let block_count = data.len().max(1).div_ceil(MAX_BLOCK_BYTES);
+    let capacity = data
+        .len()
+        .checked_add(6)
+        .and_then(|size| size.checked_add(block_count.checked_mul(5)?))
+        .ok_or(PdfToolError::PngDecodedDataTooLarge)?;
+    let mut encoded = Vec::new();
+    encoded
+        .try_reserve_exact(capacity)
+        .map_err(|_| PdfToolError::PngDecodedDataTooLarge)?;
+    encoded.extend_from_slice(&[0x78, 0x01]);
+
+    if data.is_empty() {
+        encoded.extend_from_slice(&[0x01, 0x00, 0x00, 0xff, 0xff]);
+    } else {
+        for (index, block) in data.chunks(MAX_BLOCK_BYTES).enumerate() {
+            let is_final = index + 1 == block_count;
+            encoded.push(u8::from(is_final));
+            let length = u16::try_from(block.len()).map_err(|_| PdfToolError::InvalidPng)?;
+            encoded.extend_from_slice(&length.to_le_bytes());
+            encoded.extend_from_slice(&(!length).to_le_bytes());
+            encoded.extend_from_slice(block);
+        }
+    }
+    encoded.extend_from_slice(&adler32(data).to_be_bytes());
+    Ok(encoded)
+}
+
+fn adler32(data: &[u8]) -> u32 {
+    const MODULUS: u32 = 65_521;
+    let mut first = 1_u32;
+    let mut second = 0_u32;
+    for byte in data {
+        first = (first + u32::from(*byte)) % MODULUS;
+        second = (second + first) % MODULUS;
+    }
+    (second << 16) | first
+}
+
+fn ensure_pdf_version_at_least(document: &mut Document, major: u16, minor: u16) {
+    let current = document
+        .version
+        .split_once('.')
+        .and_then(|(major, minor)| Some((major.parse::<u16>().ok()?, minor.parse::<u16>().ok()?)));
+    if match current {
+        Some(current) => current < (major, minor),
+        None => true,
+    } {
+        document.version = format!("{major}.{minor}");
+    }
+}
+
+fn read_png_stamp(image_path: &Path) -> Result<DecodedPngImage, PdfToolError> {
+    let file_metadata = fs::metadata(image_path).map_err(|_| PdfToolError::ImageNotFound)?;
+    if !file_metadata.is_file() {
+        return Err(PdfToolError::ImageNotFound);
+    }
+    if file_metadata.len() > MAX_PNG_FILE_SIZE_BYTES {
+        return Err(PdfToolError::ImageFileTooLarge);
+    }
+
+    let bytes = fs::read(image_path).map_err(|_| PdfToolError::InvalidPng)?;
+    decode_png_stamp(&bytes)
+}
+
+fn has_png_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("png"))
+}
+
+fn decode_png_stamp(bytes: &[u8]) -> Result<DecodedPngImage, PdfToolError> {
+    if bytes.len() as u64 > MAX_PNG_FILE_SIZE_BYTES {
+        return Err(PdfToolError::ImageFileTooLarge);
+    }
+
+    let mut limits = png::Limits::default();
+    limits.bytes = MAX_PNG_DECODED_BYTES;
+    let mut decoder = png::Decoder::new_with_limits(Cursor::new(bytes), limits);
+    decoder.set_transformations(png::Transformations::IDENTITY);
+    let mut reader = decoder.read_info().map_err(|_| PdfToolError::InvalidPng)?;
+
+    let (width, height, color_type, bit_depth, interlaced, has_transparency, is_animated) = {
+        let info = reader.info();
+        (
+            info.width,
+            info.height,
+            info.color_type,
+            info.bit_depth,
+            info.interlaced,
+            info.trns.is_some(),
+            info.animation_control.is_some(),
+        )
+    };
+
+    let pixels = u64::from(width)
+        .checked_mul(u64::from(height))
+        .ok_or(PdfToolError::InvalidPngDimensions)?;
+    if width == 0
+        || height == 0
+        || width > MAX_PNG_DIMENSION
+        || height > MAX_PNG_DIMENSION
+        || pixels > MAX_PNG_PIXELS
+    {
+        return Err(PdfToolError::InvalidPngDimensions);
+    }
+    if interlaced
+        || is_animated
+        || has_transparency
+        || bit_depth != png::BitDepth::Eight
+        || !matches!(
+            color_type,
+            png::ColorType::Rgb | png::ColorType::Rgba | png::ColorType::Grayscale
+        )
+    {
+        return Err(PdfToolError::UnsupportedPngType);
+    }
+
+    let pixel_count = usize::try_from(pixels).map_err(|_| PdfToolError::InvalidPngDimensions)?;
+    let samples_per_pixel = match color_type {
+        png::ColorType::Rgb => 3,
+        png::ColorType::Rgba => 4,
+        png::ColorType::Grayscale => 1,
+        _ => return Err(PdfToolError::UnsupportedPngType),
+    };
+    let expected_decoded_bytes = pixel_count
+        .checked_mul(samples_per_pixel)
+        .ok_or(PdfToolError::PngDecodedDataTooLarge)?;
+    if expected_decoded_bytes > MAX_PNG_DECODED_BYTES {
+        return Err(PdfToolError::PngDecodedDataTooLarge);
+    }
+
+    let output_buffer_size = reader
+        .output_buffer_size()
+        .filter(|size| *size == expected_decoded_bytes)
+        .ok_or(PdfToolError::PngDecodedDataTooLarge)?;
+    let mut decoded = Vec::new();
+    decoded
+        .try_reserve_exact(output_buffer_size)
+        .map_err(|_| PdfToolError::PngDecodedDataTooLarge)?;
+    decoded.resize(output_buffer_size, 0);
+    let output_info = reader
+        .next_frame(&mut decoded)
+        .map_err(|_| PdfToolError::InvalidPng)?;
+    if output_info.width != width
+        || output_info.height != height
+        || output_info.color_type != color_type
+        || output_info.bit_depth != png::BitDepth::Eight
+        || output_info.buffer_size() != expected_decoded_bytes
+    {
+        return Err(PdfToolError::InvalidPng);
+    }
+    reader.finish().map_err(|_| PdfToolError::InvalidPng)?;
+
+    match color_type {
+        png::ColorType::Rgb => Ok(DecodedPngImage {
+            width,
+            height,
+            color_space: ImageColorSpace::Rgb,
+            color_data: decoded,
+            alpha_data: None,
+        }),
+        png::ColorType::Grayscale => Ok(DecodedPngImage {
+            width,
+            height,
+            color_space: ImageColorSpace::Grayscale,
+            color_data: decoded,
+            alpha_data: None,
+        }),
+        png::ColorType::Rgba => {
+            let color_size = pixel_count
+                .checked_mul(3)
+                .ok_or(PdfToolError::PngDecodedDataTooLarge)?;
+            let combined_size = color_size
+                .checked_add(pixel_count)
+                .ok_or(PdfToolError::PngDecodedDataTooLarge)?;
+            if combined_size > MAX_PNG_DECODED_BYTES {
+                return Err(PdfToolError::PngDecodedDataTooLarge);
+            }
+            let mut color_data = Vec::new();
+            color_data
+                .try_reserve_exact(color_size)
+                .map_err(|_| PdfToolError::PngDecodedDataTooLarge)?;
+            let mut alpha_data = Vec::new();
+            alpha_data
+                .try_reserve_exact(pixel_count)
+                .map_err(|_| PdfToolError::PngDecodedDataTooLarge)?;
+            for pixel in decoded.chunks_exact(4) {
+                color_data.extend_from_slice(&pixel[..3]);
+                alpha_data.push(pixel[3]);
+            }
+            Ok(DecodedPngImage {
+                width,
+                height,
+                color_space: ImageColorSpace::Rgb,
+                color_data,
+                alpha_data: Some(alpha_data),
+            })
+        }
+        _ => Err(PdfToolError::UnsupportedPngType),
+    }
 }
 
 fn read_jpeg_watermark(image_path: &Path) -> Result<(Vec<u8>, JpegMetadata), PdfToolError> {
@@ -5601,6 +5939,207 @@ mod tests {
     }
 
     #[test]
+    fn image_stamp_adds_rgb_png_to_all_pages_without_smask() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rgb-png-stamp-input.pdf");
+        let output = directory.path("rgb-png-stamp-output.pdf");
+        let image = directory.path("rgb-stamp.png");
+        create_pdf_with_page_contents(&input, &[b"q % PNG-SOURCE-1 Q", b"q % PNG-SOURCE-2 Q"]);
+        write_png_fixture(&image, 32, 16, png::ColorType::Rgb, png::BitDepth::Eight);
+
+        let result = add_image_stamp(
+            input,
+            output.clone(),
+            image,
+            PdfImageStampOptions {
+                opacity: Some(0.5),
+                ..PdfImageStampOptions::default()
+            },
+        )
+        .expect("RGB PNG should be added to every page");
+
+        assert_eq!(result.pages, vec![1, 2]);
+        assert_eq!(result.page_count, 2);
+        assert_eq!(result.position, "top-right");
+        assert_eq!(result.width, 120.0);
+        assert_eq!(result.height, 60.0);
+        assert_eq!(result.opacity, 0.5);
+
+        let output_document = Document::load(output).expect("RGB PNG output should reload");
+        assert_eq!(output_document.get_pages().len(), 2);
+        let mut image_ids = HashSet::new();
+        for page_id in output_document.get_pages().values() {
+            let images = output_document
+                .get_page_images(*page_id)
+                .expect("RGB PNG Image XObject should be readable");
+            assert_eq!(images.len(), 1);
+            assert_eq!(images[0].width, 32);
+            assert_eq!(images[0].height, 16);
+            assert_eq!(images[0].color_space.as_deref(), Some("DeviceRGB"));
+            assert!(images[0]
+                .filters
+                .as_ref()
+                .is_some_and(|filters| filters.iter().any(|filter| filter == "FlateDecode")));
+            let image_stream = output_document
+                .get_object(images[0].id)
+                .expect("RGB PNG object should exist")
+                .as_stream()
+                .expect("RGB PNG object should be a stream");
+            assert!(image_stream.dict.get(b"SMask").is_err());
+            image_ids.insert(images[0].id);
+            assert!(page_has_operator(&output_document, *page_id, "Do"));
+            assert!(contains_bytes(
+                &output_document
+                    .get_page_content(*page_id)
+                    .expect("page content should remain readable"),
+                b"PNG-SOURCE-"
+            ));
+        }
+        assert_eq!(image_ids.len(), 1, "pages should share one PNG object");
+    }
+
+    #[test]
+    fn image_stamp_adds_rgba_png_to_selected_pages_with_shared_smask() {
+        let directory = TestDirectory::new();
+        let input = directory.path("rgba-png-stamp-input.pdf");
+        let output = directory.path("rgba-png-stamp-output.pdf");
+        let image = directory.path("rgba-stamp.png");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+        let mut legacy_document = Document::load(&input).expect("RGBA input should load");
+        legacy_document.version = "1.3".to_string();
+        legacy_document
+            .save(&input)
+            .expect("legacy PDF version should be saved");
+        write_png_fixture(&image, 40, 20, png::ColorType::Rgba, png::BitDepth::Eight);
+
+        let result = add_image_stamp(
+            input,
+            output.clone(),
+            image,
+            PdfImageStampOptions {
+                pages: Some(vec![1, 3]),
+                position: Some("center".to_string()),
+                opacity: Some(0.5),
+                rotation_degrees: Some(30.0),
+                ..PdfImageStampOptions::default()
+            },
+        )
+        .expect("RGBA PNG should be added to selected pages");
+
+        assert_eq!(result.pages, vec![1, 3]);
+        assert_eq!(result.position, "center");
+        assert_eq!(result.opacity, 0.5);
+        assert_eq!(result.rotation_degrees, 30.0);
+
+        let output_document = Document::load(output).expect("RGBA PNG output should reload");
+        assert_eq!(output_document.version, "1.4");
+        assert_eq!(output_document.get_pages().len(), 3);
+        let mut color_image_ids = HashSet::new();
+        let mut soft_mask_ids = HashSet::new();
+        for (page_number, page_id) in output_document.get_pages() {
+            if page_number == 2 {
+                assert!(!page_has_operator(&output_document, page_id, "Do"));
+                continue;
+            }
+            assert!(page_has_operator(&output_document, page_id, "Do"));
+            let images = output_document
+                .get_page_images(page_id)
+                .expect("RGBA PNG Image XObject should be readable");
+            assert_eq!(images.len(), 1);
+            assert_eq!(images[0].color_space.as_deref(), Some("DeviceRGB"));
+            let image_stream = output_document
+                .get_object(images[0].id)
+                .expect("RGBA PNG object should exist")
+                .as_stream()
+                .expect("RGBA PNG object should be a stream");
+            let soft_mask_id = match image_stream
+                .dict
+                .get(b"SMask")
+                .expect("RGBA PNG should reference an SMask")
+            {
+                Object::Reference(object_id) => *object_id,
+                _ => panic!("SMask should be an indirect object reference"),
+            };
+            let soft_mask = output_document
+                .get_object(soft_mask_id)
+                .expect("SMask object should exist")
+                .as_stream()
+                .expect("SMask should be an image stream");
+            assert_eq!(
+                soft_mask
+                    .dict
+                    .get(b"ColorSpace")
+                    .expect("SMask color space should exist")
+                    .as_name_str()
+                    .expect("SMask color space should be a name"),
+                "DeviceGray"
+            );
+            assert_eq!(
+                soft_mask
+                    .dict
+                    .get(b"BitsPerComponent")
+                    .expect("SMask bit depth should exist")
+                    .as_i64()
+                    .expect("SMask bit depth should be an integer"),
+                8
+            );
+            assert_eq!(
+                soft_mask.filter().expect("SMask should use FlateDecode"),
+                "FlateDecode"
+            );
+            color_image_ids.insert(images[0].id);
+            soft_mask_ids.insert(soft_mask_id);
+        }
+        assert_eq!(color_image_ids.len(), 1);
+        assert_eq!(soft_mask_ids.len(), 1);
+    }
+
+    #[test]
+    fn image_stamp_adds_grayscale_png_as_devicegray() {
+        let directory = TestDirectory::new();
+        let input = directory.path("gray-png-stamp-input.pdf");
+        let output = directory.path("gray-png-stamp-output.pdf");
+        let image = directory.path("gray-stamp.png");
+        create_single_page_pdf(&input);
+        write_png_fixture(
+            &image,
+            1,
+            1,
+            png::ColorType::Grayscale,
+            png::BitDepth::Eight,
+        );
+
+        add_image_stamp(
+            input,
+            output.clone(),
+            image,
+            PdfImageStampOptions::default(),
+        )
+        .expect("grayscale PNG should be added");
+
+        let output_document = Document::load(output).expect("grayscale PNG output should reload");
+        let page_id = output_document.get_pages()[&1];
+        let images = output_document
+            .get_page_images(page_id)
+            .expect("grayscale PNG Image XObject should be readable");
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].color_space.as_deref(), Some("DeviceGray"));
+        let image_stream = output_document
+            .get_object(images[0].id)
+            .expect("grayscale PNG object should exist")
+            .as_stream()
+            .expect("grayscale PNG object should be a stream");
+        assert!(image_stream.dict.get(b"SMask").is_err());
+        assert_eq!(
+            image_stream
+                .filter()
+                .expect("small grayscale PNG should use FlateDecode"),
+            "FlateDecode"
+        );
+        assert!(page_has_operator(&output_document, page_id, "Do"));
+    }
+
+    #[test]
     fn image_stamp_targets_selected_pages_with_aspect_ratio_opacity_and_rotation() {
         let directory = TestDirectory::new();
         let input = directory.path("selected-image-stamp-input.pdf");
@@ -5848,7 +6387,7 @@ mod tests {
         let input = directory.path("image-stamp-format-input.pdf");
         create_single_page_pdf(&input);
 
-        for extension in ["png", "webp", "svg"] {
+        for extension in ["webp", "svg", "gif"] {
             let image = directory.path(&format!("stamp.{extension}"));
             fs::write(&image, jpeg_fixture(100, 50, 3, 0xc0))
                 .expect("unsupported image fixture should be written");
@@ -5936,6 +6475,113 @@ mod tests {
     }
 
     #[test]
+    fn image_stamp_rejects_unsupported_png_variants_and_limits() {
+        let directory = TestDirectory::new();
+        let input = directory.path("png-rejection-input.pdf");
+        create_single_page_pdf(&input);
+
+        let unsupported_fixtures = [
+            (
+                "interlaced.png",
+                interlaced_png_fixture(),
+                PdfToolError::UnsupportedPngType,
+            ),
+            (
+                "rgb16.png",
+                png_fixture(8, 8, png::ColorType::Rgb, png::BitDepth::Sixteen),
+                PdfToolError::UnsupportedPngType,
+            ),
+            (
+                "indexed.png",
+                png_fixture(8, 8, png::ColorType::Indexed, png::BitDepth::Eight),
+                PdfToolError::UnsupportedPngType,
+            ),
+            (
+                "gray-alpha.png",
+                png_fixture(8, 8, png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
+                PdfToolError::UnsupportedPngType,
+            ),
+            (
+                "animated.png",
+                animated_png_fixture(),
+                PdfToolError::UnsupportedPngType,
+            ),
+            (
+                "broken.png",
+                vec![137, 80, 78, 71, 13, 10, 26, 10],
+                PdfToolError::InvalidPng,
+            ),
+        ];
+
+        for (name, bytes, expected) in unsupported_fixtures {
+            let image = directory.path(name);
+            fs::write(&image, bytes).expect("PNG rejection fixture should be written");
+            assert_eq!(
+                add_image_stamp(
+                    input.clone(),
+                    directory.path(&format!("{name}.pdf")),
+                    image,
+                    PdfImageStampOptions::default(),
+                )
+                .unwrap_err(),
+                expected
+            );
+        }
+
+        let oversized_dimension = png_fixture_with_dimensions(20_001, 1, png::ColorType::Rgb);
+        assert_eq!(
+            decode_png_stamp(&oversized_dimension).unwrap_err(),
+            PdfToolError::InvalidPngDimensions
+        );
+        let oversized_pixels = png_fixture_with_dimensions(10_001, 10_000, png::ColorType::Rgb);
+        assert_eq!(
+            decode_png_stamp(&oversized_pixels).unwrap_err(),
+            PdfToolError::InvalidPngDimensions
+        );
+        let oversized_decoded = png_fixture_with_dimensions(20_000, 2_000, png::ColorType::Rgba);
+        assert_eq!(
+            decode_png_stamp(&oversized_decoded).unwrap_err(),
+            PdfToolError::PngDecodedDataTooLarge
+        );
+        assert_eq!(
+            decode_png_stamp(&vec![0; MAX_PNG_FILE_SIZE_BYTES as usize + 1]).unwrap_err(),
+            PdfToolError::ImageFileTooLarge
+        );
+    }
+
+    #[test]
+    fn image_stamp_rejects_protected_pdf_with_png_without_output() {
+        let directory = TestDirectory::new();
+        let input = directory.path("protected-png-stamp-input.pdf");
+        let output = directory.path("protected-png-stamp-output.pdf");
+        let image = directory.path("protected-stamp.png");
+        create_single_page_pdf(&input);
+        write_png_fixture(&image, 16, 16, png::ColorType::Rgba, png::BitDepth::Eight);
+
+        let mut protected_document = Document::load(&input).expect("fixture should load");
+        let encryption_id = protected_document.add_object(dictionary! {
+            "Filter" => "Standard",
+            "V" => 1,
+        });
+        protected_document.trailer.set("Encrypt", encryption_id);
+        protected_document
+            .save(&input)
+            .expect("protected marker should be saved");
+
+        assert_eq!(
+            add_image_stamp(
+                input,
+                output.clone(),
+                image,
+                PdfImageStampOptions::default()
+            )
+            .unwrap_err(),
+            PdfToolError::EncryptedPdfUnsupported
+        );
+        assert!(!output.exists());
+    }
+
+    #[test]
     fn image_stamp_rejects_invalid_paths() {
         let directory = TestDirectory::new();
         let input = directory.path("image-stamp-path-input.pdf");
@@ -6011,6 +6657,38 @@ mod tests {
         assert_eq!(result.position, "top-right");
         let output_document = Document::load(output).expect("bridge output PDF should load");
         assert_eq!(output_document.get_pages().len(), 3);
+        assert!(!page_has_operator(
+            &output_document,
+            output_document.get_pages()[&1],
+            "Do"
+        ));
+        assert!(page_has_operator(
+            &output_document,
+            output_document.get_pages()[&2],
+            "Do"
+        ));
+    }
+
+    #[test]
+    fn image_stamp_bridge_accepts_png_input() {
+        let directory = TestDirectory::new();
+        let input = directory.path("png-image-stamp-bridge-input.pdf");
+        let output = directory.path("png-image-stamp-bridge-output.pdf");
+        let image = directory.path("bridge-stamp.png");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+        write_png_fixture(&image, 24, 12, png::ColorType::Rgba, png::BitDepth::Eight);
+
+        let result = run_pdf_image_stamp_bridge(pdf_image_stamp_request(
+            input,
+            output.clone(),
+            image,
+            Some(vec![2, 3]),
+        ))
+        .expect("PNG image stamp bridge should succeed");
+
+        assert_eq!(result.pages, vec![2, 3]);
+        assert_eq!(result.page_count, 3);
+        let output_document = Document::load(output).expect("PNG bridge output should reload");
         assert!(!page_has_operator(
             &output_document,
             output_document.get_pages()[&1],
@@ -6567,6 +7245,125 @@ mod tests {
         }
         bytes.extend_from_slice(&[0, 63, 0, 0, 0xff, 0xd9]);
         bytes
+    }
+
+    fn write_png_fixture(
+        path: &Path,
+        width: u32,
+        height: u32,
+        color_type: png::ColorType,
+        bit_depth: png::BitDepth,
+    ) {
+        fs::write(path, png_fixture(width, height, color_type, bit_depth))
+            .expect("PNG fixture should be written");
+    }
+
+    fn png_fixture(
+        width: u32,
+        height: u32,
+        color_type: png::ColorType,
+        bit_depth: png::BitDepth,
+    ) -> Vec<u8> {
+        let samples_per_pixel = match color_type {
+            png::ColorType::Grayscale | png::ColorType::Indexed => 1,
+            png::ColorType::GrayscaleAlpha => 2,
+            png::ColorType::Rgb => 3,
+            png::ColorType::Rgba => 4,
+        };
+        let bytes_per_sample = match bit_depth {
+            png::BitDepth::Eight => 1,
+            png::BitDepth::Sixteen => 2,
+            _ => panic!("fixture helper supports only 8-bit and 16-bit PNG"),
+        };
+        let pixel_count = usize::try_from(u64::from(width) * u64::from(height))
+            .expect("fixture dimensions should fit usize");
+        let pixel_bytes = samples_per_pixel * bytes_per_sample;
+        let mut data = vec![0_u8; pixel_count * pixel_bytes];
+        for pixel in data.chunks_exact_mut(pixel_bytes) {
+            match (color_type, bit_depth) {
+                (png::ColorType::Grayscale, png::BitDepth::Eight) => pixel[0] = 96,
+                (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => {
+                    pixel.copy_from_slice(&[96, 128]);
+                }
+                (png::ColorType::Rgb, png::BitDepth::Eight) => {
+                    pixel.copy_from_slice(&[180, 32, 48]);
+                }
+                (png::ColorType::Rgba, png::BitDepth::Eight) => {
+                    pixel.copy_from_slice(&[180, 32, 48, 128]);
+                }
+                (png::ColorType::Indexed, png::BitDepth::Eight) => pixel[0] = 1,
+                (_, png::BitDepth::Sixteen) => {}
+                _ => unreachable!("unsupported fixture combination"),
+            }
+        }
+
+        let mut bytes = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut bytes, width, height);
+            encoder.set_color(color_type);
+            encoder.set_depth(bit_depth);
+            if color_type == png::ColorType::Indexed {
+                encoder.set_palette(vec![0, 0, 0, 180, 32, 48]);
+            }
+            let mut writer = encoder
+                .write_header()
+                .expect("PNG fixture header should encode");
+            writer
+                .write_image_data(&data)
+                .expect("PNG fixture pixels should encode");
+        }
+        bytes
+    }
+
+    fn animated_png_fixture() -> Vec<u8> {
+        let mut bytes = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut bytes, 8, 8);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder
+                .set_animated(1, 0)
+                .expect("animated PNG fixture should be configured");
+            let mut writer = encoder
+                .write_header()
+                .expect("animated PNG header should encode");
+            writer
+                .write_image_data(&vec![128; 8 * 8 * 4])
+                .expect("animated PNG pixels should encode");
+        }
+        bytes
+    }
+
+    fn interlaced_png_fixture() -> Vec<u8> {
+        let mut bytes = png_fixture(8, 8, png::ColorType::Rgb, png::BitDepth::Eight);
+        bytes[28] = 1;
+        update_png_ihdr_crc(&mut bytes);
+        bytes
+    }
+
+    fn png_fixture_with_dimensions(width: u32, height: u32, color_type: png::ColorType) -> Vec<u8> {
+        let mut bytes = png_fixture(1, 1, color_type, png::BitDepth::Eight);
+        bytes[16..20].copy_from_slice(&width.to_be_bytes());
+        bytes[20..24].copy_from_slice(&height.to_be_bytes());
+        update_png_ihdr_crc(&mut bytes);
+        bytes
+    }
+
+    fn update_png_ihdr_crc(bytes: &mut [u8]) {
+        let checksum = png_crc32(&bytes[12..29]);
+        bytes[29..33].copy_from_slice(&checksum.to_be_bytes());
+    }
+
+    fn png_crc32(bytes: &[u8]) -> u32 {
+        let mut checksum = u32::MAX;
+        for byte in bytes {
+            checksum ^= u32::from(*byte);
+            for _ in 0..8 {
+                let mask = 0_u32.wrapping_sub(checksum & 1);
+                checksum = (checksum >> 1) ^ (0xedb8_8320 & mask);
+            }
+        }
+        !checksum
     }
 
     fn page_text_strings(document: &Document, page_number: u32) -> Vec<String> {
