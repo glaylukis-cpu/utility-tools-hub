@@ -421,3 +421,12 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm filled rectangles and visual masks are not described as safe redaction.
 - [ ] Confirm redaction, OCR, preview, thumbnails, and direct PDF text editing remain unimplemented.
 - [ ] Confirm existing PDF operations remain available and unchanged.
+
+## v0.10.0 Step 2 Text stamp border/background core / bridge
+
+- [ ] Confirm `pdf_text_stamp` can add optional border-only, background-only, and combined styling.
+- [ ] Confirm border/background remain additive and are not described as redaction.
+- [ ] Confirm filled rectangles are not described as safe redaction and do not remove underlying content.
+- [ ] Confirm border/background colors, width, opacity, padding, bounds, rotation, and page selection validation are covered.
+- [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
+- [ ] Confirm PDF Workbench border/background UI remains unimplemented.

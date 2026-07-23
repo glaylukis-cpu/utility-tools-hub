@@ -151,3 +151,7 @@ PDF Workbench now connects to `pdf_text_stamp` with input/output PDF selection, 
 ## v0.10.0 Text stamp border/background planning
 
 `Docs/PdfTextStampPlan.md` now plans optional rectangle border, background fill, padding, opacity, placement geometry, safety copy, and staged delivery. Border/background remain unimplemented additive visual styling and are not redaction; no Rust, bridge, UI, CSS, PDF-processing, dependency, or version change is added.
+
+## v0.10.0 Text stamp border/background core / bridge
+
+The existing `pdf_text_stamp` core / bridge now supports optional rectangle border, background fill, limited colors, independent bounded opacity, and padding. Existing text-only requests remain compatible; UI, preview, OCR, redaction, and direct PDF text editing are not added.

@@ -382,3 +382,7 @@ additiveなText stamp core / bridgeを追加します。UIとpreviewはまだ追
 **v0.10.0 Step 1 - Text stamp border/background planning**
 
 Text stampのborder/background stylingと安全境界を設計します。Additiveな視認性向上のみを対象とし、新しいPDF処理実装やredactionは追加しません。
+
+**v0.10.0 Step 2 - Text stamp border/background core / bridge**
+
+`pdf_text_stamp` core / bridgeへoptionalなborder/background stylingを追加します。PDF Workbench UIとpreviewはまだ追加しません。

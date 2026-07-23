@@ -86,6 +86,14 @@ pub struct PdfTextStampResult {
     pub opacity: f32,
     pub rotation_degrees: f32,
     pub color: String,
+    pub border_enabled: bool,
+    pub border_color: Option<String>,
+    pub border_width: Option<f32>,
+    pub border_opacity: Option<f32>,
+    pub background_enabled: bool,
+    pub background_color: Option<String>,
+    pub background_opacity: Option<f32>,
+    pub padding: f32,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -98,6 +106,14 @@ pub struct PdfTextStampOptions {
     pub opacity: Option<f32>,
     pub rotation_degrees: Option<f32>,
     pub color: Option<String>,
+    pub border_enabled: Option<bool>,
+    pub border_color: Option<String>,
+    pub border_width: Option<f32>,
+    pub border_opacity: Option<f32>,
+    pub background_enabled: Option<bool>,
+    pub background_color: Option<String>,
+    pub background_opacity: Option<f32>,
+    pub padding: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -187,6 +203,12 @@ pub enum PdfToolError {
     InvalidTextStampOpacity,
     InvalidTextStampRotation,
     InvalidTextStampColor,
+    InvalidTextStampBorderColor,
+    InvalidTextStampBorderWidth,
+    InvalidTextStampBorderOpacity,
+    InvalidTextStampBackgroundColor,
+    InvalidTextStampBackgroundOpacity,
+    InvalidTextStampPadding,
     InvalidImageExtension,
     ImageNotFound,
     ImageFileTooLarge,
@@ -260,6 +282,24 @@ impl fmt::Display for PdfToolError {
                 "text stamp rotation must be a finite value from -360 to 360 degrees"
             }
             Self::InvalidTextStampColor => "the text stamp color is not supported",
+            Self::InvalidTextStampBorderColor => {
+                "the text stamp border color is not supported"
+            }
+            Self::InvalidTextStampBorderWidth => {
+                "text stamp border width must be a finite value from 0.5 to 6 points"
+            }
+            Self::InvalidTextStampBorderOpacity => {
+                "text stamp border opacity must be greater than 0 and no greater than 1"
+            }
+            Self::InvalidTextStampBackgroundColor => {
+                "the text stamp background color is not supported"
+            }
+            Self::InvalidTextStampBackgroundOpacity => {
+                "text stamp background opacity must be greater than 0 and no greater than 1"
+            }
+            Self::InvalidTextStampPadding => {
+                "text stamp padding must be a finite value from 0 to 36 points and fit the page"
+            }
             Self::InvalidImageExtension => {
                 "the watermark image must use the .jpg or .jpeg extension"
             }
@@ -776,6 +816,12 @@ const MIN_TEXT_STAMP_FONT_SIZE: f32 = 8.0;
 const MAX_TEXT_STAMP_FONT_SIZE: f32 = 144.0;
 const MAX_TEXT_STAMP_MARGIN: f32 = 144.0;
 const MAX_TEXT_STAMP_LENGTH: usize = 64;
+const DEFAULT_TEXT_STAMP_BORDER_WIDTH: f32 = 1.0;
+const MIN_TEXT_STAMP_BORDER_WIDTH: f32 = 0.5;
+const MAX_TEXT_STAMP_BORDER_WIDTH: f32 = 6.0;
+const DEFAULT_TEXT_STAMP_BACKGROUND_OPACITY: f32 = 0.2;
+const DEFAULT_TEXT_STAMP_PADDING: f32 = 4.0;
+const MAX_TEXT_STAMP_PADDING: f32 = 36.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TextStampPosition {
@@ -866,6 +912,53 @@ impl TextStampColor {
             Self::Gray => (0.4, 0.4, 0.4),
         }
     }
+
+    fn parse_border(value: &str) -> Result<Self, PdfToolError> {
+        match value {
+            "black" => Ok(Self::Black),
+            "red" => Ok(Self::Red),
+            "gray" => Ok(Self::Gray),
+            _ => Err(PdfToolError::InvalidTextStampBorderColor),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TextStampBackgroundColor {
+    White,
+    Yellow,
+    Red,
+    Gray,
+}
+
+impl TextStampBackgroundColor {
+    fn parse(value: &str) -> Result<Self, PdfToolError> {
+        match value {
+            "white" => Ok(Self::White),
+            "yellow" => Ok(Self::Yellow),
+            "red" => Ok(Self::Red),
+            "gray" => Ok(Self::Gray),
+            _ => Err(PdfToolError::InvalidTextStampBackgroundColor),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::White => "white",
+            Self::Yellow => "yellow",
+            Self::Red => "red",
+            Self::Gray => "gray",
+        }
+    }
+
+    fn rgb(self) -> (f32, f32, f32) {
+        match self {
+            Self::White => (1.0, 1.0, 1.0),
+            Self::Yellow => (1.0, 0.9, 0.2),
+            Self::Red => (0.8, 0.0, 0.0),
+            Self::Gray => (0.7, 0.7, 0.7),
+        }
+    }
 }
 
 /// Adds a short additive text stamp to all or selected pages and writes a new PDF.
@@ -911,6 +1004,40 @@ pub fn add_text_stamp(
     }
 
     let color = TextStampColor::parse(options.color.as_deref().unwrap_or("red"))?;
+    let border_enabled = options.border_enabled.unwrap_or(false);
+    let border_color = TextStampColor::parse_border(
+        options
+            .border_color
+            .as_deref()
+            .unwrap_or_else(|| color.as_str()),
+    )?;
+    let border_width = options
+        .border_width
+        .unwrap_or(DEFAULT_TEXT_STAMP_BORDER_WIDTH);
+    if !border_width.is_finite()
+        || !(MIN_TEXT_STAMP_BORDER_WIDTH..=MAX_TEXT_STAMP_BORDER_WIDTH).contains(&border_width)
+    {
+        return Err(PdfToolError::InvalidTextStampBorderWidth);
+    }
+    let border_opacity = options.border_opacity.unwrap_or(opacity);
+    if !border_opacity.is_finite() || border_opacity <= 0.0 || border_opacity > 1.0 {
+        return Err(PdfToolError::InvalidTextStampBorderOpacity);
+    }
+
+    let background_enabled = options.background_enabled.unwrap_or(false);
+    let background_color =
+        TextStampBackgroundColor::parse(options.background_color.as_deref().unwrap_or("yellow"))?;
+    let background_opacity = options
+        .background_opacity
+        .unwrap_or(DEFAULT_TEXT_STAMP_BACKGROUND_OPACITY);
+    if !background_opacity.is_finite() || background_opacity <= 0.0 || background_opacity > 1.0 {
+        return Err(PdfToolError::InvalidTextStampBackgroundOpacity);
+    }
+
+    let padding = options.padding.unwrap_or(DEFAULT_TEXT_STAMP_PADDING);
+    if !padding.is_finite() || !(0.0..=MAX_TEXT_STAMP_PADDING).contains(&padding) {
+        return Err(PdfToolError::InvalidTextStampPadding);
+    }
 
     let mut document = load_pdf_document(&input_path)?;
     let available_pages = document.get_pages();
@@ -932,23 +1059,60 @@ pub fn add_text_stamp(
         "ca" => Object::Real(opacity),
         "CA" => Object::Real(opacity),
     });
+    let border_graphics_state_id = if border_enabled {
+        Some(document.add_object(dictionary! {
+            "Type" => "ExtGState",
+            "ca" => Object::Real(border_opacity),
+            "CA" => Object::Real(border_opacity),
+        }))
+    } else {
+        None
+    };
+    let background_graphics_state_id = if background_enabled {
+        Some(document.add_object(dictionary! {
+            "Type" => "ExtGState",
+            "ca" => Object::Real(background_opacity),
+            "CA" => Object::Real(background_opacity),
+        }))
+    } else {
+        None
+    };
 
     for page_id in selected_page_ids {
         materialize_inherited_page_attributes(&mut document, page_id)?;
         let (lower_left_x, lower_left_y, upper_right_x, upper_right_y) =
             resolved_page_box(&document, page_id)?;
-        let (font_name, graphics_state_name) =
-            install_text_stamp_resources(&mut document, page_id, font_id, graphics_state_id)?;
+        let (
+            font_name,
+            graphics_state_name,
+            border_graphics_state_name,
+            background_graphics_state_name,
+        ) = install_text_stamp_resources(
+            &mut document,
+            page_id,
+            font_id,
+            graphics_state_id,
+            border_graphics_state_id,
+            background_graphics_state_id,
+        )?;
         let content = text_stamp_content(
             &encoded_text,
             &font_name,
             &graphics_state_name,
+            border_graphics_state_name.as_deref(),
+            background_graphics_state_name.as_deref(),
             position,
             margin_x,
             margin_y,
             font_size,
             rotation_degrees,
             color,
+            border_enabled,
+            border_color,
+            border_width,
+            background_enabled,
+            background_color,
+            padding,
             lower_left_x,
             lower_left_y,
             upper_right_x,
@@ -974,6 +1138,14 @@ pub fn add_text_stamp(
         opacity,
         rotation_degrees,
         color: color.as_str().to_string(),
+        border_enabled,
+        border_color: border_enabled.then(|| border_color.as_str().to_string()),
+        border_width: border_enabled.then_some(border_width),
+        border_opacity: border_enabled.then_some(border_opacity),
+        background_enabled,
+        background_color: background_enabled.then(|| background_color.as_str().to_string()),
+        background_opacity: background_enabled.then_some(background_opacity),
+        padding,
     })
 }
 
@@ -1664,7 +1836,9 @@ fn install_text_stamp_resources(
     page_id: ObjectId,
     font_id: ObjectId,
     graphics_state_id: ObjectId,
-) -> Result<(Vec<u8>, Vec<u8>), PdfToolError> {
+    border_graphics_state_id: Option<ObjectId>,
+    background_graphics_state_id: Option<ObjectId>,
+) -> Result<(Vec<u8>, Vec<u8>, Option<Vec<u8>>, Option<Vec<u8>>), PdfToolError> {
     let resources_object = document
         .get_object(page_id)
         .map_err(|_| PdfToolError::InvalidPdf)?
@@ -1695,6 +1869,25 @@ fn install_text_stamp_resources(
         graphics_state_name.clone(),
         Object::Reference(graphics_state_id),
     );
+    let border_graphics_state_name =
+        if let Some(border_graphics_state_id) = border_graphics_state_id {
+            let name = unique_resource_name(&graphics_states, b"UTHTextStampBorderGS");
+            graphics_states.set(name.clone(), Object::Reference(border_graphics_state_id));
+            Some(name)
+        } else {
+            None
+        };
+    let background_graphics_state_name =
+        if let Some(background_graphics_state_id) = background_graphics_state_id {
+            let name = unique_resource_name(&graphics_states, b"UTHTextStampBackgroundGS");
+            graphics_states.set(
+                name.clone(),
+                Object::Reference(background_graphics_state_id),
+            );
+            Some(name)
+        } else {
+            None
+        };
     resources.set("ExtGState", Object::Dictionary(graphics_states));
 
     document
@@ -1704,7 +1897,12 @@ fn install_text_stamp_resources(
         .map_err(|_| PdfToolError::InvalidPdf)?
         .set("Resources", Object::Dictionary(resources));
 
-    Ok((font_name, graphics_state_name))
+    Ok((
+        font_name,
+        graphics_state_name,
+        border_graphics_state_name,
+        background_graphics_state_name,
+    ))
 }
 
 fn install_image_watermark_resources(
@@ -1826,12 +2024,20 @@ fn text_stamp_content(
     encoded_text: &[u8],
     font_name: &[u8],
     graphics_state_name: &[u8],
+    border_graphics_state_name: Option<&[u8]>,
+    background_graphics_state_name: Option<&[u8]>,
     position: TextStampPosition,
     margin_x: f32,
     margin_y: f32,
     font_size: f32,
     rotation_degrees: f32,
     color: TextStampColor,
+    border_enabled: bool,
+    border_color: TextStampColor,
+    border_width: f32,
+    background_enabled: bool,
+    background_color: TextStampBackgroundColor,
+    padding: f32,
     lower_left_x: f32,
     lower_left_y: f32,
     upper_right_x: f32,
@@ -1839,11 +2045,21 @@ fn text_stamp_content(
 ) -> Result<Vec<u8>, PdfToolError> {
     let estimated_width = encoded_text.len() as f32 * font_size * 0.5;
     let estimated_height = font_size;
+    let decoration_padding = if border_enabled || background_enabled {
+        padding
+    } else {
+        0.0
+    };
+    let rectangle_width = estimated_width + decoration_padding * 2.0;
+    let rectangle_height = estimated_height + decoration_padding * 2.0;
+    let stroke_extent = if border_enabled { border_width } else { 0.0 };
+    let outer_width = rectangle_width + stroke_extent;
+    let outer_height = rectangle_height + stroke_extent;
     let radians = rotation_degrees.to_radians();
     let cosine = radians.cos();
     let sine = radians.sin();
-    let rotated_width = estimated_width * cosine.abs() + estimated_height * sine.abs();
-    let rotated_height = estimated_width * sine.abs() + estimated_height * cosine.abs();
+    let rotated_width = outer_width * cosine.abs() + outer_height * sine.abs();
+    let rotated_height = outer_width * sine.abs() + outer_height * cosine.abs();
     let page_width = upper_right_x - lower_left_x;
     let page_height = upper_right_y - lower_left_y;
 
@@ -1877,21 +2093,28 @@ fn text_stamp_content(
     // Placement uses the effective CropBox/MediaBox and rotates around the
     // estimated stamp center. Existing page rotation is preserved; complete
     // viewer-facing rotation compensation remains a later QA/polish step.
-    Content {
-        operations: vec![
+    let mut operations = Vec::new();
+
+    if background_enabled {
+        let background_graphics_state_name =
+            background_graphics_state_name.ok_or(PdfToolError::InvalidPdf)?;
+        let (background_red, background_green, background_blue) = background_color.rgb();
+        operations.extend([
             Operation::new("q", vec![]),
-            Operation::new("gs", vec![Object::Name(graphics_state_name.to_vec())]),
-            Operation::new("BT", vec![]),
             Operation::new(
-                "Tf",
-                vec![Object::Name(font_name.to_vec()), Object::Real(font_size)],
+                "gs",
+                vec![Object::Name(background_graphics_state_name.to_vec())],
             ),
             Operation::new(
                 "rg",
-                vec![Object::Real(red), Object::Real(green), Object::Real(blue)],
+                vec![
+                    Object::Real(background_red),
+                    Object::Real(background_green),
+                    Object::Real(background_blue),
+                ],
             ),
             Operation::new(
-                "Tm",
+                "cm",
                 vec![
                     Object::Real(cosine),
                     Object::Real(sine),
@@ -1902,15 +2125,97 @@ fn text_stamp_content(
                 ],
             ),
             Operation::new(
-                "Tj",
-                vec![Object::String(encoded_text.to_vec(), StringFormat::Literal)],
+                "re",
+                vec![
+                    Object::Real(-decoration_padding),
+                    Object::Real(-decoration_padding),
+                    Object::Real(rectangle_width),
+                    Object::Real(rectangle_height),
+                ],
             ),
-            Operation::new("ET", vec![]),
+            Operation::new("f", vec![]),
             Operation::new("Q", vec![]),
-        ],
+        ]);
     }
-    .encode()
-    .map_err(|_| PdfToolError::InvalidPdf)
+
+    if border_enabled {
+        let border_graphics_state_name =
+            border_graphics_state_name.ok_or(PdfToolError::InvalidPdf)?;
+        let (border_red, border_green, border_blue) = border_color.rgb();
+        operations.extend([
+            Operation::new("q", vec![]),
+            Operation::new(
+                "gs",
+                vec![Object::Name(border_graphics_state_name.to_vec())],
+            ),
+            Operation::new(
+                "RG",
+                vec![
+                    Object::Real(border_red),
+                    Object::Real(border_green),
+                    Object::Real(border_blue),
+                ],
+            ),
+            Operation::new("w", vec![Object::Real(border_width)]),
+            Operation::new(
+                "cm",
+                vec![
+                    Object::Real(cosine),
+                    Object::Real(sine),
+                    Object::Real(-sine),
+                    Object::Real(cosine),
+                    Object::Real(translate_x),
+                    Object::Real(translate_y),
+                ],
+            ),
+            Operation::new(
+                "re",
+                vec![
+                    Object::Real(-decoration_padding),
+                    Object::Real(-decoration_padding),
+                    Object::Real(rectangle_width),
+                    Object::Real(rectangle_height),
+                ],
+            ),
+            Operation::new("S", vec![]),
+            Operation::new("Q", vec![]),
+        ]);
+    }
+
+    operations.extend([
+        Operation::new("q", vec![]),
+        Operation::new("gs", vec![Object::Name(graphics_state_name.to_vec())]),
+        Operation::new("BT", vec![]),
+        Operation::new(
+            "Tf",
+            vec![Object::Name(font_name.to_vec()), Object::Real(font_size)],
+        ),
+        Operation::new(
+            "rg",
+            vec![Object::Real(red), Object::Real(green), Object::Real(blue)],
+        ),
+        Operation::new(
+            "Tm",
+            vec![
+                Object::Real(cosine),
+                Object::Real(sine),
+                Object::Real(-sine),
+                Object::Real(cosine),
+                Object::Real(translate_x),
+                Object::Real(translate_y),
+            ],
+        ),
+        Operation::new(
+            "Tj",
+            vec![Object::String(encoded_text.to_vec(), StringFormat::Literal)],
+        ),
+        Operation::new("ET", vec![]),
+        Operation::new("Q", vec![]),
+    ]);
+
+    Content { operations }
+        .encode()
+        .map_err(|_| PdfToolError::InvalidPdf)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3746,6 +4051,14 @@ mod tests {
         assert_eq!(result.opacity, 0.85);
         assert_eq!(result.rotation_degrees, 0.0);
         assert_eq!(result.color, "red");
+        assert!(!result.border_enabled);
+        assert_eq!(result.border_color, None);
+        assert_eq!(result.border_width, None);
+        assert_eq!(result.border_opacity, None);
+        assert!(!result.background_enabled);
+        assert_eq!(result.background_color, None);
+        assert_eq!(result.background_opacity, None);
+        assert_eq!(result.padding, DEFAULT_TEXT_STAMP_PADDING);
         assert_eq!(
             fs::read(&input).expect("source PDF should remain readable"),
             original_bytes
@@ -3763,6 +4076,9 @@ mod tests {
             assert!(page_has_operator(&stamped, page_id, "gs"));
             assert!(page_has_operator(&stamped, page_id, "rg"));
             assert!(page_has_operator(&stamped, page_id, "Tm"));
+            assert!(!page_has_operator(&stamped, page_id, "re"));
+            assert!(!page_has_operator(&stamped, page_id, "S"));
+            assert!(!page_has_operator(&stamped, page_id, "f"));
         }
         assert!(page_text_strings(&source, 1).is_empty());
     }
@@ -3787,6 +4103,7 @@ mod tests {
                 opacity: Some(0.6),
                 rotation_degrees: Some(15.0),
                 color: Some("black".to_string()),
+                ..PdfTextStampOptions::default()
             },
         )
         .expect("selected pages should be stamped");
@@ -3857,6 +4174,228 @@ mod tests {
             let document = Document::load(output).expect("color output should reload");
             assert!(page_has_operator(&document, document.get_pages()[&1], "rg"));
         }
+    }
+
+    #[test]
+    fn text_stamp_adds_border_and_background_in_visual_order() {
+        let directory = TestDirectory::new();
+        let input = directory.path("text-stamp-decoration-input.pdf");
+        let output = directory.path("text-stamp-decoration-output.pdf");
+        create_pdf_with_page_contents(&input, &[b"q SOURCE-1 Q", b"q SOURCE-2 Q", b"q SOURCE-3 Q"]);
+
+        let result = add_text_stamp(
+            input,
+            output.clone(),
+            "REVIEWED".to_string(),
+            PdfTextStampOptions {
+                pages: Some(vec![1, 3]),
+                position: Some("bottom-left".to_string()),
+                margin_x: Some(24.0),
+                margin_y: Some(24.0),
+                rotation_degrees: Some(18.0),
+                border_enabled: Some(true),
+                border_color: Some("red".to_string()),
+                border_width: Some(2.0),
+                border_opacity: Some(0.7),
+                background_enabled: Some(true),
+                background_color: Some("yellow".to_string()),
+                background_opacity: Some(0.25),
+                padding: Some(6.0),
+                ..PdfTextStampOptions::default()
+            },
+        )
+        .expect("border and background should be added");
+
+        assert_eq!(result.pages, vec![1, 3]);
+        assert!(result.border_enabled);
+        assert_eq!(result.border_color.as_deref(), Some("red"));
+        assert_eq!(result.border_width, Some(2.0));
+        assert_eq!(result.border_opacity, Some(0.7));
+        assert!(result.background_enabled);
+        assert_eq!(result.background_color.as_deref(), Some("yellow"));
+        assert_eq!(result.background_opacity, Some(0.25));
+        assert_eq!(result.padding, 6.0);
+
+        let document = Document::load(output).expect("decorated output should reload");
+        assert_eq!(document.get_pages().len(), 3);
+        assert_eq!(page_text_strings(&document, 1), vec!["REVIEWED"]);
+        assert!(page_text_strings(&document, 2).is_empty());
+        assert_eq!(page_text_strings(&document, 3), vec!["REVIEWED"]);
+
+        let page_id = document.get_pages()[&1];
+        let bytes = document
+            .get_page_content(page_id)
+            .expect("decorated page content should load");
+        let operations = Content::decode(&bytes)
+            .expect("decorated page content should decode")
+            .operations;
+        let fill_index = operations
+            .iter()
+            .position(|operation| operation.operator == "f")
+            .expect("background fill should be present");
+        let stroke_index = operations
+            .iter()
+            .position(|operation| operation.operator == "S")
+            .expect("border stroke should be present");
+        let text_index = operations
+            .iter()
+            .position(|operation| operation.operator == "Tj")
+            .expect("stamp text should be present");
+        assert!(fill_index < stroke_index && stroke_index < text_index);
+        assert_eq!(
+            operations
+                .iter()
+                .filter(|operation| operation.operator == "re")
+                .count(),
+            2
+        );
+        assert_eq!(
+            operations
+                .iter()
+                .filter(|operation| operation.operator == "gs")
+                .count(),
+            3
+        );
+        assert!(operations
+            .iter()
+            .any(|operation| operation.operator == "RG"));
+        assert!(operations.iter().any(|operation| operation.operator == "w"));
+    }
+
+    #[test]
+    fn text_stamp_supports_border_and_background_color_presets() {
+        let directory = TestDirectory::new();
+        let input = directory.path("text-stamp-decoration-colors-input.pdf");
+        create_single_page_pdf(&input);
+
+        for (index, color) in ["black", "red", "gray"].into_iter().enumerate() {
+            let output = directory.path(&format!("text-stamp-border-color-{index}.pdf"));
+            let result = add_text_stamp(
+                input.clone(),
+                output.clone(),
+                "APPROVED".to_string(),
+                PdfTextStampOptions {
+                    border_enabled: Some(true),
+                    border_color: Some(color.to_string()),
+                    ..PdfTextStampOptions::default()
+                },
+            )
+            .expect("supported border color should succeed");
+            assert_eq!(result.border_color.as_deref(), Some(color));
+            let document = Document::load(output).expect("border output should reload");
+            let page_id = document.get_pages()[&1];
+            assert!(page_has_operator(&document, page_id, "S"));
+            assert!(!page_has_operator(&document, page_id, "f"));
+        }
+
+        for (index, color) in ["white", "yellow", "red", "gray"].into_iter().enumerate() {
+            let output = directory.path(&format!("text-stamp-background-color-{index}.pdf"));
+            let result = add_text_stamp(
+                input.clone(),
+                output.clone(),
+                "APPROVED".to_string(),
+                PdfTextStampOptions {
+                    background_enabled: Some(true),
+                    background_color: Some(color.to_string()),
+                    ..PdfTextStampOptions::default()
+                },
+            )
+            .expect("supported background color should succeed");
+            assert_eq!(result.background_color.as_deref(), Some(color));
+            let document = Document::load(output).expect("background output should reload");
+            let page_id = document.get_pages()[&1];
+            assert!(page_has_operator(&document, page_id, "f"));
+            assert!(!page_has_operator(&document, page_id, "S"));
+        }
+    }
+
+    #[test]
+    fn text_stamp_validates_border_background_and_padding() {
+        let directory = TestDirectory::new();
+        let input = directory.path("text-stamp-decoration-validation-input.pdf");
+        create_single_page_pdf(&input);
+
+        let check_error = |name: &str, options: PdfTextStampOptions, expected: PdfToolError| {
+            let error = add_text_stamp(
+                input.clone(),
+                directory.path(name),
+                "APPROVED".to_string(),
+                options,
+            )
+            .unwrap_err();
+            assert_eq!(error, expected);
+        };
+
+        check_error(
+            "invalid-border-color.pdf",
+            PdfTextStampOptions {
+                border_color: Some("blue".to_string()),
+                ..PdfTextStampOptions::default()
+            },
+            PdfToolError::InvalidTextStampBorderColor,
+        );
+        check_error(
+            "invalid-background-color.pdf",
+            PdfTextStampOptions {
+                background_color: Some("black".to_string()),
+                ..PdfTextStampOptions::default()
+            },
+            PdfToolError::InvalidTextStampBackgroundColor,
+        );
+
+        for (index, value) in [0.0, 0.49, 6.01, f32::NAN].into_iter().enumerate() {
+            check_error(
+                &format!("invalid-border-width-{index}.pdf"),
+                PdfTextStampOptions {
+                    border_width: Some(value),
+                    ..PdfTextStampOptions::default()
+                },
+                PdfToolError::InvalidTextStampBorderWidth,
+            );
+        }
+        for (index, value) in [0.0, -0.1, 1.01, f32::NAN].into_iter().enumerate() {
+            check_error(
+                &format!("invalid-border-opacity-{index}.pdf"),
+                PdfTextStampOptions {
+                    border_opacity: Some(value),
+                    ..PdfTextStampOptions::default()
+                },
+                PdfToolError::InvalidTextStampBorderOpacity,
+            );
+            check_error(
+                &format!("invalid-background-opacity-{index}.pdf"),
+                PdfTextStampOptions {
+                    background_opacity: Some(value),
+                    ..PdfTextStampOptions::default()
+                },
+                PdfToolError::InvalidTextStampBackgroundOpacity,
+            );
+        }
+        for (index, value) in [-0.1, 36.01, f32::NAN].into_iter().enumerate() {
+            check_error(
+                &format!("invalid-padding-{index}.pdf"),
+                PdfTextStampOptions {
+                    padding: Some(value),
+                    ..PdfTextStampOptions::default()
+                },
+                PdfToolError::InvalidTextStampPadding,
+            );
+        }
+
+        let fit_error = add_text_stamp(
+            input,
+            directory.path("padding-does-not-fit.pdf"),
+            "A".repeat(MAX_TEXT_STAMP_LENGTH),
+            PdfTextStampOptions {
+                position: Some("center".to_string()),
+                font_size: Some(18.0),
+                background_enabled: Some(true),
+                padding: Some(MAX_TEXT_STAMP_PADDING),
+                ..PdfTextStampOptions::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(fit_error, PdfToolError::InvalidTextStampMargin);
     }
 
     #[test]
@@ -4087,7 +4626,11 @@ mod tests {
             protected_input,
             protected_output.clone(),
             "APPROVED".to_string(),
-            PdfTextStampOptions::default(),
+            PdfTextStampOptions {
+                border_enabled: Some(true),
+                background_enabled: Some(true),
+                ..PdfTextStampOptions::default()
+            },
         )
         .unwrap_err();
         assert_eq!(error, PdfToolError::EncryptedPdfUnsupported);
@@ -4101,18 +4644,25 @@ mod tests {
         let output = directory.path("nested-text-stamp-output.pdf");
         create_nested_page_tree_pdf(&input, &[b"NESTED-1", b"NESTED-2"]);
 
-        let result = run_pdf_text_stamp_bridge(pdf_text_stamp_request(
-            input,
-            output.clone(),
-            "APPROVED",
-            Some(vec![2]),
-        ))
-        .expect("text stamp bridge should succeed");
+        let mut request = pdf_text_stamp_request(input, output.clone(), "APPROVED", Some(vec![2]));
+        request.border_enabled = Some(true);
+        request.border_color = Some("gray".to_string());
+        request.border_width = Some(1.5);
+        request.border_opacity = Some(0.65);
+        request.background_enabled = Some(true);
+        request.background_color = Some("white".to_string());
+        request.background_opacity = Some(0.3);
+        request.padding = Some(5.0);
+        let result = run_pdf_text_stamp_bridge(request).expect("text stamp bridge should succeed");
 
         assert!(output.is_file());
         assert_eq!(result.pages, vec![2]);
         assert_eq!(result.text, "APPROVED");
         assert_eq!(result.position, "top-right");
+        assert!(result.border_enabled);
+        assert_eq!(result.border_color.as_deref(), Some("gray"));
+        assert!(result.background_enabled);
+        assert_eq!(result.background_color.as_deref(), Some("white"));
         let document = Document::load(output).expect("bridge output should reload");
         assert_eq!(document.get_pages().len(), 2);
         assert!(page_text_strings(&document, 1).is_empty());
@@ -4132,6 +4682,8 @@ mod tests {
             .get_page_fonts(stamped_page_id)
             .expect("stamped page fonts should load");
         assert!(stamped_fonts.contains_key(b"UTHTextStampFont".as_slice()));
+        assert!(page_has_operator(&document, stamped_page_id, "S"));
+        assert!(page_has_operator(&document, stamped_page_id, "f"));
     }
 
     #[test]
@@ -5024,6 +5576,14 @@ mod tests {
             opacity: Some(0.85),
             rotation_degrees: Some(0.0),
             color: Some("red".to_string()),
+            border_enabled: None,
+            border_color: None,
+            border_width: None,
+            border_opacity: None,
+            background_enabled: None,
+            background_color: None,
+            background_opacity: None,
+            padding: None,
         }
     }
 

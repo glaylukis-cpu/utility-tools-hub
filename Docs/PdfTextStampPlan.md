@@ -410,3 +410,7 @@ v0.10.0 Step 1 does not implement or promise:
 - [ ] Confirm border, fill, padding, opacity, bounding-box, rotation-center, page-box, and no-preview risks are documented.
 - [ ] Confirm the staged path separates design, core/bridge, UI, real-PDF QA, release, preview research, and safe-redaction research.
 - [ ] Confirm existing PDF operations remain available and no implementation is added in Step 1.
+
+## 19. v0.10.0 Step 2 - Text stamp border/background core / bridge
+
+Step 2 extends the existing `pdf_text_stamp` core / bridge with optional rectangle border, background fill, opacity, limited color presets, and padding while preserving text-only request compatibility. Border/background are additive visual styling and are not redaction; UI, preview, OCR, redaction, Japanese font embedding, direct PDF text editing, Image stamp UI, and Overlay writing are not added yet.

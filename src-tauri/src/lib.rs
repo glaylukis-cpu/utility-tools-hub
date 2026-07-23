@@ -279,6 +279,22 @@ struct PdfTextStampInput {
     rotation_degrees: Option<f32>,
     #[serde(default)]
     color: Option<String>,
+    #[serde(default)]
+    border_enabled: Option<bool>,
+    #[serde(default)]
+    border_color: Option<String>,
+    #[serde(default)]
+    border_width: Option<f32>,
+    #[serde(default)]
+    border_opacity: Option<f32>,
+    #[serde(default)]
+    background_enabled: Option<bool>,
+    #[serde(default)]
+    background_color: Option<String>,
+    #[serde(default)]
+    background_opacity: Option<f32>,
+    #[serde(default)]
+    padding: Option<f32>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -297,6 +313,14 @@ pub(crate) struct PdfTextStampRequest {
     opacity: Option<f32>,
     rotation_degrees: Option<f32>,
     color: Option<String>,
+    border_enabled: Option<bool>,
+    border_color: Option<String>,
+    border_width: Option<f32>,
+    border_opacity: Option<f32>,
+    background_enabled: Option<bool>,
+    background_color: Option<String>,
+    background_opacity: Option<f32>,
+    padding: Option<f32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -633,6 +657,14 @@ impl RegisteredTool {
                     opacity: input.opacity,
                     rotation_degrees: input.rotation_degrees,
                     color: input.color,
+                    border_enabled: input.border_enabled,
+                    border_color: input.border_color,
+                    border_width: input.border_width,
+                    border_opacity: input.border_opacity,
+                    background_enabled: input.background_enabled,
+                    background_color: input.background_color,
+                    background_opacity: input.background_opacity,
+                    padding: input.padding,
                 }))
             }
             RegisteredTool::PdfImageWatermark => {
@@ -1059,6 +1091,14 @@ pub(crate) fn run_pdf_text_stamp_bridge(
             opacity: request.opacity,
             rotation_degrees: request.rotation_degrees,
             color: request.color,
+            border_enabled: request.border_enabled,
+            border_color: request.border_color,
+            border_width: request.border_width,
+            border_opacity: request.border_opacity,
+            background_enabled: request.background_enabled,
+            background_color: request.background_color,
+            background_opacity: request.background_opacity,
+            padding: request.padding,
         },
     )
     .map_err(|error| error.to_string())
@@ -1745,7 +1785,15 @@ mod tests {
                 "font_size": 24.0,
                 "opacity": 0.85,
                 "rotation_degrees": 0.0,
-                "color": "red"
+                "color": "red",
+                "border_enabled": true,
+                "border_color": "red",
+                "border_width": 1.0,
+                "border_opacity": 0.85,
+                "background_enabled": true,
+                "background_color": "yellow",
+                "background_opacity": 0.25,
+                "padding": 6.0
             }),
             options: serde_json::json!({}),
         };
@@ -1765,6 +1813,52 @@ mod tests {
         assert_eq!(request.opacity, Some(0.85));
         assert_eq!(request.rotation_degrees, Some(0.0));
         assert_eq!(request.color.as_deref(), Some("red"));
+        assert_eq!(request.border_enabled, Some(true));
+        assert_eq!(request.border_color.as_deref(), Some("red"));
+        assert_eq!(request.border_width, Some(1.0));
+        assert_eq!(request.border_opacity, Some(0.85));
+        assert_eq!(request.background_enabled, Some(true));
+        assert_eq!(request.background_color.as_deref(), Some("yellow"));
+        assert_eq!(request.background_opacity, Some(0.25));
+        assert_eq!(request.padding, Some(6.0));
+    }
+
+    #[test]
+    fn registry_keeps_existing_pdf_text_stamp_requests_compatible() {
+        let tool =
+            ToolRegistry::resolve(PDF_TEXT_STAMP_TOOL_ID).expect("text stamp tool should resolve");
+        let request = ToolRequest {
+            tool_id: PDF_TEXT_STAMP_TOOL_ID.to_string(),
+            input: serde_json::json!({
+                "input_path": "input.pdf",
+                "output_path": "stamped.pdf",
+                "text": "APPROVED",
+                "pages": [],
+                "position": "top-right",
+                "margin_x": 36.0,
+                "margin_y": 36.0,
+                "font_size": 24.0,
+                "opacity": 0.85,
+                "rotation_degrees": 0.0,
+                "color": "red"
+            }),
+            options: serde_json::json!({}),
+        };
+
+        let validated = tool
+            .parse_request(request)
+            .expect("existing text stamp request should remain valid");
+        let ValidatedToolRequest::PdfTextStamp(request) = validated else {
+            panic!("expected a text stamp request");
+        };
+        assert_eq!(request.border_enabled, None);
+        assert_eq!(request.border_color, None);
+        assert_eq!(request.border_width, None);
+        assert_eq!(request.border_opacity, None);
+        assert_eq!(request.background_enabled, None);
+        assert_eq!(request.background_color, None);
+        assert_eq!(request.background_opacity, None);
+        assert_eq!(request.padding, None);
     }
 
     #[test]
