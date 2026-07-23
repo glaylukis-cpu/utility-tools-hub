@@ -264,8 +264,185 @@ Each step needs its own completion conditions and should preserve existing PDF o
 - [ ] Confirm Page numbers remains the v0.7.0 page-varying additive text feature and existing numbers are not removed.
 - [ ] Run `git diff --check`, the frontend build, Rust formatting check, Rust check, and Rust tests.
 
-## 13. Next implementation step
+## 13. v0.8.0 Step 2 - Image format research and core feasibility
 
-**v0.8.0 Step 2 - Image format research spike**
+Step 2 reviews the existing implementation and dependency graph without changing Rust, the bridge, UI, PDF processing, or dependencies. Its purpose is to choose a narrow first image core and make the next implementation contract testable.
 
-In a separate task, create a bounded, non-product research spike that compares PNG and JPEG/JPG against the current Rust / `lopdf` dependency graph. The spike should determine the smallest safe initial format, prove image XObject creation and reuse on representative non-sensitive fixtures, measure output size, document transparency and color-space limits, and state whether a maintained decoding dependency is required. It should not add Workbench UI, Text stamp, custom coordinates, SVG/WebP, preview, OCR, redaction, or direct PDF text editing.
+### Existing rendering approach review
+
+The existing `add_text_watermark` implementation provides these reusable patterns:
+
+- validate a `.pdf` output, reject source overwrite, load through the common unprotected-PDF boundary, and validate all or selected pages;
+- add one shared Type 1 font and one shared ExtGState object to the document;
+- materialize inherited `Resources`, `MediaBox`, `CropBox`, and `Rotate` values before changing a page;
+- clone resolved page resources into a page-local dictionary and install unique `Font` and `ExtGState` names;
+- calculate placement from the effective CropBox, falling back to MediaBox;
+- append an isolated `q / gs / BT / Tm / Tj / ET / Q` content stream with `Document::add_page_contents`; and
+- save a new PDF without deleting or replacing existing page content.
+
+The existing `add_page_numbers` implementation reuses the same input/output and page validation, sorts selected pages into document order, generates different text for each target page, installs a shared font under a collision-safe page resource name, calculates six edge positions from margins, and appends a separate content stream per page. Its existing comment also records that viewer-facing rotation placement still needs later polish.
+
+`src-tauri/src/lib.rs` supplies a useful bridge pattern: a registered tool ID, an input struct with `deny_unknown_fields`, an empty options object, a validated internal request, a `spawn_blocking` handler, a narrow core call, safe string errors, and serializable result metadata. A future image request can follow this pattern, but image validation belongs in the Rust core rather than in JSON parsing alone.
+
+There is no application helper that creates or installs an Image XObject. The existing font and ExtGState helpers can be generalized carefully, but the image stream, `XObject` resource dictionary, `Do` operation, image validation, and shared-object lifetime are new work.
+
+### Current dependency findings
+
+The active `src-tauri/Cargo.toml` configuration uses `lopdf 0.34` with `default-features = false` and only `nom_parser`. It has no direct `image`, `png`, JPEG decoder, WebP decoder, SVG rasterizer, or `flate2` dependency.
+
+The lockfile contains `png` through Tauri build/code-generation dependencies and `flate2` through `lopdf`, but transitive crates are not stable, directly usable application dependencies. Their presence in `Cargo.lock` must not be treated as an approved image-decoding API.
+
+`lopdf 0.34` has an optional `embed_image` feature that enables its optional `image 0.25` dependency. That feature is currently disabled. Enabling it would change `Cargo.toml` features and the resolved dependency graph, so it requires a separate dependency review even though the direct package name would remain `lopdf`.
+
+The local `lopdf` source contains:
+
+- `xobject::image` / `image_from` behind `embed_image`;
+- JPEG passthrough using an Image XObject with `DCTDecode`;
+- decoded non-JPEG byte compression into an Image XObject;
+- `Document::add_xobject` and `Document::insert_image`; and
+- general `Stream` construction and Flate compression.
+
+These helpers do not remove the need for product-side validation. In particular, the reviewed `image_from` path does not construct a separate PDF soft-mask (`SMask`) for alpha data, so it is not sufficient evidence for correct transparent-PNG support. The reviewed `insert_image` helper creates a new image object per call and rewrites decoded page content; calling it once per page would not meet the desired shared-image-object and append-only design. A first core should instead add one validated image stream, reference that same object from each target page under a unique `XObject` name, and append a small isolated drawing stream.
+
+### Format comparison
+
+| Format | Current active decode support | PDF embedding path | Transparency | Initial decision |
+| --- | --- | --- | --- | --- |
+| JPEG / JPG | No direct decoder; strict metadata parsing is still required | Preserve validated bytes and use `DCTDecode` | None | Recommended first format |
+| PNG without alpha | No direct decoder | Parse PNG, use decoded samples or carefully mapped IDAT/`FlateDecode` predictor data | None | Defer until a decoder/dependency decision |
+| PNG with alpha | No direct decoder | Decode color and alpha, create main image plus grayscale `SMask` | Yes | Defer; do not claim through the current lopdf helper |
+| WebP | No direct decoder | Decode to samples and re-encode/compress for PDF | Possible after decode | Exclude from initial support |
+| SVG | No rasterizer or constrained SVG renderer | Rasterize or translate a broad vector specification | Specification-dependent | Exclude from initial support |
+
+### PNG findings
+
+PNG is the most natural long-term watermark format because logos and seals commonly use transparent backgrounds. It also has a well-defined signature and IHDR fields for dimensions, bit depth, color type, compression, filter, and interlace mode.
+
+PNG bytes cannot be embedded wholesale as a PDF Image XObject. A narrow non-alpha implementation could theoretically accept only non-interlaced 8-bit grayscale or RGB PNG, concatenate validated IDAT data, and use `FlateDecode` with correct PNG predictor parameters. That still requires robust chunk-length, CRC, color-type, palette, bit-depth, interlace, decompression-limit, and malformed-input handling. It must not rely only on IHDR or the filename extension.
+
+Transparent PNG is substantially harder. The color samples and alpha channel must be decoded and separated so the PDF main image can reference a grayscale soft-mask image through `SMask`. The existing Text watermark opacity ExtGState controls whole-object opacity; it does not replace per-pixel alpha. Palette transparency and 16-bit data further expand the cases.
+
+The existing direct dependencies do not provide an approved PNG decoder. `lopdf::Stream::compress` can Flate-compress raw samples after decoding, but it does not decode the source PNG for the application. Enabling `lopdf/embed_image` or adding a maintained `png`/`image` dependency is possible only in a separate approved task. Because the reviewed lopdf image helper does not establish correct `SMask` handling, Step 3 should not start with transparent PNG. A hand-written general PNG decoder is not recommended.
+
+### JPEG findings
+
+JPEG is the smallest credible first format. After validating the file structure, dimensions, and supported color model, the original JPEG stream can be stored in an Image XObject with `Filter /DCTDecode`, avoiding pixel decode, re-encoding, and a large raw image buffer. JPEG has no alpha channel, which removes `SMask` from the first core.
+
+Width and height can be read by scanning validated JPEG markers until a supported Start of Frame segment. This is technically possible without an additional crate, but it is still parser work: segment lengths, truncation, marker stuffing, supported SOF variants, maximum dimensions, component count, and overflow must be checked. A maintained parser/decoder dependency would reduce custom parsing risk but would change the dependency graph. The next task must choose explicitly between a small strict metadata parser and a reviewed dependency; it must not infer dimensions from JFIF DPI or the filename.
+
+The first core should accept only clearly identified grayscale and three-component JPEG data that maps to `DeviceGray` or `DeviceRGB`. CMYK, YCCK, ambiguous Adobe transforms, unusual component layouts, and unsupported SOF forms should be rejected until viewer compatibility is proven. EXIF orientation is not automatically applied by a raw `DCTDecode` stream, so orientation must be documented as ignored/rejected or handled explicitly later.
+
+JPEG is less natural for a transparent logo watermark because the rectangular background remains. Whole-image opacity can still make it useful for faint photographs, scanned seals with a matching background, and stamp-like marks. It is enough to prove the shared Image XObject, placement, opacity, bridge, validation, and output-safety architecture before PNG alpha expands the scope.
+
+### WebP and SVG findings
+
+WebP remains excluded because PDF has no equivalent common direct WebP image filter. It would need decoding and conversion, format-specific limits, and additional dependency coverage. Existing lockfile entries whose names contain `webpki` relate to Web PKI certificates, not WebP image decoding.
+
+SVG remains excluded because it is a broad vector document and rendering specification rather than a raster byte stream. Safe support would need a constrained parser/rasterizer, external-resource and font policy, sizing rules, filter/mask behavior, and dependency review. Silently rasterizing SVG is outside the first image watermark core.
+
+### Image XObject, opacity, and placement design
+
+The recommended core should create one Image XObject with at least `Type /XObject`, `Subtype /Image`, validated `Width`, `Height`, `ColorSpace`, `BitsPerComponent`, and the selected filter. It should add that object once, then install a unique reference in each target page's page-local `Resources /XObject` dictionary. It must not overwrite an inherited or existing resource name.
+
+Each target page should receive an appended content stream using `q`, optional `gs`, `cm`, `Do`, and `Q`. The six-value `cm` matrix must combine PDF-point width/height, rotation around a documented pivot, and translation from the effective CropBox/MediaBox origin. A shared ExtGState can provide bounded whole-image non-stroking opacity (`ca`); `CA` may be set consistently but does not provide per-pixel transparency.
+
+Main risks include:
+
+- multiplying output size by creating one image stream per page;
+- using a shared resource dictionary in a way that changes unrelated pages;
+- resource-name collisions or indirect resource dictionaries;
+- wrong matrix order, rotation pivot, CropBox/MediaBox origin, or viewer-facing page rotation;
+- clipping from excessive width/height or margins;
+- mutually conflicting width, height, and scale options;
+- low effective resolution after scaling, or unreasonable pixel-count memory limits;
+- JPEG color-space mismatches and ignored EXIF orientation;
+- treating ExtGState opacity as PNG alpha; and
+- the absence of real preview or thumbnails, which makes placement an operation-plan estimate until the output is opened.
+
+### Provisional core and bridge API
+
+The following is a design candidate, not an implemented or final contract:
+
+```rust
+pub struct PdfImageWatermarkResult {
+    pub input_path: String,
+    pub output_path: String,
+    pub image_path: String,
+    pub pages: Vec<usize>,
+    pub page_count: usize,
+    pub position: String,
+}
+
+pub struct PdfImageWatermarkOptions {
+    pub pages: Option<Vec<usize>>,
+    pub position: Option<String>,
+    pub width: Option<f32>,
+    pub height: Option<f32>,
+    pub scale: Option<f32>,
+    pub margin_x: Option<f32>,
+    pub margin_y: Option<f32>,
+    pub opacity: Option<f32>,
+    pub rotation_degrees: Option<f32>,
+}
+
+pub fn add_image_watermark(
+    input_path: PathBuf,
+    output_path: PathBuf,
+    image_path: PathBuf,
+    options: PdfImageWatermarkOptions,
+) -> Result<PdfImageWatermarkResult, PdfToolError>;
+```
+
+Provisional tool ID: `pdf_image_watermark`.
+
+```json
+{
+  "tool_id": "pdf_image_watermark",
+  "input": {
+    "input_path": "input.pdf",
+    "output_path": "watermarked.pdf",
+    "image_path": "logo.jpg",
+    "pages": [1, 2, 3],
+    "position": "center",
+    "width": 180,
+    "margin_x": 36,
+    "margin_y": 36,
+    "opacity": 0.25,
+    "rotation_degrees": 0
+  },
+  "options": {}
+}
+```
+
+Before implementation, the first contract should be trimmed to only supported behavior. In particular, Step 3 should prefer fixed `width` with preserved aspect ratio and a `center` default. `width`, `height`, and `scale` must be mutually exclusive if more than one mode is eventually accepted. Unsupported position or sizing fields must be rejected rather than silently ignored. New `PdfToolError` variants should distinguish missing/unsupported image input, malformed image data, unsupported color model, unreasonable dimensions, invalid position, invalid size, invalid margin, invalid opacity, and invalid rotation without exposing sensitive paths.
+
+### Initial implementation candidate comparison
+
+| Candidate | Difficulty | Dependency risk | User value | PDF compatibility / QA | Reuse and failure scope |
+| --- | --- | --- | --- | --- | --- |
+| A. JPEG-only image stamp core | Low to medium | Low only with a strict custom metadata parser; otherwise reviewed dependency needed | Moderate | Narrowest matrix; `DCTDecode` is widely supported | High reuse of page selection, resources, ExtGState, and placement; small failure scope |
+| B. PNG-only non-alpha image watermark core | Medium to high | Medium; a safe PNG decoder is preferable | Moderate, but transparent-logo expectations are unmet | Predictor, color-type, bit-depth, and interlace cases expand QA | Reuses placement but adds container/decode risk |
+| C. PNG with alpha from the start | High | High | High for logos and seals | Requires decoded color data plus correct `SMask` across viewers | Large new surface and misleading transparency claims if incomplete |
+| D. PNG and JPEG together | Very high | High | Broad | Combines both format and QA matrices before architecture is proven | Largest first-step failure scope |
+| E. Text stamp first | Low | None | Useful, but does not validate image architecture | Existing text path is already understood | Highest code reuse but postpones the requested image foundation |
+
+Candidate A is the safest technical base, but the next product slice should expose it through the proposed `pdf_image_watermark` core rather than introduce final Image stamp semantics prematurely. The narrow Step 3 recommendation is therefore a **JPEG-only Image watermark core / bridge with stamp-compatible placement foundations**: grayscale/RGB JPEG only, all or selected pages, one shared Image XObject, center placement, fixed width with preserved aspect ratio, bounded whole-image opacity and rotation, new-PDF output, protected-input rejection, and no UI. Additional position presets may be included only if rotated and mixed-box fixtures prove the matrix calculations.
+
+PNG support should follow in a separately approved step after choosing a maintained decoding strategy and defining real `SMask` behavior. Text stamp remains a later low-risk feature, not a substitute for proving image embedding.
+
+### Step 2 safety and non-goals
+
+- Image watermark and Image stamp remain additive operations.
+- They are not direct PDF text editing and are not redaction.
+- A visual mask is not safe redaction.
+- Existing images, text, and page numbers are not removed or replaced.
+- Protected PDFs are rejected without decryption, permission bypass, or password handling.
+- The source PDF is not overwritten; output is a new PDF.
+- Without PDF preview or thumbnails, pre-execution placement confirmation remains limited.
+- Step 2 adds no image implementation, Rust/bridge/UI change, dependency, rendering, OCR, redaction, or version change.
+
+## 14. Next implementation step
+
+**v0.8.0 Step 3 - JPEG-only Image watermark core / bridge**
+
+In a separate approved implementation task, finalize a deliberately narrow `pdf_image_watermark` contract and implement a JPEG-only Rust core / shared execution bridge. The task should validate JPEG content and dimensions, reject unsupported color models and unreasonable sizes, embed one shared `DCTDecode` Image XObject, append isolated `q / gs / cm / Do / Q` streams to all or selected pages, preserve aspect ratio at a bounded fixed width, write a new PDF, reject protected input, reopen the output, and add structural and real-file fixtures. The task must decide and record whether strict JPEG metadata parsing is local or supplied by a reviewed dependency. It should add no UI, PNG, WebP, SVG, Image stamp product semantics, Text stamp, preview, thumbnails, OCR, redaction, or direct PDF text editing.

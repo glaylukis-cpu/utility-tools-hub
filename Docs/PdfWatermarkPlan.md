@@ -146,3 +146,7 @@ Step 4 polishes Text watermark validation and QA checks. Text watermark remains 
 ### v0.8.0 Step 1 - Image watermark and stamp planning
 
 `Docs/PdfImageWatermarkStampPlan.md` now defines design-only image watermark, image stamp, and text stamp categories, format and placement candidates, implementation risks, safety boundaries, staged delivery, and QA. No image or stamp processing, UI, dependency, preview, OCR, redaction, or direct PDF text editing is added in this step.
+
+### v0.8.0 Step 2 - Image format research
+
+Image watermark and stamp remain in format-research and core-feasibility planning. JPEG is the recommended narrow first core; PNG transparency and dependency choices require later dedicated work, and no image processing is implemented in Step 2.

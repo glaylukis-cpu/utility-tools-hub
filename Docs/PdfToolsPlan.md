@@ -123,3 +123,7 @@ PDF Workbench now connects to `pdf_page_numbers` with input summary, all-page or
 ## v0.8.0 Image watermark and stamp planning
 
 `Docs/PdfImageWatermarkStampPlan.md` defines design-only image watermark, image stamp, and text stamp categories, PNG and JPEG/JPG candidates, placement and sizing models, implementation risks, safety boundaries, staged delivery, and QA. No image or stamp processing, Rust, bridge, UI, dependency, rendering, OCR, redaction, or direct PDF text editing is added in this step.
+
+## v0.8.0 Image format research / core feasibility
+
+Image watermark remains planned rather than implemented. Format research recommends a narrow JPEG-only Image watermark core / bridge before PNG alpha support; no Rust, dependency, UI, rendering, OCR, redaction, or direct PDF text editing change is added in this step.

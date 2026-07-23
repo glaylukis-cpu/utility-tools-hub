@@ -342,3 +342,7 @@ Page numbers UIのQA polishと実PDF確認準備に集中します。Preview、t
 **v0.8.0 Step 1 - Image watermark / stamp planning**
 
 Image watermark、image stamp、text stampの形式、配置、サイズ、安全境界、段階導入を設計文書で整理します。画像・stamp処理、UI、dependency、preview、OCR、redaction、PDF本文編集はまだ追加しません。
+
+**v0.8.0 Step 2 - Image format research / core feasibility**
+
+Image format supportとImage watermark coreの実現可能性を調査します。Image watermark実装、dependency追加、preview、OCR、redaction、PDF本文編集は追加しません。

@@ -297,3 +297,11 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm visual masks are explicitly not safe redaction.
 - [ ] Confirm OCR, redaction, direct PDF text editing, and image/stamp processing remain unimplemented.
 - [ ] Confirm Inspect, Merge, Split, Extract, Rotate, Delete, Reorder, Text watermark, and Page numbers still work.
+
+## v0.8.0 Step 2 Image format research / core feasibility
+
+- [ ] Confirm Image format research and core feasibility are documented.
+- [ ] Confirm PNG, JPEG/JPG, WebP, and SVG support tradeoffs are documented.
+- [ ] Confirm current and potential dependency risks are documented.
+- [ ] Confirm Image watermark remains planned and is not implemented.
+- [ ] Confirm existing PDF operations still work.
