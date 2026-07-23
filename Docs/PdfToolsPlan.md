@@ -127,3 +127,7 @@ PDF Workbench now connects to `pdf_page_numbers` with input summary, all-page or
 ## v0.8.0 Image format research / core feasibility
 
 Image watermark remains planned rather than implemented. Format research recommends a narrow JPEG-only Image watermark core / bridge before PNG alpha support; no Rust, dependency, UI, rendering, OCR, redaction, or direct PDF text editing change is added in this step.
+
+## v0.8.0 JPEG-only Image watermark core / bridge
+
+The additive `pdf_image_watermark` core and shared execution bridge can write validated baseline grayscale/RGB JPEG watermarks to all or selected pages using one shared Image XObject. UI, PNG, WebP, SVG, stamps, rendering, OCR, redaction, and direct PDF text editing remain unimplemented.

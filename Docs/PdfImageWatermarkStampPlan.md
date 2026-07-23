@@ -441,8 +441,6 @@ PNG support should follow in a separately approved step after choosing a maintai
 - Without PDF preview or thumbnails, pre-execution placement confirmation remains limited.
 - Step 2 adds no image implementation, Rust/bridge/UI change, dependency, rendering, OCR, redaction, or version change.
 
-## 14. Next implementation step
+## 14. v0.8.0 Step 3 - JPEG-only Image watermark core / bridge
 
-**v0.8.0 Step 3 - JPEG-only Image watermark core / bridge**
-
-In a separate approved implementation task, finalize a deliberately narrow `pdf_image_watermark` contract and implement a JPEG-only Rust core / shared execution bridge. The task should validate JPEG content and dimensions, reject unsupported color models and unreasonable sizes, embed one shared `DCTDecode` Image XObject, append isolated `q / gs / cm / Do / Q` streams to all or selected pages, preserve aspect ratio at a bounded fixed width, write a new PDF, reject protected input, reopen the output, and add structural and real-file fixtures. The task must decide and record whether strict JPEG metadata parsing is local or supplied by a reviewed dependency. It should add no UI, PNG, WebP, SVG, Image stamp product semantics, Text stamp, preview, thumbnails, OCR, redaction, or direct PDF text editing.
+Step 3 adds the additive `pdf_image_watermark` Rust core and shared execution bridge for validated baseline grayscale/RGB JPEG watermarks, using one shared `DCTDecode` Image XObject across all or selected pages. UI, PNG alpha, WebP, SVG, Image stamp UI, preview, OCR, redaction, and direct PDF text editing are not added yet.

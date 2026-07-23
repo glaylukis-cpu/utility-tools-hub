@@ -54,6 +54,7 @@ const PDF_ROTATE_TOOL_ID: &str = "pdf_rotate";
 const PDF_DELETE_TOOL_ID: &str = "pdf_delete";
 const PDF_REORDER_TOOL_ID: &str = "pdf_reorder";
 const PDF_TEXT_WATERMARK_TOOL_ID: &str = "pdf_text_watermark";
+const PDF_IMAGE_WATERMARK_TOOL_ID: &str = "pdf_image_watermark";
 const PDF_PAGE_NUMBERS_TOOL_ID: &str = "pdf_page_numbers";
 const PDF_INSPECT_TOOL_ID: &str = "pdf_inspect";
 
@@ -257,6 +258,36 @@ pub(crate) struct PdfTextWatermarkRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct PdfImageWatermarkInput {
+    input_path: String,
+    output_path: String,
+    image_path: String,
+    #[serde(default)]
+    pages: Option<Vec<usize>>,
+    #[serde(default)]
+    width: Option<f32>,
+    #[serde(default)]
+    opacity: Option<f32>,
+    #[serde(default)]
+    rotation_degrees: Option<f32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfImageWatermarkRequestOptions {}
+
+pub(crate) struct PdfImageWatermarkRequest {
+    input_path: String,
+    output_path: String,
+    image_path: String,
+    pages: Option<Vec<usize>>,
+    width: Option<f32>,
+    opacity: Option<f32>,
+    rotation_degrees: Option<f32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PdfPageNumbersInput {
     input_path: String,
     output_path: String,
@@ -348,6 +379,7 @@ enum RegisteredTool {
     PdfDelete,
     PdfReorder,
     PdfTextWatermark,
+    PdfImageWatermark,
     PdfPageNumbers,
     PdfInspect,
 }
@@ -366,6 +398,7 @@ impl ToolRegistry {
             PDF_DELETE_TOOL_ID => Ok(RegisteredTool::PdfDelete),
             PDF_REORDER_TOOL_ID => Ok(RegisteredTool::PdfReorder),
             PDF_TEXT_WATERMARK_TOOL_ID => Ok(RegisteredTool::PdfTextWatermark),
+            PDF_IMAGE_WATERMARK_TOOL_ID => Ok(RegisteredTool::PdfImageWatermark),
             PDF_PAGE_NUMBERS_TOOL_ID => Ok(RegisteredTool::PdfPageNumbers),
             PDF_INSPECT_TOOL_ID => Ok(RegisteredTool::PdfInspect),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
@@ -533,6 +566,28 @@ impl RegisteredTool {
                     },
                 ))
             }
+            RegisteredTool::PdfImageWatermark => {
+                let input: PdfImageWatermarkInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfImageWatermarkRequestOptions::default()
+                } else {
+                    serde_json::from_value::<PdfImageWatermarkRequestOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfImageWatermark(
+                    PdfImageWatermarkRequest {
+                        input_path: input.input_path,
+                        output_path: input.output_path,
+                        image_path: input.image_path,
+                        pages: input.pages,
+                        width: input.width,
+                        opacity: input.opacity,
+                        rotation_degrees: input.rotation_degrees,
+                    },
+                ))
+            }
             RegisteredTool::PdfPageNumbers => {
                 let input: PdfPageNumbersInput = serde_json::from_value(request.input)
                     .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
@@ -585,6 +640,7 @@ enum ValidatedToolRequest {
     PdfDelete(PdfDeleteRequest),
     PdfReorder(PdfReorderRequest),
     PdfTextWatermark(PdfTextWatermarkRequest),
+    PdfImageWatermark(PdfImageWatermarkRequest),
     PdfPageNumbers(PdfPageNumbersRequest),
     PdfInspect(PdfInspectRequest),
 }
@@ -601,6 +657,7 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::PdfDelete(_) => PDF_DELETE_TOOL_ID,
             ValidatedToolRequest::PdfReorder(_) => PDF_REORDER_TOOL_ID,
             ValidatedToolRequest::PdfTextWatermark(_) => PDF_TEXT_WATERMARK_TOOL_ID,
+            ValidatedToolRequest::PdfImageWatermark(_) => PDF_IMAGE_WATERMARK_TOOL_ID,
             ValidatedToolRequest::PdfPageNumbers(_) => PDF_PAGE_NUMBERS_TOOL_ID,
             ValidatedToolRequest::PdfInspect(_) => PDF_INSPECT_TOOL_ID,
         }
@@ -630,6 +687,9 @@ impl ValidatedToolRequest {
             }
             ValidatedToolRequest::PdfTextWatermark(request) => {
                 PdfTextWatermarkHandler.execute(app, request).await
+            }
+            ValidatedToolRequest::PdfImageWatermark(request) => {
+                PdfImageWatermarkHandler.execute(app, request).await
             }
             ValidatedToolRequest::PdfPageNumbers(request) => {
                 PdfPageNumbersHandler.execute(app, request).await
@@ -886,6 +946,42 @@ pub(crate) fn run_pdf_text_watermark_bridge(
             opacity: request.opacity,
             rotation_degrees: request.rotation_degrees,
             font_size: request.font_size,
+        },
+    )
+    .map_err(|error| error.to_string())
+}
+
+struct PdfImageWatermarkHandler;
+
+impl ToolHandler for PdfImageWatermarkHandler {
+    type Request = PdfImageWatermarkRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result = tauri::async_runtime::spawn_blocking(move || {
+                run_pdf_image_watermark_bridge(request)
+            })
+            .await
+            .map_err(|_| "PDF image watermark task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_image_watermark_bridge(
+    request: PdfImageWatermarkRequest,
+) -> Result<pdf_tools::PdfImageWatermarkResult, String> {
+    pdf_tools::add_image_watermark(
+        PathBuf::from(request.input_path),
+        PathBuf::from(request.output_path),
+        PathBuf::from(request.image_path),
+        pdf_tools::PdfImageWatermarkOptions {
+            pages: request.pages,
+            width: request.width,
+            opacity: request.opacity,
+            rotation_degrees: request.rotation_degrees,
         },
     )
     .map_err(|error| error.to_string())
@@ -1509,6 +1605,45 @@ mod tests {
         assert_eq!(request.opacity, Some(0.18));
         assert_eq!(request.rotation_degrees, Some(-35.0));
         assert_eq!(request.font_size, Some(48.0));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_image_watermark_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_IMAGE_WATERMARK_TOOL_ID),
+            Ok(RegisteredTool::PdfImageWatermark)
+        ));
+    }
+
+    #[test]
+    fn registry_parses_pdf_image_watermark_request() {
+        let tool = ToolRegistry::resolve(PDF_IMAGE_WATERMARK_TOOL_ID)
+            .expect("image watermark tool should resolve");
+        let request = ToolRequest {
+            tool_id: PDF_IMAGE_WATERMARK_TOOL_ID.to_string(),
+            input: serde_json::json!({
+                "input_path": "input.pdf",
+                "output_path": "watermarked.pdf",
+                "image_path": "logo.jpg",
+                "pages": [1, 3],
+                "width": 180.0,
+                "opacity": 0.25,
+                "rotation_degrees": 15.0
+            }),
+            options: serde_json::json!({}),
+        };
+
+        let validated = tool
+            .parse_request(request)
+            .expect("image watermark request should parse");
+        let ValidatedToolRequest::PdfImageWatermark(request) = validated else {
+            panic!("expected an image watermark request");
+        };
+        assert_eq!(request.image_path, "logo.jpg");
+        assert_eq!(request.pages, Some(vec![1, 3]));
+        assert_eq!(request.width, Some(180.0));
+        assert_eq!(request.opacity, Some(0.25));
+        assert_eq!(request.rotation_degrees, Some(15.0));
     }
 
     #[test]

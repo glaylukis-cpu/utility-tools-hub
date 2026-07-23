@@ -74,6 +74,28 @@ pub struct PdfTextWatermarkOptions {
     pub font_size: Option<f32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct PdfImageWatermarkResult {
+    pub input_path: String,
+    pub output_path: String,
+    pub image_path: String,
+    pub pages: Vec<usize>,
+    pub page_count: usize,
+    pub position: String,
+    pub width: f32,
+    pub height: f32,
+    pub opacity: f32,
+    pub rotation_degrees: f32,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PdfImageWatermarkOptions {
+    pub pages: Option<Vec<usize>>,
+    pub width: Option<f32>,
+    pub opacity: Option<f32>,
+    pub rotation_degrees: Option<f32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PdfPageNumbersResult {
     pub input_path: String,
@@ -131,6 +153,17 @@ pub enum PdfToolError {
     InvalidWatermarkOpacity,
     InvalidWatermarkRotation,
     InvalidWatermarkFontSize,
+    InvalidImageExtension,
+    ImageNotFound,
+    ImageFileTooLarge,
+    InvalidJpeg,
+    UnsupportedJpegEncoding,
+    UnsupportedJpegComponents,
+    InvalidJpegDimensions,
+    InvalidImageWatermarkWidth,
+    InvalidImageWatermarkOpacity,
+    InvalidImageWatermarkRotation,
+    ImageWatermarkDoesNotFitPage,
     InvalidPageNumberStart,
     InvalidPageNumberFormat,
     InvalidPageNumberPosition,
@@ -174,6 +207,33 @@ impl fmt::Display for PdfToolError {
             }
             Self::InvalidWatermarkFontSize => {
                 "watermark font size must be a finite value from 8 to 200 points"
+            }
+            Self::InvalidImageExtension => {
+                "the watermark image must use the .jpg or .jpeg extension"
+            }
+            Self::ImageNotFound => "the watermark image file does not exist",
+            Self::ImageFileTooLarge => "the watermark JPEG file is too large",
+            Self::InvalidJpeg => "the watermark image is not a valid baseline JPEG file",
+            Self::UnsupportedJpegEncoding => {
+                "the watermark JPEG must use 8-bit baseline sequential encoding"
+            }
+            Self::UnsupportedJpegComponents => {
+                "the watermark JPEG must use grayscale or three-component color"
+            }
+            Self::InvalidJpegDimensions => {
+                "the watermark JPEG dimensions are zero or exceed the supported limit"
+            }
+            Self::InvalidImageWatermarkWidth => {
+                "image watermark width must be a finite value from 8 to 1440 points"
+            }
+            Self::InvalidImageWatermarkOpacity => {
+                "image watermark opacity must be greater than 0 and no greater than 1"
+            }
+            Self::InvalidImageWatermarkRotation => {
+                "image watermark rotation must be a finite value from -360 to 360 degrees"
+            }
+            Self::ImageWatermarkDoesNotFitPage => {
+                "the image watermark does not fit inside a selected PDF page"
             }
             Self::InvalidPageNumberStart => "page number start must be one or greater",
             Self::InvalidPageNumberFormat => "the page number format is not supported",
@@ -657,6 +717,260 @@ pub fn add_text_watermark(
     })
 }
 
+const MAX_JPEG_FILE_SIZE_BYTES: u64 = 20 * 1024 * 1024;
+const MAX_JPEG_DIMENSION: u32 = 20_000;
+const MAX_JPEG_PIXELS: u64 = 100_000_000;
+const DEFAULT_IMAGE_WATERMARK_WIDTH: f32 = 180.0;
+const MIN_IMAGE_WATERMARK_WIDTH: f32 = 8.0;
+const MAX_IMAGE_WATERMARK_WIDTH: f32 = 1440.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct JpegMetadata {
+    width: u32,
+    height: u32,
+    components: u8,
+}
+
+/// Adds one shared baseline JPEG Image XObject to all or selected pages.
+/// The operation is additive, writes a new PDF, and does not edit existing content.
+pub fn add_image_watermark(
+    input_path: PathBuf,
+    output_path: PathBuf,
+    image_path: PathBuf,
+    options: PdfImageWatermarkOptions,
+) -> Result<PdfImageWatermarkResult, PdfToolError> {
+    validate_output_path(&output_path)?;
+    if input_path == output_path {
+        return Err(PdfToolError::OutputConflictsWithInput);
+    }
+
+    let width = options.width.unwrap_or(DEFAULT_IMAGE_WATERMARK_WIDTH);
+    if !width.is_finite()
+        || !(MIN_IMAGE_WATERMARK_WIDTH..=MAX_IMAGE_WATERMARK_WIDTH).contains(&width)
+    {
+        return Err(PdfToolError::InvalidImageWatermarkWidth);
+    }
+
+    let opacity = options.opacity.unwrap_or(0.25);
+    if !opacity.is_finite() || opacity <= 0.0 || opacity > 1.0 {
+        return Err(PdfToolError::InvalidImageWatermarkOpacity);
+    }
+
+    let rotation_degrees = options.rotation_degrees.unwrap_or(0.0);
+    if !rotation_degrees.is_finite() || !(-360.0..=360.0).contains(&rotation_degrees) {
+        return Err(PdfToolError::InvalidImageWatermarkRotation);
+    }
+
+    let (jpeg_bytes, jpeg_metadata) = read_jpeg_watermark(&image_path)?;
+    let height = width * jpeg_metadata.height as f32 / jpeg_metadata.width as f32;
+    if !height.is_finite() || height <= 0.0 || height > MAX_IMAGE_WATERMARK_WIDTH {
+        return Err(PdfToolError::InvalidImageWatermarkWidth);
+    }
+
+    let mut document = load_pdf_document(&input_path)?;
+    let available_pages = document.get_pages();
+    let page_count = available_pages.len();
+    let pages = match options.pages {
+        Some(pages) if !pages.is_empty() => pages,
+        _ => (1..=page_count).collect(),
+    };
+    let selected_page_ids = validate_selected_pages(&pages, &available_pages)?;
+
+    let color_space = if jpeg_metadata.components == 1 {
+        "DeviceGray"
+    } else {
+        "DeviceRGB"
+    };
+    let image_stream = lopdf::Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Image",
+            "Width" => i64::from(jpeg_metadata.width),
+            "Height" => i64::from(jpeg_metadata.height),
+            "ColorSpace" => color_space,
+            "BitsPerComponent" => 8,
+            "Filter" => "DCTDecode",
+        },
+        jpeg_bytes,
+    )
+    .with_compression(false);
+    let image_id = document.add_object(image_stream);
+    let graphics_state_id = document.add_object(dictionary! {
+        "Type" => "ExtGState",
+        "ca" => Object::Real(opacity),
+        "CA" => Object::Real(opacity),
+    });
+
+    for page_id in selected_page_ids {
+        materialize_inherited_page_attributes(&mut document, page_id)?;
+        let (lower_left_x, lower_left_y, upper_right_x, upper_right_y) =
+            resolved_page_box(&document, page_id)?;
+        let (image_name, graphics_state_name) =
+            install_image_watermark_resources(&mut document, page_id, image_id, graphics_state_id)?;
+        let content = image_watermark_content(
+            &image_name,
+            &graphics_state_name,
+            width,
+            height,
+            rotation_degrees,
+            lower_left_x,
+            lower_left_y,
+            upper_right_x,
+            upper_right_y,
+        )?;
+        document
+            .add_page_contents(page_id, content)
+            .map_err(|_| PdfToolError::InvalidPdf)?;
+    }
+
+    document
+        .save(&output_path)
+        .map_err(|_| PdfToolError::SaveFailed)?;
+
+    Ok(PdfImageWatermarkResult {
+        input_path: input_path.to_string_lossy().into_owned(),
+        output_path: output_path.to_string_lossy().into_owned(),
+        image_path: image_path.to_string_lossy().into_owned(),
+        pages,
+        page_count,
+        position: "center".to_string(),
+        width,
+        height,
+        opacity,
+        rotation_degrees,
+    })
+}
+
+fn read_jpeg_watermark(image_path: &Path) -> Result<(Vec<u8>, JpegMetadata), PdfToolError> {
+    if !has_jpeg_extension(image_path) {
+        return Err(PdfToolError::InvalidImageExtension);
+    }
+    let file_metadata = fs::metadata(image_path).map_err(|_| PdfToolError::ImageNotFound)?;
+    if !file_metadata.is_file() {
+        return Err(PdfToolError::ImageNotFound);
+    }
+    if file_metadata.len() > MAX_JPEG_FILE_SIZE_BYTES {
+        return Err(PdfToolError::ImageFileTooLarge);
+    }
+
+    let bytes = fs::read(image_path).map_err(|_| PdfToolError::InvalidJpeg)?;
+    let metadata = parse_jpeg_metadata(&bytes)?;
+    Ok((bytes, metadata))
+}
+
+fn has_jpeg_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("jpg") || extension.eq_ignore_ascii_case("jpeg")
+        })
+}
+
+fn parse_jpeg_metadata(bytes: &[u8]) -> Result<JpegMetadata, PdfToolError> {
+    if bytes.len() as u64 > MAX_JPEG_FILE_SIZE_BYTES {
+        return Err(PdfToolError::ImageFileTooLarge);
+    }
+    if bytes.len() < 4 || !bytes.starts_with(&[0xff, 0xd8]) || !bytes.ends_with(&[0xff, 0xd9]) {
+        return Err(PdfToolError::InvalidJpeg);
+    }
+
+    let mut cursor = 2_usize;
+    let mut metadata = None;
+    let mut found_scan = false;
+
+    while cursor < bytes.len() - 2 {
+        if bytes[cursor] != 0xff {
+            return Err(PdfToolError::InvalidJpeg);
+        }
+        while cursor < bytes.len() && bytes[cursor] == 0xff {
+            cursor += 1;
+        }
+        let marker = *bytes.get(cursor).ok_or(PdfToolError::InvalidJpeg)?;
+        cursor += 1;
+
+        match marker {
+            0x00 => return Err(PdfToolError::InvalidJpeg),
+            0xd8 | 0x01 | 0xd0..=0xd7 => continue,
+            0xd9 => break,
+            _ => {}
+        }
+
+        let length_bytes = bytes
+            .get(cursor..cursor + 2)
+            .ok_or(PdfToolError::InvalidJpeg)?;
+        let segment_length = u16::from_be_bytes([length_bytes[0], length_bytes[1]]) as usize;
+        if segment_length < 2 {
+            return Err(PdfToolError::InvalidJpeg);
+        }
+        let segment_end = cursor
+            .checked_add(segment_length)
+            .filter(|end| *end <= bytes.len())
+            .ok_or(PdfToolError::InvalidJpeg)?;
+
+        if marker == 0xda {
+            if metadata.is_none() {
+                return Err(PdfToolError::InvalidJpeg);
+            }
+            found_scan = true;
+            break;
+        }
+
+        if is_start_of_frame_marker(marker) {
+            if marker != 0xc0 {
+                return Err(PdfToolError::UnsupportedJpegEncoding);
+            }
+            if metadata.is_some() || segment_length < 8 {
+                return Err(PdfToolError::InvalidJpeg);
+            }
+
+            let precision = bytes[cursor + 2];
+            if precision != 8 {
+                return Err(PdfToolError::UnsupportedJpegEncoding);
+            }
+            let height = u16::from_be_bytes([bytes[cursor + 3], bytes[cursor + 4]]) as u32;
+            let width = u16::from_be_bytes([bytes[cursor + 5], bytes[cursor + 6]]) as u32;
+            let components = bytes[cursor + 7];
+            let expected_length = 8_usize
+                .checked_add(usize::from(components) * 3)
+                .ok_or(PdfToolError::InvalidJpeg)?;
+            if segment_length != expected_length {
+                return Err(PdfToolError::InvalidJpeg);
+            }
+            if components != 1 && components != 3 {
+                return Err(PdfToolError::UnsupportedJpegComponents);
+            }
+            let pixels = u64::from(width) * u64::from(height);
+            if width == 0
+                || height == 0
+                || width > MAX_JPEG_DIMENSION
+                || height > MAX_JPEG_DIMENSION
+                || pixels > MAX_JPEG_PIXELS
+            {
+                return Err(PdfToolError::InvalidJpegDimensions);
+            }
+            metadata = Some(JpegMetadata {
+                width,
+                height,
+                components,
+            });
+        }
+
+        cursor = segment_end;
+    }
+
+    if !found_scan {
+        return Err(PdfToolError::InvalidJpeg);
+    }
+    metadata.ok_or(PdfToolError::InvalidJpeg)
+}
+
+fn is_start_of_frame_marker(marker: u8) -> bool {
+    matches!(
+        marker,
+        0xc0..=0xc3 | 0xc5..=0xc7 | 0xc9..=0xcb | 0xcd..=0xcf
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PageNumberFormat {
     Number,
@@ -1069,6 +1383,54 @@ fn install_watermark_resources(
     Ok((font_name, graphics_state_name))
 }
 
+fn install_image_watermark_resources(
+    document: &mut Document,
+    page_id: ObjectId,
+    image_id: ObjectId,
+    graphics_state_id: ObjectId,
+) -> Result<(Vec<u8>, Vec<u8>), PdfToolError> {
+    let resources_object = document
+        .get_object(page_id)
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .as_dict()
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .get(b"Resources")
+        .ok()
+        .cloned();
+    let mut resources = match resources_object {
+        Some(object) => resolved_dictionary(document, &object)?,
+        None => Dictionary::new(),
+    };
+
+    let mut xobjects = match resources.get(b"XObject") {
+        Ok(object) => resolved_dictionary(document, object)?,
+        Err(_) => Dictionary::new(),
+    };
+    let image_name = unique_resource_name(&xobjects, b"UTHImageWatermark");
+    xobjects.set(image_name.clone(), Object::Reference(image_id));
+    resources.set("XObject", Object::Dictionary(xobjects));
+
+    let mut graphics_states = match resources.get(b"ExtGState") {
+        Ok(object) => resolved_dictionary(document, object)?,
+        Err(_) => Dictionary::new(),
+    };
+    let graphics_state_name = unique_resource_name(&graphics_states, b"UTHImageWatermarkGS");
+    graphics_states.set(
+        graphics_state_name.clone(),
+        Object::Reference(graphics_state_id),
+    );
+    resources.set("ExtGState", Object::Dictionary(graphics_states));
+
+    document
+        .get_object_mut(page_id)
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .as_dict_mut()
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .set("Resources", Object::Dictionary(resources));
+
+    Ok((image_name, graphics_state_name))
+}
+
 fn unique_resource_name(dictionary: &Dictionary, base_name: &[u8]) -> Vec<u8> {
     if dictionary.get(base_name).is_err() {
         return base_name.to_vec();
@@ -1128,6 +1490,63 @@ fn watermark_content(
             ),
             Operation::new("Tj", vec![Object::string_literal(text)]),
             Operation::new("ET", vec![]),
+            Operation::new("Q", vec![]),
+        ],
+    }
+    .encode()
+    .map_err(|_| PdfToolError::InvalidPdf)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn image_watermark_content(
+    image_name: &[u8],
+    graphics_state_name: &[u8],
+    width: f32,
+    height: f32,
+    rotation_degrees: f32,
+    lower_left_x: f32,
+    lower_left_y: f32,
+    upper_right_x: f32,
+    upper_right_y: f32,
+) -> Result<Vec<u8>, PdfToolError> {
+    let radians = rotation_degrees.to_radians();
+    let cosine = radians.cos();
+    let sine = radians.sin();
+    let rotated_width = width * cosine.abs() + height * sine.abs();
+    let rotated_height = width * sine.abs() + height * cosine.abs();
+    let page_width = upper_right_x - lower_left_x;
+    let page_height = upper_right_y - lower_left_y;
+    if rotated_width > page_width || rotated_height > page_height {
+        return Err(PdfToolError::ImageWatermarkDoesNotFitPage);
+    }
+
+    let center_x = lower_left_x + page_width / 2.0;
+    let center_y = lower_left_y + page_height / 2.0;
+    let a = width * cosine;
+    let b = width * sine;
+    let c = -height * sine;
+    let d = height * cosine;
+    let translate_x = center_x - (a + c) / 2.0;
+    let translate_y = center_y - (b + d) / 2.0;
+
+    // Placement uses the effective CropBox/MediaBox. Existing page rotation is
+    // preserved; viewer-facing rotation compensation remains a later QA step.
+    Content {
+        operations: vec![
+            Operation::new("q", vec![]),
+            Operation::new("gs", vec![Object::Name(graphics_state_name.to_vec())]),
+            Operation::new(
+                "cm",
+                vec![
+                    Object::Real(a),
+                    Object::Real(b),
+                    Object::Real(c),
+                    Object::Real(d),
+                    Object::Real(translate_x),
+                    Object::Real(translate_y),
+                ],
+            ),
+            Operation::new("Do", vec![Object::Name(image_name.to_vec())]),
             Operation::new("Q", vec![]),
         ],
     }
@@ -1337,12 +1756,12 @@ fn find_inherited_page_attribute(
 mod tests {
     use super::*;
     use crate::{
-        run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_inspect_bridge,
-        run_pdf_merge_bridge, run_pdf_page_numbers_bridge, run_pdf_reorder_bridge,
-        run_pdf_rotate_bridge, run_pdf_split_bridge, run_pdf_text_watermark_bridge,
-        PdfDeleteRequest, PdfExtractRequest, PdfInspectRequest, PdfMergeRequest,
-        PdfPageNumbersRequest, PdfReorderRequest, PdfRotateRequest, PdfSplitRequest,
-        PdfTextWatermarkRequest,
+        run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_image_watermark_bridge,
+        run_pdf_inspect_bridge, run_pdf_merge_bridge, run_pdf_page_numbers_bridge,
+        run_pdf_reorder_bridge, run_pdf_rotate_bridge, run_pdf_split_bridge,
+        run_pdf_text_watermark_bridge, PdfDeleteRequest, PdfExtractRequest,
+        PdfImageWatermarkRequest, PdfInspectRequest, PdfMergeRequest, PdfPageNumbersRequest,
+        PdfReorderRequest, PdfRotateRequest, PdfSplitRequest, PdfTextWatermarkRequest,
     };
     use lopdf::Stream;
     use std::fs;
@@ -2884,6 +3303,476 @@ mod tests {
     }
 
     #[test]
+    fn jpeg_parser_reads_rgb_and_grayscale_baseline_dimensions() {
+        let rgb = jpeg_fixture(320, 160, 3, 0xc0);
+        let grayscale = jpeg_fixture(48, 96, 1, 0xc0);
+
+        assert_eq!(
+            parse_jpeg_metadata(&rgb).expect("RGB JPEG metadata should parse"),
+            JpegMetadata {
+                width: 320,
+                height: 160,
+                components: 3,
+            }
+        );
+        assert_eq!(
+            parse_jpeg_metadata(&grayscale).expect("grayscale JPEG metadata should parse"),
+            JpegMetadata {
+                width: 48,
+                height: 96,
+                components: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn jpeg_parser_rejects_invalid_progressive_cmyk_and_extreme_images() {
+        assert_eq!(
+            parse_jpeg_metadata(&[0xff, 0xd8, 0xff, 0xd9]).unwrap_err(),
+            PdfToolError::InvalidJpeg
+        );
+        assert_eq!(
+            parse_jpeg_metadata(&jpeg_fixture(100, 50, 3, 0xc2)).unwrap_err(),
+            PdfToolError::UnsupportedJpegEncoding
+        );
+        assert_eq!(
+            parse_jpeg_metadata(&jpeg_fixture(100, 50, 4, 0xc0)).unwrap_err(),
+            PdfToolError::UnsupportedJpegComponents
+        );
+        assert_eq!(
+            parse_jpeg_metadata(&jpeg_fixture(0, 50, 3, 0xc0)).unwrap_err(),
+            PdfToolError::InvalidJpegDimensions
+        );
+        assert_eq!(
+            parse_jpeg_metadata(&jpeg_fixture(20_001, 50, 3, 0xc0)).unwrap_err(),
+            PdfToolError::InvalidJpegDimensions
+        );
+    }
+
+    #[test]
+    fn image_watermark_adds_one_shared_jpeg_to_all_pages_and_preserves_source() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-watermark-input.pdf");
+        let output = directory.path("image-watermark-output.pdf");
+        let image = directory.path("logo.jpg");
+        create_pdf_with_page_contents(
+            &input,
+            &[b"q % SOURCE-1 Q", b"q % SOURCE-2 Q", b"q % SOURCE-3 Q"],
+        );
+        write_jpeg_fixture(&image, 320, 160, 3);
+        let source_bytes = fs::read(&input).expect("source PDF should be readable");
+
+        let result = add_image_watermark(
+            input.clone(),
+            output.clone(),
+            image.clone(),
+            PdfImageWatermarkOptions::default(),
+        )
+        .expect("JPEG watermark should be added to all pages");
+
+        assert_eq!(result.pages, vec![1, 2, 3]);
+        assert_eq!(result.page_count, 3);
+        assert_eq!(result.position, "center");
+        assert_eq!(result.width, 180.0);
+        assert_eq!(result.height, 90.0);
+        assert_eq!(result.opacity, 0.25);
+        assert_eq!(result.rotation_degrees, 0.0);
+        assert_eq!(
+            fs::read(&input).expect("source PDF should remain readable"),
+            source_bytes
+        );
+
+        let output_document = Document::load(&output).expect("watermarked PDF should reload");
+        assert_eq!(output_document.get_pages().len(), 3);
+        let mut image_ids = HashSet::new();
+        for page_id in output_document.get_pages().values() {
+            let images = output_document
+                .get_page_images(*page_id)
+                .expect("page Image XObjects should be readable");
+            assert_eq!(images.len(), 1);
+            assert_eq!(images[0].width, 320);
+            assert_eq!(images[0].height, 160);
+            assert_eq!(images[0].color_space.as_deref(), Some("DeviceRGB"));
+            assert!(images[0]
+                .filters
+                .as_ref()
+                .is_some_and(|filters| filters.iter().any(|filter| filter == "DCTDecode")));
+            image_ids.insert(images[0].id);
+            assert!(page_has_operator(&output_document, *page_id, "Do"));
+            let content = output_document
+                .get_page_content(*page_id)
+                .expect("page content should remain readable");
+            assert!(contains_bytes(&content, b"SOURCE-"));
+        }
+        assert_eq!(
+            image_ids.len(),
+            1,
+            "target pages should share one image object"
+        );
+
+        let empty_pages_result = add_image_watermark(
+            input,
+            directory.path("empty-pages-image-watermark-output.pdf"),
+            image,
+            PdfImageWatermarkOptions {
+                pages: Some(vec![]),
+                ..PdfImageWatermarkOptions::default()
+            },
+        )
+        .expect("an empty page list should target every page");
+        assert_eq!(empty_pages_result.pages, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn image_watermark_targets_selected_pages_and_accepts_jpeg_extension() {
+        let directory = TestDirectory::new();
+        let input = directory.path("selected-image-watermark-input.pdf");
+        let output = directory.path("selected-image-watermark-output.pdf");
+        let image = directory.path("gray.jpeg");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+        write_jpeg_fixture(&image, 100, 50, 1);
+
+        let result = add_image_watermark(
+            input,
+            output.clone(),
+            image,
+            PdfImageWatermarkOptions {
+                pages: Some(vec![1, 3]),
+                width: Some(80.0),
+                opacity: Some(0.4),
+                rotation_degrees: Some(30.0),
+            },
+        )
+        .expect("selected pages should receive a grayscale JPEG watermark");
+
+        assert_eq!(result.pages, vec![1, 3]);
+        assert_eq!(result.height, 40.0);
+        let output_document = Document::load(output).expect("watermarked PDF should reload");
+        for (page_number, page_id) in output_document.get_pages() {
+            assert_eq!(
+                page_has_operator(&output_document, page_id, "Do"),
+                page_number == 1 || page_number == 3
+            );
+            if page_number == 1 || page_number == 3 {
+                let images = output_document
+                    .get_page_images(page_id)
+                    .expect("selected page image should be readable");
+                assert_eq!(images[0].color_space.as_deref(), Some("DeviceGray"));
+            }
+        }
+    }
+
+    #[test]
+    fn image_watermark_preserves_inherited_resources() {
+        let directory = TestDirectory::new();
+        let input = directory.path("nested-image-watermark-input.pdf");
+        let output = directory.path("nested-image-watermark-output.pdf");
+        let image = directory.path("nested-logo.jpg");
+        create_nested_page_tree_pdf(&input, &[b"NESTED-1", b"NESTED-2"]);
+        write_jpeg_fixture(&image, 100, 50, 3);
+
+        add_image_watermark(
+            input,
+            output.clone(),
+            image,
+            PdfImageWatermarkOptions::default(),
+        )
+        .expect("inherited resources should be preserved");
+
+        let output_document = Document::load(output).expect("watermarked PDF should reload");
+        for page_id in output_document.get_pages().values() {
+            let fonts = output_document
+                .get_page_fonts(*page_id)
+                .expect("inherited page fonts should remain readable");
+            assert!(fonts.contains_key(b"F1".as_slice()));
+            assert_eq!(
+                output_document
+                    .get_page_images(*page_id)
+                    .expect("image resource should remain readable")
+                    .len(),
+                1
+            );
+            assert!(page_has_operator(&output_document, *page_id, "Do"));
+        }
+    }
+
+    #[test]
+    fn image_watermark_rejects_unsupported_image_extensions_and_invalid_jpeg() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-format-input.pdf");
+        create_single_page_pdf(&input);
+
+        for extension in ["png", "webp", "svg"] {
+            let image = directory.path(&format!("image.{extension}"));
+            fs::write(&image, jpeg_fixture(100, 50, 3, 0xc0))
+                .expect("unsupported image fixture should be written");
+            let error = add_image_watermark(
+                input.clone(),
+                directory.path(&format!("{extension}-output.pdf")),
+                image,
+                PdfImageWatermarkOptions::default(),
+            )
+            .unwrap_err();
+            assert_eq!(error, PdfToolError::InvalidImageExtension);
+        }
+
+        let broken = directory.path("broken.jpg");
+        fs::write(&broken, [0xff, 0xd8, 0xff, 0xd9])
+            .expect("broken JPEG fixture should be written");
+        assert_eq!(
+            add_image_watermark(
+                input.clone(),
+                directory.path("broken-output.pdf"),
+                broken,
+                PdfImageWatermarkOptions::default(),
+            )
+            .unwrap_err(),
+            PdfToolError::InvalidJpeg
+        );
+
+        for (name, marker, components, expected) in [
+            (
+                "progressive.jpg",
+                0xc2,
+                3,
+                PdfToolError::UnsupportedJpegEncoding,
+            ),
+            ("cmyk.jpg", 0xc0, 4, PdfToolError::UnsupportedJpegComponents),
+        ] {
+            let image = directory.path(name);
+            fs::write(&image, jpeg_fixture(100, 50, components, marker))
+                .expect("unsupported JPEG fixture should be written");
+            assert_eq!(
+                add_image_watermark(
+                    input.clone(),
+                    directory.path(&format!("{name}.pdf")),
+                    image,
+                    PdfImageWatermarkOptions::default(),
+                )
+                .unwrap_err(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn image_watermark_validates_pages_and_style() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-validation-input.pdf");
+        let image = directory.path("validation.jpg");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+        write_jpeg_fixture(&image, 100, 50, 3);
+
+        for (pages, expected, name) in [
+            (vec![0], PdfToolError::InvalidPageNumber, "zero"),
+            (vec![3], PdfToolError::PageOutOfRange, "range"),
+            (vec![1, 1], PdfToolError::DuplicatePage, "duplicate"),
+        ] {
+            assert_eq!(
+                add_image_watermark(
+                    input.clone(),
+                    directory.path(&format!("{name}.pdf")),
+                    image.clone(),
+                    PdfImageWatermarkOptions {
+                        pages: Some(pages),
+                        ..PdfImageWatermarkOptions::default()
+                    },
+                )
+                .unwrap_err(),
+                expected
+            );
+        }
+
+        for width in [0.0, 7.9, 1440.1, f32::INFINITY] {
+            assert_eq!(
+                add_image_watermark(
+                    input.clone(),
+                    directory.path("invalid-width.pdf"),
+                    image.clone(),
+                    PdfImageWatermarkOptions {
+                        width: Some(width),
+                        ..PdfImageWatermarkOptions::default()
+                    },
+                )
+                .unwrap_err(),
+                PdfToolError::InvalidImageWatermarkWidth
+            );
+        }
+        for opacity in [0.0, -0.1, 1.1, f32::NAN] {
+            assert_eq!(
+                add_image_watermark(
+                    input.clone(),
+                    directory.path("invalid-opacity.pdf"),
+                    image.clone(),
+                    PdfImageWatermarkOptions {
+                        opacity: Some(opacity),
+                        ..PdfImageWatermarkOptions::default()
+                    },
+                )
+                .unwrap_err(),
+                PdfToolError::InvalidImageWatermarkOpacity
+            );
+        }
+        for rotation_degrees in [-360.1, 360.1, f32::NAN] {
+            assert_eq!(
+                add_image_watermark(
+                    input.clone(),
+                    directory.path("invalid-rotation.pdf"),
+                    image.clone(),
+                    PdfImageWatermarkOptions {
+                        rotation_degrees: Some(rotation_degrees),
+                        ..PdfImageWatermarkOptions::default()
+                    },
+                )
+                .unwrap_err(),
+                PdfToolError::InvalidImageWatermarkRotation
+            );
+        }
+
+        assert_eq!(
+            add_image_watermark(
+                input,
+                directory.path("does-not-fit.pdf"),
+                image,
+                PdfImageWatermarkOptions {
+                    width: Some(600.0),
+                    ..PdfImageWatermarkOptions::default()
+                },
+            )
+            .unwrap_err(),
+            PdfToolError::ImageWatermarkDoesNotFitPage
+        );
+    }
+
+    #[test]
+    fn image_watermark_rejects_invalid_paths_and_source_overwrite() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-path-input.pdf");
+        let image = directory.path("path-logo.jpg");
+        create_single_page_pdf(&input);
+        write_jpeg_fixture(&image, 100, 50, 3);
+
+        let cases = [
+            (
+                directory.path("input.txt"),
+                directory.path("non-pdf-input.pdf"),
+                image.clone(),
+                PdfToolError::InvalidInputExtension,
+            ),
+            (
+                input.clone(),
+                directory.path("output.txt"),
+                image.clone(),
+                PdfToolError::InvalidOutputExtension,
+            ),
+            (
+                directory.path("missing.pdf"),
+                directory.path("missing-input.pdf"),
+                image.clone(),
+                PdfToolError::InputNotFound,
+            ),
+            (
+                input.clone(),
+                directory.path("missing-directory").join("output.pdf"),
+                image.clone(),
+                PdfToolError::OutputDirectoryNotFound,
+            ),
+            (
+                input.clone(),
+                directory.path("missing-image-output.pdf"),
+                directory.path("missing.jpg"),
+                PdfToolError::ImageNotFound,
+            ),
+            (
+                input.clone(),
+                input.clone(),
+                image,
+                PdfToolError::OutputConflictsWithInput,
+            ),
+        ];
+
+        for (input_path, output_path, image_path, expected) in cases {
+            assert_eq!(
+                add_image_watermark(
+                    input_path,
+                    output_path,
+                    image_path,
+                    PdfImageWatermarkOptions::default(),
+                )
+                .unwrap_err(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn image_watermark_rejects_a_protected_pdf_without_decrypting_it() {
+        let directory = TestDirectory::new();
+        let input = directory.path("protected-image-watermark-input.pdf");
+        let output = directory.path("protected-image-watermark-output.pdf");
+        let image = directory.path("protected-logo.jpg");
+        create_single_page_pdf(&input);
+        write_jpeg_fixture(&image, 100, 50, 3);
+
+        let mut protected_document = Document::load(&input).expect("fixture should load");
+        let encryption_id = protected_document.add_object(dictionary! {
+            "Filter" => "Standard",
+            "V" => 1,
+        });
+        protected_document.trailer.set("Encrypt", encryption_id);
+        protected_document
+            .save(&input)
+            .expect("protected marker should be saved");
+
+        assert_eq!(
+            add_image_watermark(
+                input,
+                output.clone(),
+                image,
+                PdfImageWatermarkOptions::default(),
+            )
+            .unwrap_err(),
+            PdfToolError::EncryptedPdfUnsupported
+        );
+        assert!(!output.exists());
+    }
+
+    #[test]
+    fn image_watermark_bridge_writes_a_new_pdf() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-watermark-bridge-input.pdf");
+        let output = directory.path("image-watermark-bridge-output.pdf");
+        let image = directory.path("bridge-logo.jpg");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+        write_jpeg_fixture(&image, 200, 100, 3);
+
+        let result = run_pdf_image_watermark_bridge(pdf_image_watermark_request(
+            input,
+            output.clone(),
+            image,
+            Some(vec![2, 3]),
+        ))
+        .expect("image watermark bridge should succeed");
+
+        assert!(output.is_file());
+        assert_eq!(result.pages, vec![2, 3]);
+        assert_eq!(result.page_count, 3);
+        assert_eq!(result.position, "center");
+        let output_document = Document::load(output).expect("bridge output PDF should load");
+        assert_eq!(output_document.get_pages().len(), 3);
+        assert!(!page_has_operator(
+            &output_document,
+            output_document.get_pages()[&1],
+            "Do"
+        ));
+        assert!(page_has_operator(
+            &output_document,
+            output_document.get_pages()[&2],
+            "Do"
+        ));
+    }
+
+    #[test]
     fn split_bridge_splits_a_three_page_pdf() {
         let directory = TestDirectory::new();
         let input = directory.path("split-bridge-input.pdf");
@@ -3285,6 +4174,23 @@ mod tests {
         }
     }
 
+    fn pdf_image_watermark_request(
+        input_path: PathBuf,
+        output_path: PathBuf,
+        image_path: PathBuf,
+        pages: Option<Vec<usize>>,
+    ) -> PdfImageWatermarkRequest {
+        PdfImageWatermarkRequest {
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: output_path.to_string_lossy().into_owned(),
+            image_path: image_path.to_string_lossy().into_owned(),
+            pages,
+            width: Some(120.0),
+            opacity: Some(0.3),
+            rotation_degrees: Some(15.0),
+        }
+    }
+
     fn pdf_page_numbers_request(
         input_path: PathBuf,
         output_path: PathBuf,
@@ -3321,6 +4227,46 @@ mod tests {
         haystack
             .windows(needle.len())
             .any(|window| window == needle)
+    }
+
+    fn page_has_operator(document: &Document, page_id: ObjectId, operator: &str) -> bool {
+        let bytes = document
+            .get_page_content(page_id)
+            .expect("page content should load");
+        Content::decode(&bytes)
+            .expect("page content should decode")
+            .operations
+            .iter()
+            .any(|operation| operation.operator == operator)
+    }
+
+    fn write_jpeg_fixture(path: &Path, width: u16, height: u16, components: u8) {
+        fs::write(path, jpeg_fixture(width, height, components, 0xc0))
+            .expect("JPEG fixture should be written");
+    }
+
+    fn jpeg_fixture(width: u16, height: u16, components: u8, sof_marker: u8) -> Vec<u8> {
+        let mut bytes = vec![0xff, 0xd8];
+        let sof_length = 8_u16 + u16::from(components) * 3;
+        bytes.extend_from_slice(&[0xff, sof_marker]);
+        bytes.extend_from_slice(&sof_length.to_be_bytes());
+        bytes.push(8);
+        bytes.extend_from_slice(&height.to_be_bytes());
+        bytes.extend_from_slice(&width.to_be_bytes());
+        bytes.push(components);
+        for component in 0..components {
+            bytes.extend_from_slice(&[component + 1, 0x11, 0]);
+        }
+
+        let scan_length = 6_u16 + u16::from(components) * 2;
+        bytes.extend_from_slice(&[0xff, 0xda]);
+        bytes.extend_from_slice(&scan_length.to_be_bytes());
+        bytes.push(components);
+        for component in 0..components {
+            bytes.extend_from_slice(&[component + 1, 0]);
+        }
+        bytes.extend_from_slice(&[0, 63, 0, 0, 0xff, 0xd9]);
+        bytes
     }
 
     fn page_text_strings(document: &Document, page_number: u32) -> Vec<String> {

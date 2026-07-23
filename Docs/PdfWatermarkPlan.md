@@ -150,3 +150,7 @@ Step 4 polishes Text watermark validation and QA checks. Text watermark remains 
 ### v0.8.0 Step 2 - Image format research
 
 Image watermark and stamp remain in format-research and core-feasibility planning. JPEG is the recommended narrow first core; PNG transparency and dependency choices require later dedicated work, and no image processing is implemented in Step 2.
+
+### v0.8.0 Step 3 - JPEG-only Image watermark core / bridge
+
+The additive JPEG-only Image watermark core / bridge supports validated baseline grayscale/RGB JPEG input and shared Image XObject output. UI, PNG and other image formats, stamps, preview, OCR, redaction, and direct PDF text editing remain unimplemented.

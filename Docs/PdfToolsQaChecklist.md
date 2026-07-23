@@ -305,3 +305,12 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [ ] Confirm current and potential dependency risks are documented.
 - [ ] Confirm Image watermark remains planned and is not implemented.
 - [ ] Confirm existing PDF operations still work.
+
+## v0.8.0 Step 3 JPEG-only Image watermark core / bridge
+
+- [ ] Confirm `pdf_image_watermark` writes a new JPEG-watermarked PDF without overwriting the source.
+- [ ] Confirm baseline grayscale/RGB JPEG metadata and dimensions are validated.
+- [ ] Confirm PNG, WebP, SVG, progressive JPEG, and four-component JPEG input are rejected.
+- [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
+- [ ] Confirm Image watermark is additive and is not redaction or direct PDF text editing.
+- [ ] Confirm Image watermark UI remains unimplemented.
