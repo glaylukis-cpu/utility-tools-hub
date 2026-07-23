@@ -379,3 +379,12 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm visual masks are not described as safe redaction.
 - [ ] Confirm OCR, redaction, and direct PDF text editing remain unimplemented.
 - [ ] Confirm existing PDF operations remain available and unchanged.
+
+## v0.9.0 Step 2 Text stamp core / bridge
+
+- [ ] Confirm `pdf_text_stamp` writes a new stamped PDF without overwriting the source.
+- [ ] Confirm short printable ASCII / Latin-1 stamp text is validated and multi-line or unsupported text is rejected.
+- [ ] Confirm pages, position, margins, font size, opacity, rotation, and color are validated.
+- [ ] Confirm protected PDFs are rejected without decryption or permission bypass.
+- [ ] Confirm Text stamp remains additive and is not redaction or direct PDF text editing.
+- [ ] Confirm Text stamp UI remains unimplemented.

@@ -162,3 +162,7 @@ PDF Workbench now connects to the JPEG-only Image watermark core with bounded se
 ### v0.9.0 Step 1 - Text stamp foundation planning
 
 `Docs/PdfTextStampPlan.md` defines the planned short-text stamp model, precise placement, limited styling, additive/not-redaction safety boundary, and staged implementation. Text stamp processing and UI remain unimplemented.
+
+### v0.9.0 Step 2 - Text stamp core / bridge
+
+The additive `pdf_text_stamp` core and shared bridge support validated short ASCII / Latin-1 text with preset placement and limited styling. Text stamp UI, border/background, preview, OCR, redaction, and direct PDF text editing remain unimplemented.

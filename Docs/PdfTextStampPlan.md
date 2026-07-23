@@ -260,3 +260,7 @@ Each stage should remain independently reviewable and should not combine Text st
 The next separately approved task should be v0.9.0 Step 2: a narrow Text stamp core / bridge design review followed by implementation only if the request contract, font scope, page-box policy, rotation-center math, bounds validation, resource reuse, and protected-PDF behavior are accepted.
 
 That step should begin with tests for short ASCII/Latin text, a small preset set, black or red text, all or selected pages, mixed page sizes, rotated and cropped pages, source preservation, and protected-input rejection. It should not include React UI, border/background, preview, Image stamp, Overlay writing, OCR, redaction, direct PDF text editing, dependency additions, version changes, or release work unless separately requested.
+
+## 15. v0.9.0 Step 2 - Text stamp core / bridge
+
+Step 2 adds the additive `pdf_text_stamp` Rust core and shared execution bridge for short printable ASCII / Latin-1 text, preset positions, margins, font size, opacity, rotation, and limited color presets. UI, border/background, preview, OCR, redaction, Japanese font embedding, and direct PDF text editing are not added yet.
