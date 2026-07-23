@@ -247,3 +247,9 @@ git push origin vX.Y.Z
 - Additive page numbers can target all or selected pages and are saved to a new PDF with start number, format, position, margins, font size, input summary, operation plan, and validation warnings.
 - Page numbers do not edit existing PDF text, are not redaction, and do not remove existing page numbers; existing PDF operations and compact layout containment remain available.
 - No PDF rendering, preview, thumbnails, existing page-number removal, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is added.
+
+## v0.7.1 Release Note
+
+- v0.7.1 polishes Page numbers real PDF QA for all pages, selected pages, representative start number / format / position cases, readable output, and unchanged page count.
+- Page numbers remains additive, does not edit existing PDF text, is not redaction, and does not remove existing page numbers; existing PDF operations and compact layout overflow fixes remain maintained.
+- No PDF processing logic, `tool_id`, request/response format, rendering, preview, thumbnails, existing page-number removal, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is changed.
