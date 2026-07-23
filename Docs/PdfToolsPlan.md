@@ -159,3 +159,7 @@ The existing `pdf_text_stamp` core / bridge now supports optional rectangle bord
 ## v0.10.0 Text stamp border/background UI connection
 
 PDF Workbench now sends the existing optional border/background fields to `pdf_text_stamp` and shows compact controls, validation, plan details, result feedback, and a filled-background not-redaction warning. Preview, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.11.0 Image stamp foundation planning
+
+`Docs/PdfImageWatermarkStampPlan.md` now defines the planned JPEG-only Image stamp goal, its distinction from Image watermark, position and bounding-box model, shared execution direction, staged delivery, and safety boundaries. Image stamp remains in Planning; no Rust, bridge, React, CSS, PDF-processing, dependency, preview, OCR, redaction, direct text editing, or version change is added.

@@ -460,3 +460,102 @@ v0.8.1 focuses on installer, updater, and installed-app QA for JPEG Image waterm
 ## 18. v0.9.0 Step 1 - Text stamp foundation planning
 
 `Docs/PdfTextStampPlan.md` separates the planned position-focused Text stamp from the still-unimplemented Image stamp. Both remain additive operations, but v0.9.0 Step 1 adds design documentation only and no stamp processing or UI.
+
+## 19. v0.11.0 Step 1 - JPEG-only Image stamp foundation planning
+
+v0.11.0 Step 1 plans Image stamp foundation. Image stamp is additive visual styling for placing JPEG stamp-like images on all or selected PDF pages. It does not edit or remove existing PDF content, is not redaction, and is not a digital signature. This step adds design documentation only: no Rust core, bridge, UI, PDF processing, dependency, or version change is included.
+
+### Goal and Image watermark boundary
+
+Image stamp is intended for placing a logo, confirmation mark, approval mark, `COPY` / `PAID` mark, or company-seal-like image at a deliberate page position. It targets all pages or an explicit page selection and plans bounded width, opacity, rotation, and margins. It places the image itself; image padding and any future border/background treatment are separate styling concerns.
+
+| Category | Image watermark | Image stamp |
+| --- | --- | --- |
+| Primary use | A faint document-wide `DRAFT` mark or logo | A visible logo, seal, status mark, or confirmation mark |
+| Placement | Center placement is the established default | Presets such as top-right, bottom-right, and center are important |
+| Typical opacity | Low opacity is common | Full opacity (`1.0`) is a natural option |
+| Visual intent | Broad watermarking across the document | Precise stamp, seal, or logo placement |
+| Content semantics | Additive visual styling | Additive visual styling |
+
+Both operations preserve the underlying page content. Placing an opaque watermark or stamp over content does not remove that content and is not safe redaction. Neither operation edits, deletes, or replaces images already stored in the PDF.
+
+The existing JPEG-only Image watermark implementation is the technical reference for strict JPEG parsing, `DCTDecode` Image XObjects, page resource updates, graphics-state opacity, rotation, selected-page handling, protected-input rejection, and new-PDF output. Whether those internals should be extracted into shared helpers is an implementation-step decision; Step 1 does not refactor the existing core.
+
+### Initial request candidate
+
+The proposed initial contract is intentionally JPEG-only and position-oriented:
+
+| Field | Initial meaning |
+| --- | --- |
+| `input_path` | Existing unprotected source PDF |
+| `output_path` | A separate new PDF; source overwrite is rejected |
+| `image_path` | Baseline grayscale or RGB JPEG/JPG stamp image |
+| `pages` | Empty/omitted for all pages, otherwise validated selected pages |
+| `position` | `center`, `top-left`, `top-center`, `top-right`, `bottom-left`, `bottom-center`, or `bottom-right` |
+| `margin_x` / `margin_y` | Bounded offsets from the selected position anchor |
+| `width` | Display width in PDF points; height is derived from the image aspect ratio |
+| `opacity` | Bounded whole-image opacity, including `1.0` |
+| `rotation_degrees` | Bounded rotation applied around the planned stamp placement |
+
+The provisional tool ID is `pdf_image_stamp`. A later bridge step should continue through `execute_tool` -> `ToolRegistry` -> `JobManager`; it should not add a direct Tauri command. The implementation contract must reject unsupported or silently ignored fields and preserve the existing request/result error-safety conventions.
+
+### Image format policy
+
+The first implementation candidate accepts only validated baseline grayscale and three-component RGB JPEG/JPG. JPEG can reuse the established `DCTDecode` embedding approach without re-compressing image pixels, and its lack of alpha avoids introducing `SMask` into the first Image stamp slice.
+
+PNG is attractive for transparent seals and logos, but alpha requires explicit decode, color-type, bit-depth, predictor, and `SMask` handling. PNG and alpha support therefore require a separate research and implementation step. SVG needs a rendering or conversion path, and WebP is not a direct PDF image-stream fit; both remain outside the initial scope.
+
+The initial scope also defers custom RGB conversion, CMYK/YCCK JPEG, complete EXIF orientation handling, progressive or otherwise unsupported JPEG variants, and any format accepted only by file extension. The existing strict JPEG parser/embedding policy is the safest starting point.
+
+### Placement and bounding box policy
+
+- Position, margins, width, and rotation define the planned placement.
+- Display height is calculated from the validated JPEG aspect ratio; stretching width and height independently is not planned.
+- Page-fit validation uses the image bounding box, including the rotated bounding box when rotation is non-zero.
+- CropBox / MediaBox selection and coordinate handling should follow the existing PDF tools policy and be verified with portrait, landscape, mixed-box, and non-zero-origin fixtures.
+- A stamp that extends outside the usable page box must produce a clear rejection or pre-execution warning; the implementation step must choose and test one consistent rule.
+- Complete compensation for existing page rotation is deferred until representative fixtures prove the coordinate model.
+- Without real PDF rendering, placement can only be described by settings and an operation plan. Users must open the generated PDF to confirm collisions with existing content.
+- Preview, thumbnails, and drag positioning may improve later UX, but are not prerequisites for the JPEG-only foundation.
+
+### Safety copy
+
+- Image stamp is additive visual styling.
+- It does not edit existing PDF text.
+- It does not remove existing PDF content.
+- It does not remove existing images.
+- It does not remove existing page numbers.
+- It does not remove existing watermarks.
+- It is not redaction.
+- Placing an image over content is not safe redaction.
+- Hidden text, images, and metadata remain unless a real redaction process removes them.
+- `APPROVED`, `REVIEWED`, `PAID`, seal-like, and signature-like images are not digital signatures, identity verification, or audit trails.
+- Protected PDFs are rejected; they are not decrypted and their permission restrictions are not bypassed.
+- Original PDFs are not overwritten by default; output is written to a new PDF.
+
+### Recommended staged path
+
+1. **Image stamp design:** Complete this JPEG-only contract, safety boundary, non-goals, and QA plan without implementation.
+2. **JPEG-only Image stamp core / bridge:** Add the narrow Rust/lopdf core and `pdf_image_stamp` shared execution route, reusing proven Image watermark concepts where appropriate.
+3. **Image stamp UI connection:** Add bounded PDF/JPEG/output selection, pages, position, margins, width, opacity, rotation, validation, and operation-plan controls.
+4. **Image stamp QA / real PDF check:** Verify all/selected pages, every supported position, rotation bounds, mixed boxes, source preservation, multiple viewers, and regression behavior.
+5. **Version bump / release:** Update versions and release documentation only after implementation and QA are complete.
+6. **PNG alpha research:** Evaluate a reviewed decoder, supported color types, `SMask`, resource limits, output size, and viewer compatibility as a separate scope.
+7. **PDF preview / thumbnails research:** Evaluate local rendering only after output generation is stable.
+8. **Drag positioning research:** Consider pointer-based placement only after a reliable preview coordinate model exists.
+9. **Safe redaction research:** Keep real content removal as an independent safety-critical feature with extraction and object-level verification.
+
+### Non-goals for Step 1 and the initial JPEG slice
+
+- safe redaction or describing a visual mask as redaction;
+- direct editing or replacement of existing PDF text;
+- deleting or replacing existing PDF images;
+- deleting existing page numbers or watermarks;
+- OCR;
+- PDF.js / PDFium rendering, preview, or thumbnails;
+- arbitrary `x` / `y`, drag positioning, preview-based placement, cropping, or resize UI;
+- PNG alpha, `SMask`, SVG, WebP, or custom image decoding;
+- an Image stamp library or multiple Image stamps per page;
+- digital signatures, identity verification, or audit trails;
+- decrypting protected PDFs, bypassing permission restrictions, or adding password input; or
+- Rust, React, CSS, PDF-processing, dependency, version, updater, or release changes in this design step.

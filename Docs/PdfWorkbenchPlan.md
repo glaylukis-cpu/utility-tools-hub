@@ -394,3 +394,7 @@ Text stampのborder/background stylingと安全境界を設計します。Additi
 **v0.10.0 Step 4 - Text stamp border/background QA**
 
 compact PDF WorkbenchでText stamp border/backgroundのUI、validation、operation plan、実PDF出力、responsive layoutを検証します。既存のlayout overflow対策とnot-redaction境界を維持します。
+
+**v0.11.0 Step 1 - Image stamp foundation planning**
+
+Image stamp foundationを、additive visual styling / not-redactionの安全境界を維持して設計します。このStepでは新しいPDF処理実装を追加しません。

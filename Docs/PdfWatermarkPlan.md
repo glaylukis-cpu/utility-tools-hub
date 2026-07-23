@@ -182,3 +182,7 @@ The existing `pdf_text_stamp` core / bridge now accepts optional rectangle borde
 ### v0.10.0 Step 3 - Text stamp border/background UI connection
 
 PDF Workbench now connects the existing Text stamp border/background fields with compact controls, visible validation, plan details, and not-redaction guidance. Preview, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+### v0.11.0 Step 1 - Image stamp foundation planning
+
+Image stamp is in the design stage as JPEG-only additive visual styling with position-oriented placement. It remains separate from the existing JPEG Image watermark workflow; no Image stamp processing, UI, preview, OCR, redaction, or direct PDF text editing is added yet.

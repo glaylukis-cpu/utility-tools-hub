@@ -451,3 +451,12 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [x] Confirm protected PDFs are rejected without decryption, password UI, or permission bypass.
 - [x] Confirm the card, warnings, operation plan, long input name, and operation selector do not overflow at 1280px, 768px, 640px, or 125% equivalent width.
 - [x] Confirm preview, thumbnails, Image stamp UI, Overlay writing, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.11.0 Step 1 Image stamp foundation planning
+
+- [ ] Confirm the Image stamp plan exists and no implementation is added yet.
+- [ ] Confirm Image stamp is described as additive visual styling, separate from the existing JPEG Image watermark workflow.
+- [ ] Confirm placing an image over content is not described as safe redaction and does not remove underlying content.
+- [ ] Confirm stamp-like images are not described as digital signatures, identity verification, or audit trails.
+- [ ] Confirm preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
+- [ ] Confirm existing PDF operations remain available and unchanged.
