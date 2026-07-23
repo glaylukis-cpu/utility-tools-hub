@@ -452,3 +452,7 @@ Step 4 connects JPEG-only Image watermark to the compact PDF Workbench UI with i
 ## 16. v0.8.0 Step 5 - JPEG Image watermark QA
 
 Step 5 validates the JPEG-only Image watermark UI and real all-pages / selected-pages PDF output. PNG alpha, WebP, SVG, preview, OCR, redaction, direct PDF text editing, Image stamp UI, and Text stamp UI are not added.
+
+## 17. v0.8.1 - Installer, updater, and installed-app QA
+
+v0.8.1 focuses on installer, updater, and installed-app QA for JPEG Image watermark. No PNG alpha, WebP, SVG, preview, OCR, redaction, direct text editing, Image stamp UI, or Text stamp UI is added.

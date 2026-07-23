@@ -333,3 +333,40 @@ Use local, non-sensitive test PDFs with known page counts and visible page numbe
 - [x] Confirm Image watermark remains additive and is not redaction, direct PDF text editing, or removal of existing images, text, or page numbers.
 - [x] Confirm PNG/WebP/SVG, progressive and CMYK JPEG, preview, OCR, redaction, and direct editing remain unsupported.
 - [x] Confirm existing PDF operation cards remain available and existing Rust tests still execute.
+
+## v0.8.1 Installer / updater / installed-app QA
+
+v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-only Image watermark workflow without changing PDF processing or adding a new feature category.
+
+### Release and updater
+
+- [ ] Confirm GitHub Release v0.8.0 is the latest release.
+- [ ] Confirm `latest.json` reports version `0.8.0`, its `windows-x86_64` URL points to the v0.8.0 installer, and a signature is present.
+- [ ] Confirm the installer, installer signature, MSI, and MSI signature assets exist.
+- [ ] Confirm updater check detects v0.8.0 and the installed app launches after updating.
+- [ ] Confirm Settings / Updater shows the app as v0.8.0 after the update.
+- [ ] Confirm `latest.json` and `downloaded-latest.json` are not left in the repository.
+
+### Installed app Image watermark workflow
+
+- [ ] Confirm PDF Workbench opens, Image watermark appears in the operation selector, and its card is displayed.
+- [ ] Confirm input PDF, JPEG/JPG image, and output PDF can be selected.
+- [ ] Confirm an empty pages field targets all pages and values such as `1,3` target selected pages.
+- [ ] Confirm width, opacity, and rotation can be set and Add image watermark completes with success feedback.
+- [ ] Confirm the output PDF is created, opens successfully, keeps the input page count, and shows the watermark at center.
+- [ ] Confirm PNG, WebP, and SVG are visibly unsupported and protected PDFs fail without decryption or permission bypass.
+- [ ] Confirm console output does not expose unnecessary full paths or secrets.
+
+### Safety copy
+
+- [ ] Confirm Image watermark is described as additive, not PDF text editing, and not redaction.
+- [ ] Confirm Image watermark does not remove existing images, text, or page numbers.
+- [ ] Confirm PNG alpha, WebP, SVG, OCR, redaction, and direct PDF text editing remain unimplemented.
+- [ ] Confirm Delete pages, Text watermark, and Page numbers are not described as redaction.
+
+### Installed and release-build layout
+
+- [ ] Confirm no horizontal overflow at 1280px and no layout break at 125% zoom.
+- [ ] Confirm the Workbench becomes one column at mobile-equivalent width.
+- [ ] Confirm long PDF names, JPEG names, and output paths remain inside their cards.
+- [ ] Confirm the ten-item operation selector stays inside the center column and the left/right panels do not overlap it.

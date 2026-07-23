@@ -260,3 +260,8 @@ git push origin vX.Y.Z
 - Additive grayscale/RGB JPEG watermarks can target all or selected pages with center placement, fixed width, preserved aspect ratio, opacity, rotation, input summary, validation, operation plan, and new-PDF feedback.
 - JPEG streams are embedded without recompression as one shared `DCTDecode` Image XObject; existing images, text, and page numbers are not removed, and Image watermark is not redaction or PDF text editing.
 - Existing PDF operations and layout overflow fixes remain maintained. PNG alpha, WebP, SVG, CMYK/YCCK and progressive JPEG, stamp UI, rendering, preview, thumbnails, OCR, redaction, and direct editing are not added, and no npm or Cargo dependency is added.
+
+## v0.8.1 Installer / Updater QA
+
+- After release, verify `latest.json`, installer and MSI asset signatures, updater detection, installed-app launch and version display, and the JPEG Image watermark workflow.
+- Do not leave `latest.json` or `downloaded-latest.json` in the repository after QA.
