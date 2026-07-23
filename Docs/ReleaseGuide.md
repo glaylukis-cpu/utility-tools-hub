@@ -279,3 +279,10 @@ git push origin vX.Y.Z
 - Text stamp validation, `pdf_text_stamp`, request/response formats, PDF processing logic, and existing PDF operations are unchanged.
 - Text stamp remains additive and is not redaction or direct PDF text editing; `APPROVED` / `REVIEWED` style stamps are not digital signatures or audit trails.
 - No new PDF feature, border/background, preview, thumbnails, OCR, npm dependency, or Cargo dependency is added.
+
+## v0.10.0 Release Note
+
+- v0.10.0 adds the PDF Text stamp border/background foundation to the existing `pdf_text_stamp` core / bridge and compact PDF Workbench UI.
+- Optional black/red/gray borders and white/yellow/red/gray backgrounds support bounded width, opacity, and padding with validation, operation-plan details, and real-PDF QA for all or selected pages and rotation.
+- Border/background are additive visual styling, not redaction; filled rectangles do not remove existing images, text, page numbers, or watermarks, and `APPROVED` / `REVIEWED` style stamps are not digital signatures or audit trails.
+- Existing PDF operations and compact layout fixes remain maintained. Rendering, preview, thumbnails, OCR, safe redaction, direct PDF text editing, image stamp UI, overlay writing, Japanese font embedding, npm dependencies, and Cargo dependencies are not added.
