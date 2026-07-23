@@ -286,3 +286,10 @@ git push origin vX.Y.Z
 - Optional black/red/gray borders and white/yellow/red/gray backgrounds support bounded width, opacity, and padding with validation, operation-plan details, and real-PDF QA for all or selected pages and rotation.
 - Border/background are additive visual styling, not redaction; filled rectangles do not remove existing images, text, page numbers, or watermarks, and `APPROVED` / `REVIEWED` style stamps are not digital signatures or audit trails.
 - Existing PDF operations and compact layout fixes remain maintained. Rendering, preview, thumbnails, OCR, safe redaction, direct PDF text editing, image stamp UI, overlay writing, Japanese font embedding, npm dependencies, and Cargo dependencies are not added.
+
+## v0.11.0 Release Note
+
+- v0.11.0 adds the JPEG-only `pdf_image_stamp` core / bridge and connects Image stamp to the compact PDF Workbench UI with PDF/JPEG/output selection, page targets, position, margins, width, opacity, rotation, validation, operation plan, and result feedback.
+- Real-PDF QA covers all-page and selected-page output, representative positions and styling, readable output with unchanged page counts, `.jpg` / `.jpeg`, unsupported PNG / SVG / WebP, and protected-PDF rejection.
+- Image stamp is additive visual styling, not redaction or safe redaction. It does not remove underlying text, images, page numbers, or watermarks, and stamp-like images are not digital signatures or audit trails.
+- Existing PDF operations and compact layout fixes remain maintained. PNG alpha, rendering, preview, thumbnails, OCR, direct PDF text editing, existing-content removal, npm dependencies, and Cargo dependencies are not added.
