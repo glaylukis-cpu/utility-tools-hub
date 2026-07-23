@@ -398,3 +398,7 @@ compact PDF WorkbenchでText stamp border/backgroundのUI、validation、operati
 **v0.11.0 Step 1 - Image stamp foundation planning**
 
 Image stamp foundationを、additive visual styling / not-redactionの安全境界を維持して設計します。このStepでは新しいPDF処理実装を追加しません。
+
+**v0.11.0 Step 2 - Image stamp core / bridge**
+
+JPEG-only Image stamp core / bridgeをshared execution flowへ追加します。Image stamp UIとpreviewはまだ追加しません。

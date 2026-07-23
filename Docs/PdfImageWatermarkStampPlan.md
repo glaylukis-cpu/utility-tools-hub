@@ -559,3 +559,7 @@ The initial scope also defers custom RGB conversion, CMYK/YCCK JPEG, complete EX
 - digital signatures, identity verification, or audit trails;
 - decrypting protected PDFs, bypassing permission restrictions, or adding password input; or
 - Rust, React, CSS, PDF-processing, dependency, version, updater, or release changes in this design step.
+
+## 20. v0.11.0 Step 2 - JPEG-only Image stamp core / bridge
+
+v0.11.0 Step 2 adds the JPEG-only `pdf_image_stamp` core / bridge. Image stamp can place baseline grayscale/RGB JPEG stamp-like images on all or selected pages with preset position, margins, width with preserved aspect ratio, opacity, and rotation; UI, PNG alpha, preview, OCR, redaction, direct text editing, digital signatures, and audit trails are not added yet.

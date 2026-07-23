@@ -56,6 +56,7 @@ const PDF_REORDER_TOOL_ID: &str = "pdf_reorder";
 const PDF_TEXT_WATERMARK_TOOL_ID: &str = "pdf_text_watermark";
 const PDF_TEXT_STAMP_TOOL_ID: &str = "pdf_text_stamp";
 const PDF_IMAGE_WATERMARK_TOOL_ID: &str = "pdf_image_watermark";
+const PDF_IMAGE_STAMP_TOOL_ID: &str = "pdf_image_stamp";
 const PDF_PAGE_NUMBERS_TOOL_ID: &str = "pdf_page_numbers";
 const PDF_INSPECT_TOOL_ID: &str = "pdf_inspect";
 
@@ -355,6 +356,45 @@ pub(crate) struct PdfImageWatermarkRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct PdfImageStampInput {
+    input_path: String,
+    output_path: String,
+    image_path: String,
+    #[serde(default)]
+    pages: Option<Vec<usize>>,
+    #[serde(default)]
+    position: Option<String>,
+    #[serde(default)]
+    margin_x: Option<f32>,
+    #[serde(default)]
+    margin_y: Option<f32>,
+    #[serde(default)]
+    width: Option<f32>,
+    #[serde(default)]
+    opacity: Option<f32>,
+    #[serde(default)]
+    rotation_degrees: Option<f32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PdfImageStampRequestOptions {}
+
+pub(crate) struct PdfImageStampRequest {
+    input_path: String,
+    output_path: String,
+    image_path: String,
+    pages: Option<Vec<usize>>,
+    position: Option<String>,
+    margin_x: Option<f32>,
+    margin_y: Option<f32>,
+    width: Option<f32>,
+    opacity: Option<f32>,
+    rotation_degrees: Option<f32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PdfPageNumbersInput {
     input_path: String,
     output_path: String,
@@ -448,6 +488,7 @@ enum RegisteredTool {
     PdfTextWatermark,
     PdfTextStamp,
     PdfImageWatermark,
+    PdfImageStamp,
     PdfPageNumbers,
     PdfInspect,
 }
@@ -468,6 +509,7 @@ impl ToolRegistry {
             PDF_TEXT_WATERMARK_TOOL_ID => Ok(RegisteredTool::PdfTextWatermark),
             PDF_TEXT_STAMP_TOOL_ID => Ok(RegisteredTool::PdfTextStamp),
             PDF_IMAGE_WATERMARK_TOOL_ID => Ok(RegisteredTool::PdfImageWatermark),
+            PDF_IMAGE_STAMP_TOOL_ID => Ok(RegisteredTool::PdfImageStamp),
             PDF_PAGE_NUMBERS_TOOL_ID => Ok(RegisteredTool::PdfPageNumbers),
             PDF_INSPECT_TOOL_ID => Ok(RegisteredTool::PdfInspect),
             _ => Err(format!("Unknown tool_id: {}", tool_id)),
@@ -689,6 +731,29 @@ impl RegisteredTool {
                     },
                 ))
             }
+            RegisteredTool::PdfImageStamp => {
+                let input: PdfImageStampInput = serde_json::from_value(request.input)
+                    .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
+                if request.options.is_null() {
+                    PdfImageStampRequestOptions::default()
+                } else {
+                    serde_json::from_value::<PdfImageStampRequestOptions>(request.options)
+                        .map_err(|e| format!("Invalid options for {}: {}", request.tool_id, e))?
+                };
+
+                Ok(ValidatedToolRequest::PdfImageStamp(PdfImageStampRequest {
+                    input_path: input.input_path,
+                    output_path: input.output_path,
+                    image_path: input.image_path,
+                    pages: input.pages,
+                    position: input.position,
+                    margin_x: input.margin_x,
+                    margin_y: input.margin_y,
+                    width: input.width,
+                    opacity: input.opacity,
+                    rotation_degrees: input.rotation_degrees,
+                }))
+            }
             RegisteredTool::PdfPageNumbers => {
                 let input: PdfPageNumbersInput = serde_json::from_value(request.input)
                     .map_err(|e| format!("Invalid input for {}: {}", request.tool_id, e))?;
@@ -743,6 +808,7 @@ enum ValidatedToolRequest {
     PdfTextWatermark(PdfTextWatermarkRequest),
     PdfTextStamp(PdfTextStampRequest),
     PdfImageWatermark(PdfImageWatermarkRequest),
+    PdfImageStamp(PdfImageStampRequest),
     PdfPageNumbers(PdfPageNumbersRequest),
     PdfInspect(PdfInspectRequest),
 }
@@ -761,6 +827,7 @@ impl ValidatedToolRequest {
             ValidatedToolRequest::PdfTextWatermark(_) => PDF_TEXT_WATERMARK_TOOL_ID,
             ValidatedToolRequest::PdfTextStamp(_) => PDF_TEXT_STAMP_TOOL_ID,
             ValidatedToolRequest::PdfImageWatermark(_) => PDF_IMAGE_WATERMARK_TOOL_ID,
+            ValidatedToolRequest::PdfImageStamp(_) => PDF_IMAGE_STAMP_TOOL_ID,
             ValidatedToolRequest::PdfPageNumbers(_) => PDF_PAGE_NUMBERS_TOOL_ID,
             ValidatedToolRequest::PdfInspect(_) => PDF_INSPECT_TOOL_ID,
         }
@@ -796,6 +863,9 @@ impl ValidatedToolRequest {
             }
             ValidatedToolRequest::PdfImageWatermark(request) => {
                 PdfImageWatermarkHandler.execute(app, request).await
+            }
+            ValidatedToolRequest::PdfImageStamp(request) => {
+                PdfImageStampHandler.execute(app, request).await
             }
             ValidatedToolRequest::PdfPageNumbers(request) => {
                 PdfPageNumbersHandler.execute(app, request).await
@@ -1132,6 +1202,44 @@ pub(crate) fn run_pdf_image_watermark_bridge(
         PathBuf::from(request.image_path),
         pdf_tools::PdfImageWatermarkOptions {
             pages: request.pages,
+            width: request.width,
+            opacity: request.opacity,
+            rotation_degrees: request.rotation_degrees,
+        },
+    )
+    .map_err(|error| error.to_string())
+}
+
+struct PdfImageStampHandler;
+
+impl ToolHandler for PdfImageStampHandler {
+    type Request = PdfImageStampRequest;
+
+    fn execute(&self, _app: tauri::AppHandle, request: Self::Request) -> ToolExecutionFuture {
+        Box::pin(async move {
+            let result =
+                tauri::async_runtime::spawn_blocking(move || run_pdf_image_stamp_bridge(request))
+                    .await
+                    .map_err(|_| "PDF image stamp task could not be completed".to_string())??;
+
+            serde_json::to_value(result)
+                .map_err(|e| format!("Failed to serialize tool result: {}", e))
+        })
+    }
+}
+
+pub(crate) fn run_pdf_image_stamp_bridge(
+    request: PdfImageStampRequest,
+) -> Result<pdf_tools::PdfImageStampResult, String> {
+    pdf_tools::add_image_stamp(
+        PathBuf::from(request.input_path),
+        PathBuf::from(request.output_path),
+        PathBuf::from(request.image_path),
+        pdf_tools::PdfImageStampOptions {
+            pages: request.pages,
+            position: request.position,
+            margin_x: request.margin_x,
+            margin_y: request.margin_y,
             width: request.width,
             opacity: request.opacity,
             rotation_degrees: request.rotation_degrees,
@@ -1898,6 +2006,51 @@ mod tests {
         assert_eq!(request.width, Some(180.0));
         assert_eq!(request.opacity, Some(0.25));
         assert_eq!(request.rotation_degrees, Some(15.0));
+    }
+
+    #[test]
+    fn registry_resolves_pdf_image_stamp_tool_id() {
+        assert!(matches!(
+            ToolRegistry::resolve(PDF_IMAGE_STAMP_TOOL_ID),
+            Ok(RegisteredTool::PdfImageStamp)
+        ));
+    }
+
+    #[test]
+    fn registry_parses_pdf_image_stamp_request() {
+        let tool = ToolRegistry::resolve(PDF_IMAGE_STAMP_TOOL_ID)
+            .expect("image stamp tool should resolve");
+        let request = ToolRequest {
+            tool_id: PDF_IMAGE_STAMP_TOOL_ID.to_string(),
+            input: serde_json::json!({
+                "input_path": "input.pdf",
+                "output_path": "stamped.pdf",
+                "image_path": "stamp.jpg",
+                "pages": [1, 3],
+                "position": "top-right",
+                "margin_x": 36.0,
+                "margin_y": 36.0,
+                "width": 120.0,
+                "opacity": 1.0,
+                "rotation_degrees": 0.0
+            }),
+            options: serde_json::json!({}),
+        };
+
+        let validated = tool
+            .parse_request(request)
+            .expect("image stamp request should parse");
+        let ValidatedToolRequest::PdfImageStamp(request) = validated else {
+            panic!("expected an image stamp request");
+        };
+        assert_eq!(request.image_path, "stamp.jpg");
+        assert_eq!(request.pages, Some(vec![1, 3]));
+        assert_eq!(request.position.as_deref(), Some("top-right"));
+        assert_eq!(request.margin_x, Some(36.0));
+        assert_eq!(request.margin_y, Some(36.0));
+        assert_eq!(request.width, Some(120.0));
+        assert_eq!(request.opacity, Some(1.0));
+        assert_eq!(request.rotation_degrees, Some(0.0));
     }
 
     #[test]

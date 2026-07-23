@@ -186,3 +186,7 @@ PDF Workbench now connects the existing Text stamp border/background fields with
 ### v0.11.0 Step 1 - Image stamp foundation planning
 
 Image stamp is in the design stage as JPEG-only additive visual styling with position-oriented placement. It remains separate from the existing JPEG Image watermark workflow; no Image stamp processing, UI, preview, OCR, redaction, or direct PDF text editing is added yet.
+
+### v0.11.0 Step 2 - JPEG-only Image stamp core / bridge
+
+The additive `pdf_image_stamp` core / bridge now places validated baseline grayscale/RGB JPEG images using preset position, margins, width, opacity, and rotation. Image stamp UI, PNG alpha, preview, OCR, redaction, direct PDF text editing, digital signatures, and audit trails remain unimplemented.

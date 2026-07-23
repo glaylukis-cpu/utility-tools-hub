@@ -163,3 +163,7 @@ PDF Workbench now sends the existing optional border/background fields to `pdf_t
 ## v0.11.0 Image stamp foundation planning
 
 `Docs/PdfImageWatermarkStampPlan.md` now defines the planned JPEG-only Image stamp goal, its distinction from Image watermark, position and bounding-box model, shared execution direction, staged delivery, and safety boundaries. Image stamp remains in Planning; no Rust, bridge, React, CSS, PDF-processing, dependency, preview, OCR, redaction, direct text editing, or version change is added.
+
+## v0.11.0 JPEG-only Image stamp core / bridge
+
+The additive `pdf_image_stamp` core and shared execution bridge can place validated baseline grayscale/RGB JPEG stamp-like images on all or selected pages using position presets, margins, width with preserved aspect ratio, opacity, and rotation. UI, PNG alpha, rendering, preview, OCR, redaction, direct PDF text editing, digital signatures, and audit trails remain unimplemented.

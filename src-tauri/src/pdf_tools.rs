@@ -138,6 +138,33 @@ pub struct PdfImageWatermarkOptions {
     pub rotation_degrees: Option<f32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct PdfImageStampResult {
+    pub input_path: String,
+    pub output_path: String,
+    pub image_path: String,
+    pub pages: Vec<usize>,
+    pub page_count: usize,
+    pub position: String,
+    pub width: f32,
+    pub height: f32,
+    pub opacity: f32,
+    pub rotation_degrees: f32,
+    pub margin_x: f32,
+    pub margin_y: f32,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PdfImageStampOptions {
+    pub pages: Option<Vec<usize>>,
+    pub position: Option<String>,
+    pub margin_x: Option<f32>,
+    pub margin_y: Option<f32>,
+    pub width: Option<f32>,
+    pub opacity: Option<f32>,
+    pub rotation_degrees: Option<f32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PdfPageNumbersResult {
     pub input_path: String,
@@ -220,6 +247,12 @@ pub enum PdfToolError {
     InvalidImageWatermarkOpacity,
     InvalidImageWatermarkRotation,
     ImageWatermarkDoesNotFitPage,
+    InvalidImageStampPosition,
+    InvalidImageStampMargin,
+    InvalidImageStampWidth,
+    InvalidImageStampOpacity,
+    InvalidImageStampRotation,
+    ImageStampDoesNotFitPage,
     InvalidPageNumberStart,
     InvalidPageNumberFormat,
     InvalidPageNumberPosition,
@@ -326,6 +359,22 @@ impl fmt::Display for PdfToolError {
             }
             Self::ImageWatermarkDoesNotFitPage => {
                 "the image watermark does not fit inside a selected PDF page"
+            }
+            Self::InvalidImageStampPosition => "the image stamp position is not supported",
+            Self::InvalidImageStampMargin => {
+                "image stamp margins must be finite values from 0 to 144 points and fit the page"
+            }
+            Self::InvalidImageStampWidth => {
+                "image stamp width must be a finite value from 8 to 1440 points"
+            }
+            Self::InvalidImageStampOpacity => {
+                "image stamp opacity must be greater than 0 and no greater than 1"
+            }
+            Self::InvalidImageStampRotation => {
+                "image stamp rotation must be a finite value from -360 to 360 degrees"
+            }
+            Self::ImageStampDoesNotFitPage => {
+                "the image stamp does not fit inside a selected PDF page"
             }
             Self::InvalidPageNumberStart => "page number start must be one or greater",
             Self::InvalidPageNumberFormat => "the page number format is not supported",
@@ -1155,6 +1204,68 @@ const MAX_JPEG_PIXELS: u64 = 100_000_000;
 const DEFAULT_IMAGE_WATERMARK_WIDTH: f32 = 180.0;
 const MIN_IMAGE_WATERMARK_WIDTH: f32 = 8.0;
 const MAX_IMAGE_WATERMARK_WIDTH: f32 = 1440.0;
+const DEFAULT_IMAGE_STAMP_WIDTH: f32 = 120.0;
+const MIN_IMAGE_STAMP_WIDTH: f32 = 8.0;
+const MAX_IMAGE_STAMP_WIDTH: f32 = 1440.0;
+const DEFAULT_IMAGE_STAMP_MARGIN: f32 = 36.0;
+const MAX_IMAGE_STAMP_MARGIN: f32 = 144.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImageStampPosition {
+    Center,
+    TopLeft,
+    TopCenter,
+    TopRight,
+    BottomLeft,
+    BottomCenter,
+    BottomRight,
+}
+
+impl ImageStampPosition {
+    fn parse(value: &str) -> Result<Self, PdfToolError> {
+        match value {
+            "center" => Ok(Self::Center),
+            "top-left" => Ok(Self::TopLeft),
+            "top-center" => Ok(Self::TopCenter),
+            "top-right" => Ok(Self::TopRight),
+            "bottom-left" => Ok(Self::BottomLeft),
+            "bottom-center" => Ok(Self::BottomCenter),
+            "bottom-right" => Ok(Self::BottomRight),
+            _ => Err(PdfToolError::InvalidImageStampPosition),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Center => "center",
+            Self::TopLeft => "top-left",
+            Self::TopCenter => "top-center",
+            Self::TopRight => "top-right",
+            Self::BottomLeft => "bottom-left",
+            Self::BottomCenter => "bottom-center",
+            Self::BottomRight => "bottom-right",
+        }
+    }
+
+    fn is_left(self) -> bool {
+        matches!(self, Self::TopLeft | Self::BottomLeft)
+    }
+
+    fn is_right(self) -> bool {
+        matches!(self, Self::TopRight | Self::BottomRight)
+    }
+
+    fn is_top(self) -> bool {
+        matches!(self, Self::TopLeft | Self::TopCenter | Self::TopRight)
+    }
+
+    fn is_bottom(self) -> bool {
+        matches!(
+            self,
+            Self::BottomLeft | Self::BottomCenter | Self::BottomRight
+        )
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct JpegMetadata {
@@ -1270,6 +1381,131 @@ pub fn add_image_watermark(
         height,
         opacity,
         rotation_degrees,
+    })
+}
+
+/// Adds one shared baseline JPEG Image XObject to all or selected pages at a
+/// stamp-oriented position. The operation is additive, writes a new PDF, and
+/// does not remove or edit existing PDF content.
+pub fn add_image_stamp(
+    input_path: PathBuf,
+    output_path: PathBuf,
+    image_path: PathBuf,
+    options: PdfImageStampOptions,
+) -> Result<PdfImageStampResult, PdfToolError> {
+    validate_output_path(&output_path)?;
+    if input_path == output_path {
+        return Err(PdfToolError::OutputConflictsWithInput);
+    }
+
+    let position = ImageStampPosition::parse(options.position.as_deref().unwrap_or("top-right"))?;
+    let margin_x = options.margin_x.unwrap_or(DEFAULT_IMAGE_STAMP_MARGIN);
+    let margin_y = options.margin_y.unwrap_or(DEFAULT_IMAGE_STAMP_MARGIN);
+    if !margin_x.is_finite()
+        || !margin_y.is_finite()
+        || !(0.0..=MAX_IMAGE_STAMP_MARGIN).contains(&margin_x)
+        || !(0.0..=MAX_IMAGE_STAMP_MARGIN).contains(&margin_y)
+    {
+        return Err(PdfToolError::InvalidImageStampMargin);
+    }
+
+    let width = options.width.unwrap_or(DEFAULT_IMAGE_STAMP_WIDTH);
+    if !width.is_finite() || !(MIN_IMAGE_STAMP_WIDTH..=MAX_IMAGE_STAMP_WIDTH).contains(&width) {
+        return Err(PdfToolError::InvalidImageStampWidth);
+    }
+
+    let opacity = options.opacity.unwrap_or(1.0);
+    if !opacity.is_finite() || opacity <= 0.0 || opacity > 1.0 {
+        return Err(PdfToolError::InvalidImageStampOpacity);
+    }
+
+    let rotation_degrees = options.rotation_degrees.unwrap_or(0.0);
+    if !rotation_degrees.is_finite() || !(-360.0..=360.0).contains(&rotation_degrees) {
+        return Err(PdfToolError::InvalidImageStampRotation);
+    }
+
+    let (jpeg_bytes, jpeg_metadata) = read_jpeg_watermark(&image_path)?;
+    let height = width * jpeg_metadata.height as f32 / jpeg_metadata.width as f32;
+    if !height.is_finite() || height <= 0.0 {
+        return Err(PdfToolError::InvalidImageStampWidth);
+    }
+
+    let mut document = load_pdf_document(&input_path)?;
+    let available_pages = document.get_pages();
+    let page_count = available_pages.len();
+    let pages = match options.pages {
+        Some(pages) if !pages.is_empty() => pages,
+        _ => (1..=page_count).collect(),
+    };
+    let selected_page_ids = validate_selected_pages(&pages, &available_pages)?;
+
+    let color_space = if jpeg_metadata.components == 1 {
+        "DeviceGray"
+    } else {
+        "DeviceRGB"
+    };
+    let image_stream = lopdf::Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Image",
+            "Width" => i64::from(jpeg_metadata.width),
+            "Height" => i64::from(jpeg_metadata.height),
+            "ColorSpace" => color_space,
+            "BitsPerComponent" => 8,
+            "Filter" => "DCTDecode",
+        },
+        jpeg_bytes,
+    )
+    .with_compression(false);
+    let image_id = document.add_object(image_stream);
+    let graphics_state_id = document.add_object(dictionary! {
+        "Type" => "ExtGState",
+        "ca" => Object::Real(opacity),
+        "CA" => Object::Real(opacity),
+    });
+
+    for page_id in selected_page_ids {
+        materialize_inherited_page_attributes(&mut document, page_id)?;
+        let (lower_left_x, lower_left_y, upper_right_x, upper_right_y) =
+            resolved_page_box(&document, page_id)?;
+        let (image_name, graphics_state_name) =
+            install_image_stamp_resources(&mut document, page_id, image_id, graphics_state_id)?;
+        let content = image_stamp_content(
+            &image_name,
+            &graphics_state_name,
+            position,
+            margin_x,
+            margin_y,
+            width,
+            height,
+            rotation_degrees,
+            lower_left_x,
+            lower_left_y,
+            upper_right_x,
+            upper_right_y,
+        )?;
+        document
+            .add_page_contents(page_id, content)
+            .map_err(|_| PdfToolError::InvalidPdf)?;
+    }
+
+    document
+        .save(&output_path)
+        .map_err(|_| PdfToolError::SaveFailed)?;
+
+    Ok(PdfImageStampResult {
+        input_path: input_path.to_string_lossy().into_owned(),
+        output_path: output_path.to_string_lossy().into_owned(),
+        image_path: image_path.to_string_lossy().into_owned(),
+        pages,
+        page_count,
+        position: position.as_str().to_string(),
+        width,
+        height,
+        opacity,
+        rotation_degrees,
+        margin_x,
+        margin_y,
     })
 }
 
@@ -1953,6 +2189,54 @@ fn install_image_watermark_resources(
     Ok((image_name, graphics_state_name))
 }
 
+fn install_image_stamp_resources(
+    document: &mut Document,
+    page_id: ObjectId,
+    image_id: ObjectId,
+    graphics_state_id: ObjectId,
+) -> Result<(Vec<u8>, Vec<u8>), PdfToolError> {
+    let resources_object = document
+        .get_object(page_id)
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .as_dict()
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .get(b"Resources")
+        .ok()
+        .cloned();
+    let mut resources = match resources_object {
+        Some(object) => resolved_dictionary(document, &object)?,
+        None => Dictionary::new(),
+    };
+
+    let mut xobjects = match resources.get(b"XObject") {
+        Ok(object) => resolved_dictionary(document, object)?,
+        Err(_) => Dictionary::new(),
+    };
+    let image_name = unique_resource_name(&xobjects, b"UTHImageStamp");
+    xobjects.set(image_name.clone(), Object::Reference(image_id));
+    resources.set("XObject", Object::Dictionary(xobjects));
+
+    let mut graphics_states = match resources.get(b"ExtGState") {
+        Ok(object) => resolved_dictionary(document, object)?,
+        Err(_) => Dictionary::new(),
+    };
+    let graphics_state_name = unique_resource_name(&graphics_states, b"UTHImageStampGS");
+    graphics_states.set(
+        graphics_state_name.clone(),
+        Object::Reference(graphics_state_id),
+    );
+    resources.set("ExtGState", Object::Dictionary(graphics_states));
+
+    document
+        .get_object_mut(page_id)
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .as_dict_mut()
+        .map_err(|_| PdfToolError::InvalidPdf)?
+        .set("Resources", Object::Dictionary(resources));
+
+    Ok((image_name, graphics_state_name))
+}
+
 fn unique_resource_name(dictionary: &Dictionary, base_name: &[u8]) -> Vec<u8> {
     if dictionary.get(base_name).is_err() {
         return base_name.to_vec();
@@ -2275,6 +2559,90 @@ fn image_watermark_content(
     .map_err(|_| PdfToolError::InvalidPdf)
 }
 
+#[allow(clippy::too_many_arguments)]
+fn image_stamp_content(
+    image_name: &[u8],
+    graphics_state_name: &[u8],
+    position: ImageStampPosition,
+    margin_x: f32,
+    margin_y: f32,
+    width: f32,
+    height: f32,
+    rotation_degrees: f32,
+    lower_left_x: f32,
+    lower_left_y: f32,
+    upper_right_x: f32,
+    upper_right_y: f32,
+) -> Result<Vec<u8>, PdfToolError> {
+    let radians = rotation_degrees.to_radians();
+    let cosine = radians.cos();
+    let sine = radians.sin();
+    let rotated_width = width * cosine.abs() + height * sine.abs();
+    let rotated_height = width * sine.abs() + height * cosine.abs();
+    let page_width = upper_right_x - lower_left_x;
+    let page_height = upper_right_y - lower_left_y;
+    if rotated_width > page_width || rotated_height > page_height {
+        return Err(PdfToolError::ImageStampDoesNotFitPage);
+    }
+
+    let center_x = if position.is_left() {
+        lower_left_x + margin_x + rotated_width / 2.0
+    } else if position.is_right() {
+        upper_right_x - margin_x - rotated_width / 2.0
+    } else {
+        lower_left_x + page_width / 2.0
+    };
+    let center_y = if position.is_top() {
+        upper_right_y - margin_y - rotated_height / 2.0
+    } else if position.is_bottom() {
+        lower_left_y + margin_y + rotated_height / 2.0
+    } else {
+        lower_left_y + page_height / 2.0
+    };
+    let min_x = center_x - rotated_width / 2.0;
+    let max_x = center_x + rotated_width / 2.0;
+    let min_y = center_y - rotated_height / 2.0;
+    let max_y = center_y + rotated_height / 2.0;
+    if min_x < lower_left_x
+        || max_x > upper_right_x
+        || min_y < lower_left_y
+        || max_y > upper_right_y
+    {
+        return Err(PdfToolError::ImageStampDoesNotFitPage);
+    }
+
+    let a = width * cosine;
+    let b = width * sine;
+    let c = -height * sine;
+    let d = height * cosine;
+    let translate_x = center_x - (a + c) / 2.0;
+    let translate_y = center_y - (b + d) / 2.0;
+
+    // Placement uses the effective CropBox/MediaBox. Existing page rotation is
+    // preserved; viewer-facing rotation compensation remains a later QA step.
+    Content {
+        operations: vec![
+            Operation::new("q", vec![]),
+            Operation::new("gs", vec![Object::Name(graphics_state_name.to_vec())]),
+            Operation::new(
+                "cm",
+                vec![
+                    Object::Real(a),
+                    Object::Real(b),
+                    Object::Real(c),
+                    Object::Real(d),
+                    Object::Real(translate_x),
+                    Object::Real(translate_y),
+                ],
+            ),
+            Operation::new("Do", vec![Object::Name(image_name.to_vec())]),
+            Operation::new("Q", vec![]),
+        ],
+    }
+    .encode()
+    .map_err(|_| PdfToolError::InvalidPdf)
+}
+
 fn load_pdf_document(input_path: &Path) -> Result<Document, PdfToolError> {
     if !has_pdf_extension(input_path) {
         return Err(PdfToolError::InvalidInputExtension);
@@ -2477,13 +2845,13 @@ fn find_inherited_page_attribute(
 mod tests {
     use super::*;
     use crate::{
-        run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_image_watermark_bridge,
-        run_pdf_inspect_bridge, run_pdf_merge_bridge, run_pdf_page_numbers_bridge,
-        run_pdf_reorder_bridge, run_pdf_rotate_bridge, run_pdf_split_bridge,
-        run_pdf_text_stamp_bridge, run_pdf_text_watermark_bridge, PdfDeleteRequest,
-        PdfExtractRequest, PdfImageWatermarkRequest, PdfInspectRequest, PdfMergeRequest,
-        PdfPageNumbersRequest, PdfReorderRequest, PdfRotateRequest, PdfSplitRequest,
-        PdfTextStampRequest, PdfTextWatermarkRequest,
+        run_pdf_delete_bridge, run_pdf_extract_bridge, run_pdf_image_stamp_bridge,
+        run_pdf_image_watermark_bridge, run_pdf_inspect_bridge, run_pdf_merge_bridge,
+        run_pdf_page_numbers_bridge, run_pdf_reorder_bridge, run_pdf_rotate_bridge,
+        run_pdf_split_bridge, run_pdf_text_stamp_bridge, run_pdf_text_watermark_bridge,
+        PdfDeleteRequest, PdfExtractRequest, PdfImageStampRequest, PdfImageWatermarkRequest,
+        PdfInspectRequest, PdfMergeRequest, PdfPageNumbersRequest, PdfReorderRequest,
+        PdfRotateRequest, PdfSplitRequest, PdfTextStampRequest, PdfTextWatermarkRequest,
     };
     use lopdf::Stream;
     use std::fs;
@@ -5157,6 +5525,505 @@ mod tests {
     }
 
     #[test]
+    fn image_stamp_adds_one_shared_jpeg_to_all_pages_and_preserves_source() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-stamp-input.pdf");
+        let output = directory.path("image-stamp-output.pdf");
+        let image = directory.path("stamp.jpg");
+        create_pdf_with_page_contents(
+            &input,
+            &[b"q % SOURCE-1 Q", b"q % SOURCE-2 Q", b"q % SOURCE-3 Q"],
+        );
+        write_jpeg_fixture(&image, 240, 120, 3);
+        let source_bytes = fs::read(&input).expect("source PDF should be readable");
+
+        let result = add_image_stamp(
+            input.clone(),
+            output.clone(),
+            image.clone(),
+            PdfImageStampOptions::default(),
+        )
+        .expect("JPEG stamp should be added to all pages");
+
+        assert_eq!(result.pages, vec![1, 2, 3]);
+        assert_eq!(result.page_count, 3);
+        assert_eq!(result.position, "top-right");
+        assert_eq!(result.margin_x, 36.0);
+        assert_eq!(result.margin_y, 36.0);
+        assert_eq!(result.width, 120.0);
+        assert_eq!(result.height, 60.0);
+        assert_eq!(result.opacity, 1.0);
+        assert_eq!(result.rotation_degrees, 0.0);
+        assert_eq!(
+            fs::read(&input).expect("source PDF should remain readable"),
+            source_bytes
+        );
+
+        let output_document = Document::load(&output).expect("stamped PDF should reload");
+        assert_eq!(output_document.get_pages().len(), 3);
+        let mut image_ids = HashSet::new();
+        for page_id in output_document.get_pages().values() {
+            let images = output_document
+                .get_page_images(*page_id)
+                .expect("page Image XObjects should be readable");
+            assert_eq!(images.len(), 1);
+            assert_eq!(images[0].width, 240);
+            assert_eq!(images[0].height, 120);
+            assert_eq!(images[0].color_space.as_deref(), Some("DeviceRGB"));
+            assert!(images[0]
+                .filters
+                .as_ref()
+                .is_some_and(|filters| filters.iter().any(|filter| filter == "DCTDecode")));
+            image_ids.insert(images[0].id);
+            assert!(page_has_operator(&output_document, *page_id, "Do"));
+            let content = output_document
+                .get_page_content(*page_id)
+                .expect("page content should remain readable");
+            assert!(contains_bytes(&content, b"SOURCE-"));
+        }
+        assert_eq!(
+            image_ids.len(),
+            1,
+            "target pages should share one image object"
+        );
+
+        let empty_pages_result = add_image_stamp(
+            input,
+            directory.path("empty-pages-image-stamp-output.pdf"),
+            image,
+            PdfImageStampOptions {
+                pages: Some(vec![]),
+                ..PdfImageStampOptions::default()
+            },
+        )
+        .expect("an empty page list should target every page");
+        assert_eq!(empty_pages_result.pages, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn image_stamp_targets_selected_pages_with_aspect_ratio_opacity_and_rotation() {
+        let directory = TestDirectory::new();
+        let input = directory.path("selected-image-stamp-input.pdf");
+        let output = directory.path("selected-image-stamp-output.pdf");
+        let image = directory.path("gray-stamp.jpeg");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+        write_jpeg_fixture(&image, 100, 50, 1);
+
+        let result = add_image_stamp(
+            input,
+            output.clone(),
+            image,
+            PdfImageStampOptions {
+                pages: Some(vec![1, 3]),
+                position: Some("center".to_string()),
+                width: Some(80.0),
+                opacity: Some(0.25),
+                rotation_degrees: Some(30.0),
+                ..PdfImageStampOptions::default()
+            },
+        )
+        .expect("selected pages should receive a rotated grayscale JPEG stamp");
+
+        assert_eq!(result.pages, vec![1, 3]);
+        assert_eq!(result.position, "center");
+        assert_eq!(result.width, 80.0);
+        assert_eq!(result.height, 40.0);
+        assert_eq!(result.opacity, 0.25);
+        assert_eq!(result.rotation_degrees, 30.0);
+        let output_document = Document::load(output).expect("stamped PDF should reload");
+        assert_eq!(output_document.get_pages().len(), 3);
+        for (page_number, page_id) in output_document.get_pages() {
+            assert_eq!(
+                page_has_operator(&output_document, page_id, "Do"),
+                page_number == 1 || page_number == 3
+            );
+            if page_number == 1 || page_number == 3 {
+                let images = output_document
+                    .get_page_images(page_id)
+                    .expect("selected page image should be readable");
+                assert_eq!(images[0].color_space.as_deref(), Some("DeviceGray"));
+            }
+        }
+    }
+
+    #[test]
+    fn image_stamp_preserves_inherited_resources() {
+        let directory = TestDirectory::new();
+        let input = directory.path("nested-image-stamp-input.pdf");
+        let output = directory.path("nested-image-stamp-output.pdf");
+        let image = directory.path("nested-stamp.jpg");
+        create_nested_page_tree_pdf(&input, &[b"NESTED-1", b"NESTED-2"]);
+        write_jpeg_fixture(&image, 100, 50, 3);
+
+        add_image_stamp(
+            input,
+            output.clone(),
+            image,
+            PdfImageStampOptions::default(),
+        )
+        .expect("inherited resources should be preserved");
+
+        let output_document = Document::load(output).expect("stamped PDF should reload");
+        for page_id in output_document.get_pages().values() {
+            let fonts = output_document
+                .get_page_fonts(*page_id)
+                .expect("inherited page fonts should remain readable");
+            assert!(fonts.contains_key(b"F1".as_slice()));
+            assert_eq!(
+                output_document
+                    .get_page_images(*page_id)
+                    .expect("image resource should remain readable")
+                    .len(),
+                1
+            );
+            assert!(page_has_operator(&output_document, *page_id, "Do"));
+        }
+    }
+
+    #[test]
+    fn image_stamp_supports_every_position() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-stamp-positions-input.pdf");
+        let image = directory.path("positions.jpg");
+        create_single_page_pdf(&input);
+        write_jpeg_fixture(&image, 100, 50, 3);
+
+        for (index, position) in [
+            "center",
+            "top-left",
+            "top-center",
+            "top-right",
+            "bottom-left",
+            "bottom-center",
+            "bottom-right",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let output = directory.path(&format!("image-stamp-position-{index}.pdf"));
+            let result = add_image_stamp(
+                input.clone(),
+                output.clone(),
+                image.clone(),
+                PdfImageStampOptions {
+                    position: Some(position.to_string()),
+                    ..PdfImageStampOptions::default()
+                },
+            )
+            .expect("supported position should succeed");
+            assert_eq!(result.position, position);
+            let output_document = Document::load(output).expect("position output should reload");
+            assert!(page_has_operator(
+                &output_document,
+                output_document.get_pages()[&1],
+                "Do"
+            ));
+        }
+    }
+
+    #[test]
+    fn image_stamp_validates_pages_placement_and_style() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-stamp-validation-input.pdf");
+        let image = directory.path("validation-stamp.jpg");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q"]);
+        write_jpeg_fixture(&image, 100, 50, 3);
+
+        for (pages, expected, name) in [
+            (vec![0], PdfToolError::InvalidPageNumber, "zero"),
+            (vec![3], PdfToolError::PageOutOfRange, "range"),
+            (vec![1, 1], PdfToolError::DuplicatePage, "duplicate"),
+        ] {
+            assert_eq!(
+                add_image_stamp(
+                    input.clone(),
+                    directory.path(&format!("image-stamp-{name}.pdf")),
+                    image.clone(),
+                    PdfImageStampOptions {
+                        pages: Some(pages),
+                        ..PdfImageStampOptions::default()
+                    },
+                )
+                .unwrap_err(),
+                expected
+            );
+        }
+
+        assert_eq!(
+            add_image_stamp(
+                input.clone(),
+                directory.path("unsupported-position.pdf"),
+                image.clone(),
+                PdfImageStampOptions {
+                    position: Some("middle-right".to_string()),
+                    ..PdfImageStampOptions::default()
+                },
+            )
+            .unwrap_err(),
+            PdfToolError::InvalidImageStampPosition
+        );
+        for margin in [-0.1, 144.1, f32::NAN] {
+            assert_eq!(
+                add_image_stamp(
+                    input.clone(),
+                    directory.path("invalid-stamp-margin.pdf"),
+                    image.clone(),
+                    PdfImageStampOptions {
+                        margin_x: Some(margin),
+                        ..PdfImageStampOptions::default()
+                    },
+                )
+                .unwrap_err(),
+                PdfToolError::InvalidImageStampMargin
+            );
+        }
+        for width in [0.0, 7.9, 1440.1, f32::INFINITY] {
+            assert_eq!(
+                add_image_stamp(
+                    input.clone(),
+                    directory.path("invalid-stamp-width.pdf"),
+                    image.clone(),
+                    PdfImageStampOptions {
+                        width: Some(width),
+                        ..PdfImageStampOptions::default()
+                    },
+                )
+                .unwrap_err(),
+                PdfToolError::InvalidImageStampWidth
+            );
+        }
+        for opacity in [0.0, -0.1, 1.1, f32::NAN] {
+            assert_eq!(
+                add_image_stamp(
+                    input.clone(),
+                    directory.path("invalid-stamp-opacity.pdf"),
+                    image.clone(),
+                    PdfImageStampOptions {
+                        opacity: Some(opacity),
+                        ..PdfImageStampOptions::default()
+                    },
+                )
+                .unwrap_err(),
+                PdfToolError::InvalidImageStampOpacity
+            );
+        }
+        for rotation_degrees in [-360.1, 360.1, f32::NAN] {
+            assert_eq!(
+                add_image_stamp(
+                    input.clone(),
+                    directory.path("invalid-stamp-rotation.pdf"),
+                    image.clone(),
+                    PdfImageStampOptions {
+                        rotation_degrees: Some(rotation_degrees),
+                        ..PdfImageStampOptions::default()
+                    },
+                )
+                .unwrap_err(),
+                PdfToolError::InvalidImageStampRotation
+            );
+        }
+        assert_eq!(
+            add_image_stamp(
+                input.clone(),
+                directory.path("stamp-does-not-fit.pdf"),
+                image.clone(),
+                PdfImageStampOptions {
+                    width: Some(600.0),
+                    ..PdfImageStampOptions::default()
+                },
+            )
+            .unwrap_err(),
+            PdfToolError::ImageStampDoesNotFitPage
+        );
+        assert_eq!(
+            add_image_stamp(input.clone(), input, image, PdfImageStampOptions::default(),)
+                .unwrap_err(),
+            PdfToolError::OutputConflictsWithInput
+        );
+    }
+
+    #[test]
+    fn image_stamp_rejects_unsupported_and_protected_inputs() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-stamp-format-input.pdf");
+        create_single_page_pdf(&input);
+
+        for extension in ["png", "webp", "svg"] {
+            let image = directory.path(&format!("stamp.{extension}"));
+            fs::write(&image, jpeg_fixture(100, 50, 3, 0xc0))
+                .expect("unsupported image fixture should be written");
+            assert_eq!(
+                add_image_stamp(
+                    input.clone(),
+                    directory.path(&format!("stamp-{extension}.pdf")),
+                    image,
+                    PdfImageStampOptions::default(),
+                )
+                .unwrap_err(),
+                PdfToolError::InvalidImageExtension
+            );
+        }
+
+        let broken = directory.path("broken-stamp.jpg");
+        fs::write(&broken, [0xff, 0xd8, 0xff, 0xd9])
+            .expect("broken JPEG fixture should be written");
+        assert_eq!(
+            add_image_stamp(
+                input.clone(),
+                directory.path("broken-stamp-output.pdf"),
+                broken,
+                PdfImageStampOptions::default(),
+            )
+            .unwrap_err(),
+            PdfToolError::InvalidJpeg
+        );
+
+        for (name, marker, components, expected) in [
+            (
+                "progressive-stamp.jpg",
+                0xc2,
+                3,
+                PdfToolError::UnsupportedJpegEncoding,
+            ),
+            (
+                "cmyk-stamp.jpg",
+                0xc0,
+                4,
+                PdfToolError::UnsupportedJpegComponents,
+            ),
+        ] {
+            let image = directory.path(name);
+            fs::write(&image, jpeg_fixture(100, 50, components, marker))
+                .expect("unsupported JPEG fixture should be written");
+            assert_eq!(
+                add_image_stamp(
+                    input.clone(),
+                    directory.path(&format!("{name}.pdf")),
+                    image,
+                    PdfImageStampOptions::default(),
+                )
+                .unwrap_err(),
+                expected
+            );
+        }
+
+        let protected_input = directory.path("protected-image-stamp-input.pdf");
+        let protected_output = directory.path("protected-image-stamp-output.pdf");
+        let image = directory.path("protected-stamp.jpg");
+        create_single_page_pdf(&protected_input);
+        write_jpeg_fixture(&image, 100, 50, 3);
+        let mut protected_document = Document::load(&protected_input).expect("fixture should load");
+        let encryption_id = protected_document.add_object(dictionary! {
+            "Filter" => "Standard",
+            "V" => 1,
+        });
+        protected_document.trailer.set("Encrypt", encryption_id);
+        protected_document
+            .save(&protected_input)
+            .expect("protected marker should be saved");
+
+        assert_eq!(
+            add_image_stamp(
+                protected_input,
+                protected_output.clone(),
+                image,
+                PdfImageStampOptions::default(),
+            )
+            .unwrap_err(),
+            PdfToolError::EncryptedPdfUnsupported
+        );
+        assert!(!protected_output.exists());
+    }
+
+    #[test]
+    fn image_stamp_rejects_invalid_paths() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-stamp-path-input.pdf");
+        let image = directory.path("path-stamp.jpg");
+        create_single_page_pdf(&input);
+        write_jpeg_fixture(&image, 100, 50, 3);
+
+        for (input_path, output_path, image_path, expected) in [
+            (
+                directory.path("input.txt"),
+                directory.path("non-pdf-input.pdf"),
+                image.clone(),
+                PdfToolError::InvalidInputExtension,
+            ),
+            (
+                input.clone(),
+                directory.path("output.txt"),
+                image.clone(),
+                PdfToolError::InvalidOutputExtension,
+            ),
+            (
+                directory.path("missing.pdf"),
+                directory.path("missing-input.pdf"),
+                image.clone(),
+                PdfToolError::InputNotFound,
+            ),
+            (
+                input.clone(),
+                directory.path("missing-directory").join("output.pdf"),
+                image.clone(),
+                PdfToolError::OutputDirectoryNotFound,
+            ),
+            (
+                input,
+                directory.path("missing-image-output.pdf"),
+                directory.path("missing.jpg"),
+                PdfToolError::ImageNotFound,
+            ),
+        ] {
+            assert_eq!(
+                add_image_stamp(
+                    input_path,
+                    output_path,
+                    image_path,
+                    PdfImageStampOptions::default(),
+                )
+                .unwrap_err(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn image_stamp_bridge_writes_a_new_pdf() {
+        let directory = TestDirectory::new();
+        let input = directory.path("image-stamp-bridge-input.pdf");
+        let output = directory.path("image-stamp-bridge-output.pdf");
+        let image = directory.path("bridge-stamp.jpg");
+        create_pdf_with_page_contents(&input, &[b"q Q", b"q Q", b"q Q"]);
+        write_jpeg_fixture(&image, 200, 100, 3);
+
+        let result = run_pdf_image_stamp_bridge(pdf_image_stamp_request(
+            input,
+            output.clone(),
+            image,
+            Some(vec![2, 3]),
+        ))
+        .expect("image stamp bridge should succeed");
+
+        assert!(output.is_file());
+        assert_eq!(result.pages, vec![2, 3]);
+        assert_eq!(result.page_count, 3);
+        assert_eq!(result.position, "top-right");
+        let output_document = Document::load(output).expect("bridge output PDF should load");
+        assert_eq!(output_document.get_pages().len(), 3);
+        assert!(!page_has_operator(
+            &output_document,
+            output_document.get_pages()[&1],
+            "Do"
+        ));
+        assert!(page_has_operator(
+            &output_document,
+            output_document.get_pages()[&2],
+            "Do"
+        ));
+    }
+
+    #[test]
     fn split_bridge_splits_a_three_page_pdf() {
         let directory = TestDirectory::new();
         let input = directory.path("split-bridge-input.pdf");
@@ -5601,6 +6468,26 @@ mod tests {
             width: Some(120.0),
             opacity: Some(0.3),
             rotation_degrees: Some(15.0),
+        }
+    }
+
+    fn pdf_image_stamp_request(
+        input_path: PathBuf,
+        output_path: PathBuf,
+        image_path: PathBuf,
+        pages: Option<Vec<usize>>,
+    ) -> PdfImageStampRequest {
+        PdfImageStampRequest {
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: output_path.to_string_lossy().into_owned(),
+            image_path: image_path.to_string_lossy().into_owned(),
+            pages,
+            position: Some("top-right".to_string()),
+            margin_x: Some(36.0),
+            margin_y: Some(36.0),
+            width: Some(120.0),
+            opacity: Some(1.0),
+            rotation_degrees: Some(0.0),
         }
     }
 

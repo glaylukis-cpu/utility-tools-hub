@@ -460,3 +460,12 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm stamp-like images are not described as digital signatures, identity verification, or audit trails.
 - [ ] Confirm preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
 - [ ] Confirm existing PDF operations remain available and unchanged.
+
+## v0.11.0 Step 2 JPEG-only Image stamp core / bridge
+
+- [ ] Confirm `pdf_image_stamp` can place JPEG stamp-like images on all or selected pages.
+- [ ] Confirm Image stamp is additive and is not redaction or direct PDF text editing.
+- [ ] Confirm placing an image over content is not described as safe redaction.
+- [ ] Confirm protected PDFs are rejected without decryption, password handling, or permission bypass.
+- [ ] Confirm PNG alpha, preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
+- [ ] Confirm Image stamp UI remains unimplemented.
