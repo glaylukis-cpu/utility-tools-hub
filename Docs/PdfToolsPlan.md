@@ -135,3 +135,7 @@ The additive `pdf_image_watermark` core and shared execution bridge can write va
 ## v0.8.0 JPEG Image watermark UI connection
 
 PDF Workbench now connects to `pdf_image_watermark` with PDF/JPEG selection, bounded settings, center-placement operation plan, and local new-PDF feedback. PNG, WebP, SVG, stamps, rendering, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.9.0 Text stamp foundation planning
+
+`Docs/PdfTextStampPlan.md` defines the planned additive short-text stamp model, position and styling candidates, safety boundaries, lopdf risks, staged implementation, and QA. Text stamp core, bridge, UI, PDF processing, preview, OCR, redaction, and direct PDF text editing remain unimplemented.

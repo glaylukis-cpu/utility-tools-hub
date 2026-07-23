@@ -456,3 +456,7 @@ Step 5 validates the JPEG-only Image watermark UI and real all-pages / selected-
 ## 17. v0.8.1 - Installer, updater, and installed-app QA
 
 v0.8.1 focuses on installer, updater, and installed-app QA for JPEG Image watermark. No PNG alpha, WebP, SVG, preview, OCR, redaction, direct text editing, Image stamp UI, or Text stamp UI is added.
+
+## 18. v0.9.0 Step 1 - Text stamp foundation planning
+
+`Docs/PdfTextStampPlan.md` separates the planned position-focused Text stamp from the still-unimplemented Image stamp. Both remain additive operations, but v0.9.0 Step 1 adds design documentation only and no stamp processing or UI.

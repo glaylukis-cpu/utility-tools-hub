@@ -362,3 +362,7 @@ Compact PDF WorkbenchでJPEG-only Image watermarkの実PDF出力とvalidationを
 **v0.8.1 - JPEG Image watermark release / installed-app QA**
 
 Release / updater / installed-app環境でJPEG Image watermark workflowを検証します。新しいPDF処理カテゴリは追加しません。
+
+**v0.9.0 Step 1 - Text stamp foundation planning**
+
+Text stampの目的、配置、styling、安全境界、段階実装を設計文書で整理します。Text stamp実装、PDF preview、OCR、redaction、PDF本文編集はまだ追加しません。

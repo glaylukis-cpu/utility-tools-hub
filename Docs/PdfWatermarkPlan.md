@@ -158,3 +158,7 @@ The additive JPEG-only Image watermark core / bridge supports validated baseline
 ### v0.8.0 Step 4 - JPEG Image watermark UI connection
 
 PDF Workbench now connects to the JPEG-only Image watermark core with bounded settings, an additive operation plan, and new-PDF result feedback. PNG alpha and other image formats, stamps, preview, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+### v0.9.0 Step 1 - Text stamp foundation planning
+
+`Docs/PdfTextStampPlan.md` defines the planned short-text stamp model, precise placement, limited styling, additive/not-redaction safety boundary, and staged implementation. Text stamp processing and UI remain unimplemented.

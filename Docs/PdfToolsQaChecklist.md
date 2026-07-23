@@ -370,3 +370,12 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm the Workbench becomes one column at mobile-equivalent width.
 - [ ] Confirm long PDF names, JPEG names, and output paths remain inside their cards.
 - [ ] Confirm the ten-item operation selector stays inside the center column and the left/right panels do not overlap it.
+
+## v0.9.0 Step 1 Text stamp foundation planning
+
+- [ ] Confirm `Docs/PdfTextStampPlan.md` exists.
+- [ ] Confirm Text stamp is described as additive, not direct PDF text editing.
+- [ ] Confirm Text stamp is not described as safe redaction.
+- [ ] Confirm visual masks are not described as safe redaction.
+- [ ] Confirm OCR, redaction, and direct PDF text editing remain unimplemented.
+- [ ] Confirm existing PDF operations remain available and unchanged.
