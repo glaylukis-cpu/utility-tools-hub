@@ -567,3 +567,7 @@ v0.11.0 Step 2 adds the JPEG-only `pdf_image_stamp` core / bridge. Image stamp c
 ## 21. v0.11.0 Step 3 - Image stamp UI connection
 
 PDF Workbench now connects the existing `pdf_image_stamp` route with PDF/JPEG/output selection, optional pages, seven position presets, bounded margins, width, opacity, rotation, an operation plan, and local result feedback. The operation remains additive and writes a new PDF; PNG alpha, preview, thumbnails, drag positioning, OCR, redaction, direct PDF text editing, digital signatures, and audit trails remain unimplemented.
+
+## 22. v0.11.0 Step 4 - Image stamp QA polish
+
+v0.11.0 Step 4 verifies Image stamp UI, validation, operation plan, compact layout, and real all-page / selected-page PDF output. Image stamp remains additive visual styling and is not redaction or a digital signature; PNG alpha, preview, OCR, redaction, and direct PDF text editing remain unimplemented.

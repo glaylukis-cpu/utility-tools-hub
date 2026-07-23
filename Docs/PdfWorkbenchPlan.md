@@ -406,3 +406,7 @@ JPEG-only Image stamp core / bridgeをshared execution flowへ追加します。
 **v0.11.0 Step 3 - Image stamp UI connection**
 
 `pdf_image_stamp`をcompact PDF Workbenchへ接続し、PDF/JPEG/output選択、all/selected pages、7 position presets、margins、width、opacity、rotation、validation、operation plan、loading/success/errorを表示します。Image stampはadditiveであり、PNG alpha、preview、thumbnails、drag positioning、OCR、redaction、PDF本文編集は追加しません。
+
+**v0.11.0 Step 4 - Image stamp QA polish**
+
+compact PDF Workbench上でImage stampのUI、validation、operation plan、実PDF出力、レスポンシブlayoutを検証します。既存のlayout overflow対策を維持し、新機能は追加しません。

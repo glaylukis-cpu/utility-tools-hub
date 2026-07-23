@@ -480,3 +480,13 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [ ] Confirm the operation selector, Image stamp card, long file names, controls, and operation plan do not overflow at 1280px, 768px, 640px, or 125% equivalent width.
 - [ ] Confirm PNG alpha, SVG, WebP, preview, thumbnails, drag positioning, OCR, redaction, and direct PDF text editing remain unimplemented.
 - [ ] Confirm existing PDF operations and the JPEG Image watermark workflow remain available and unchanged.
+
+## v0.11.0 Step 4 Image stamp QA polish
+
+- [x] Confirm Image stamp UI, JPEG-only validation, operation plan, and responsive layout are covered.
+- [x] Confirm real all-page and selected-page PDF outputs open, preserve page count, and retain underlying PDF text.
+- [x] Confirm `.jpg` and `.jpeg` work while PNG, SVG, and WebP are rejected without producing output.
+- [x] Confirm Image stamp is additive visual styling, not redaction or direct PDF text editing.
+- [x] Confirm covering content is not safe redaction and does not remove underlying PDF content.
+- [x] Confirm stamp-like images are not digital signatures or audit trails.
+- [x] Confirm preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.

@@ -1336,12 +1336,16 @@ function ImageStampOperationPlan({
   const marginXError = boundedNumberValidationMessage(marginXInput, "Margin X", 0, 144);
   const marginYError = boundedNumberValidationMessage(marginYInput, "Margin Y", 0, 144);
   const widthError = boundedNumberValidationMessage(widthInput, "Width", 8, 1440);
-  const opacityError = opacity === null || opacity <= 0 || opacity > 1
-    ? "Opacity must be greater than 0 and no greater than 1."
-    : null;
-  const rotationError = rotation === null || rotation < -360 || rotation > 360
-    ? "Rotation must be between -360 and 360 degrees."
-    : null;
+  const opacityError = opacity === null
+    ? "Opacity must be a number."
+    : opacity <= 0 || opacity > 1
+      ? "Opacity must be greater than 0 and no greater than 1."
+      : null;
+  const rotationError = rotation === null
+    ? "Rotation must be a number."
+    : rotation < -360 || rotation > 360
+      ? "Rotation must be between -360 and 360 degrees."
+      : null;
   const outputError = outputPdfValidationMessage(outputPath);
   const isProtected = Boolean(result && (result.is_encrypted || result.is_protected));
   const positionLabel = imageStampPositionOptions.find((option) => option.value === position)?.label ?? position;
@@ -1407,7 +1411,7 @@ function ImageStampOperationPlan({
         </p>
       )}
       <p className="pdf-tools-operation-plan-safety">
-        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This places a JPEG image in a new PDF without removing existing text, images, page numbers, or watermarks. Covering content does not remove it. Stamp-like images are not digital signatures or audit trails.
+        <strong>Additive only · Not redaction · Not PDF text editing:</strong> This places a JPEG image in a new PDF without removing existing text, images, page numbers, or watermarks. Covering content is not safe redaction; hidden content remains unless a real redaction process removes it. Stamp-like images are not digital signatures or audit trails.
       </p>
     </div>
   );
@@ -1940,13 +1944,17 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
   const imageStampMarginYError = boundedNumberValidationMessage(imageStampMarginYInput, "Margin Y", 0, 144);
   const imageStampWidthError = boundedNumberValidationMessage(imageStampWidthInput, "Width", 8, 1440);
   const imageStampOpacityError =
-    imageStampOpacity === null || imageStampOpacity <= 0 || imageStampOpacity > 1
-      ? "Opacity must be greater than 0 and no greater than 1."
-      : null;
+    imageStampOpacity === null
+      ? "Opacity must be a number."
+      : imageStampOpacity <= 0 || imageStampOpacity > 1
+        ? "Opacity must be greater than 0 and no greater than 1."
+        : null;
   const imageStampRotationError =
-    imageStampRotation === null || imageStampRotation < -360 || imageStampRotation > 360
-      ? "Rotation must be between -360 and 360 degrees."
-      : null;
+    imageStampRotation === null
+      ? "Rotation must be a number."
+      : imageStampRotation < -360 || imageStampRotation > 360
+        ? "Rotation must be between -360 and 360 degrees."
+        : null;
   const imageStampOutputError = outputPdfValidationMessage(imageStampOutputPath);
   const imageStampInputIsProtected = Boolean(
     imageStampInputSummary.result &&
@@ -5735,7 +5743,7 @@ export default function PdfToolsPanel({ onBack }: PdfToolsPanelProps) {
             <p>Place one baseline grayscale/RGB JPEG image at a preset position on all or selected pages and save a new PDF.</p>
           </div>
           <p className="pdf-tools-helper">JPEG/JPG only. Width preserves the image aspect ratio. PNG alpha, SVG, WebP, CMYK/YCCK JPEG, progressive JPEG, image preview, and thumbnails are not supported.</p>
-          <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> Image stamp adds a visible image without removing or replacing underlying text, images, page numbers, or watermarks. Covering content does not safely hide it. Stamp-like images are not digital signatures or audit trails.</p>
+          <p className="pdf-tools-warning"><strong>Additive only · Not redaction · Not PDF text editing:</strong> Image stamp adds a visible image without removing or replacing underlying text, images, page numbers, or watermarks. Covering content is not safe redaction; hidden content remains unless a real redaction process removes it. Stamp-like images are not digital signatures or audit trails.</p>
 
           <div className="pdf-tools-button-row">
             <button type="button" className="btn btn-outline" onClick={selectImageStampInput} disabled={isAnyOperationRunning}>
