@@ -253,3 +253,10 @@ git push origin vX.Y.Z
 - v0.7.1 polishes Page numbers real PDF QA for all pages, selected pages, representative start number / format / position cases, readable output, and unchanged page count.
 - Page numbers remains additive, does not edit existing PDF text, is not redaction, and does not remove existing page numbers; existing PDF operations and compact layout overflow fixes remain maintained.
 - No PDF processing logic, `tool_id`, request/response format, rendering, preview, thumbnails, existing page-number removal, OCR, redaction, direct PDF text editing, npm dependency, or Cargo dependency is changed.
+
+## v0.8.0 Release Note
+
+- v0.8.0 adds the JPEG-only Image watermark foundation with the local `pdf_image_watermark` core / bridge and compact PDF Workbench UI.
+- Additive grayscale/RGB JPEG watermarks can target all or selected pages with center placement, fixed width, preserved aspect ratio, opacity, rotation, input summary, validation, operation plan, and new-PDF feedback.
+- JPEG streams are embedded without recompression as one shared `DCTDecode` Image XObject; existing images, text, and page numbers are not removed, and Image watermark is not redaction or PDF text editing.
+- Existing PDF operations and layout overflow fixes remain maintained. PNG alpha, WebP, SVG, CMYK/YCCK and progressive JPEG, stamp UI, rendering, preview, thumbnails, OCR, redaction, and direct editing are not added, and no npm or Cargo dependency is added.
