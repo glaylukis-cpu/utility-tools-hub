@@ -410,3 +410,7 @@ JPEG-only Image stamp core / bridgeをshared execution flowへ追加します。
 **v0.11.0 Step 4 - Image stamp QA polish**
 
 compact PDF Workbench上でImage stampのUI、validation、operation plan、実PDF出力、レスポンシブlayoutを検証します。既存のlayout overflow対策を維持し、新機能は追加しません。
+
+**v0.12.0 Step 1 - PNG alpha research / design**
+
+Image stamp / Image watermark向けPNG alpha対応を、additive / not-redactionの安全境界を維持して調査します。このStepでは新しいPDF処理、dependency、UI、preview、OCR、redaction、PDF本文編集を追加しません。

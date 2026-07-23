@@ -171,3 +171,7 @@ The additive `pdf_image_stamp` core and shared execution bridge can place valida
 ## v0.11.0 Image stamp UI connection
 
 PDF Workbench now sends validated PDF/JPEG/output paths, optional page targets, preset position, margins, width, opacity, and rotation to the existing `pdf_image_stamp` shared route. The compact UI includes input summary, operation plan, safety guidance, and loading/success/error feedback; no Rust, PDF-processing, dependency, preview, OCR, redaction, or direct text-editing change is included.
+
+## v0.12.0 PNG alpha research / design
+
+PNG alpha support for Image stamp and Image watermark is in research only. `Docs/PdfImageWatermarkStampPlan.md` documents JPEG-only limits, a narrow non-interlaced 8-bit PNG candidate, PDF color Image XObject plus DeviceGray `SMask` handling, dependency/resource risks, Image stamp-first staging, and the additive/not-redaction boundary; no Rust, dependency, PDF processing, UI, preview, OCR, redaction, or direct text-editing change is added.

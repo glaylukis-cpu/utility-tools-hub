@@ -571,3 +571,124 @@ PDF Workbench now connects the existing `pdf_image_stamp` route with PDF/JPEG/ou
 ## 22. v0.11.0 Step 4 - Image stamp QA polish
 
 v0.11.0 Step 4 verifies Image stamp UI, validation, operation plan, compact layout, and real all-page / selected-page PDF output. Image stamp remains additive visual styling and is not redaction or a digital signature; PNG alpha, preview, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## 23. v0.12.0 Step 1 - PNG alpha research / design
+
+v0.12.0 Step 1 researches PNG alpha support for Image stamp and Image watermark. Transparent logos, seal-like images, confirmation marks, and company-mark-style artwork can look more natural than JPEG because the page can remain visible around the artwork instead of showing a baked-in white rectangle. The eventual operation should retain the existing all-page or selected-page targeting and combine PNG input with position, margins, width, opacity, and rotation.
+
+This is a research-only step. It adds no PNG decoder, PDF `SMask`, dependency, Rust or PDF-processing change, Image stamp or Image watermark core change, UI, preview, OCR, redaction, or direct PDF text editing.
+
+### JPEG-only limits
+
+- JPEG remains a safe narrow MVP because validated JPEG bytes can be embedded as a PDF `DCTDecode` Image XObject without decoding and re-compressing the pixel data.
+- JPEG has no alpha channel, so transparent logos and seal-like artwork commonly retain a white or other baked-in background.
+- Baseline grayscale and RGB JPEG remain the supported narrow path. CMYK, YCCK, progressive JPEG, and unsupported variants remain outside the initial JPEG policy.
+- JPEG-only support is straightforward and bounded, but transparent Image stamp and Image watermark use cases create a practical need for a separately reviewed PNG alpha path.
+
+### PNG and PDF elements that require design and testing
+
+PNG cannot reuse JPEG's pass-through `DCTDecode` path. A PNG implementation must decode and validate the raster before constructing PDF image streams.
+
+| Area | Required policy |
+| --- | --- |
+| PNG validation | Validate the PNG signature, chunks, dimensions, color type, bit depth, interlace method, decoded row layout, and decoder errors; reject truncated, malformed, unsupported, or resource-exhausting input without partial output. |
+| Color types | Define explicit handling for RGB, RGBA, grayscale, grayscale-alpha, and indexed color. The first slice should accept only the listed narrow types and reject every deferred type clearly. |
+| Alpha extraction | Split RGBA into an RGB color buffer plus an 8-bit grayscale alpha buffer. A future grayscale-alpha path would similarly split gray samples from alpha samples. PNG transparency from palettes or `tRNS` requires separate handling and is deferred. |
+| Color Image XObject | Create an Image XObject with validated `Width`, `Height`, `BitsPerComponent`, and `ColorSpace` (`DeviceRGB` or `DeviceGray`) and a compressed color stream. |
+| Soft-mask Image XObject | When per-pixel alpha exists, create a separate same-size DeviceGray Image XObject and reference it from the color image through `SMask`. The mask must not itself contain `Mask` or `SMask`. |
+| Stream compression | Compress decoded color and alpha buffers with `FlateDecode`. `DecodeParms` is optional for plain decoded rows; if a PNG predictor is deliberately applied, set and test the matching predictor, colors, bits-per-component, and columns values rather than copying source PNG filter metadata blindly. |
+| Object reuse | Reuse one validated color Image XObject and, when present, its one soft-mask object across all targeted pages; page content streams should reference those shared resources. |
+| Placement | Preserve the existing Image stamp width/aspect-ratio, position, margin, rotation, page-target, protected-input rejection, and separate-output rules. PNG decoding must not change placement semantics. |
+| Opacity | Keep PNG per-pixel alpha in `SMask` and UI whole-image opacity in the existing graphics-state `ExtGState`. The effective visual alpha is the combination of the pixel alpha and graphics-state opacity; neither mechanism should overwrite the other. |
+| Resource limits | Bound compressed input bytes, width, height, total pixels, row bytes, decoded color bytes, alpha bytes, and combined allocation. Use checked arithmetic and decoder limits before allocation to resist oversized or decompression-bomb-style input. Exact limits belong to the Step 2 feasibility spike. |
+| Interlace | Non-interlaced PNG is the initial candidate. Adam7/interlaced decoding is deferred until decoder behavior, memory use, and fixtures are reviewed. |
+| Color metadata | Full ICC conversion, gamma correction, and color management are deferred. Step 2 must document whether accepted ancillary `sRGB`, `gAMA`, `cHRM`, or `iCCP` information is ignored, normalized, or causes rejection; output must not claim color-managed fidelity without implementing it. |
+| Metadata | PNG EXIF and other ancillary metadata are not copied into the PDF image. Automatic EXIF-orientation behavior is not part of the initial candidate and must not silently rotate placement. APNG animation is rejected rather than reduced silently to an arbitrary frame. |
+
+The initial prototype may use plain `FlateDecode` streams without PDF predictor parameters, then compare output size and viewer compatibility against a correctly implemented predictor path. This keeps PNG file filtering separate from PDF stream filtering and avoids treating source PNG scanline bytes as already suitable PDF image data.
+
+### Initial and deferred format scope
+
+Initial candidate:
+
+- PNG input only for the new path, detected by decoded content rather than extension alone;
+- non-interlaced PNG;
+- 8-bit RGBA, 8-bit RGB, and 8-bit grayscale;
+- `SMask` for supported per-pixel alpha and a normal Image XObject when alpha is absent;
+- Image stamp first, with Image watermark considered only after the decode/embed path is tested and minimally shared;
+- existing Image stamp width, aspect-ratio, opacity, rotation, position, margin, all/selected-page, protected-input rejection, and new-output-PDF behavior; and
+- an explicit Step 2 decision on whether 8-bit grayscale-alpha can safely join the first prototype or remains rejected until a follow-up.
+
+Deferred:
+
+- interlaced PNG;
+- indexed-color PNG and palette transparency;
+- 16-bit PNG;
+- `tRNS` transparency outside the initial supported alpha path;
+- complete ICC handling, gamma correction, and color management;
+- SVG, WebP, and APNG;
+- multiple images per page and an image library;
+- drag positioning and preview-based placement;
+- image cropping and resize UI; and
+- applying the path to Image watermark before Image stamp feasibility and QA are complete.
+
+### Implementation approach candidates
+
+| Candidate | Benefits | Risks / cost | Step 1 conclusion |
+| --- | --- | --- | --- |
+| A. Rust standard library plus a minimal custom PNG parser | Adds no dependency and can target a narrow contract. | PNG chunk validation, DEFLATE/filter reconstruction, color types, malformed-input defense, interlace, and allocation safety make a correct decoder disproportionately complex. | Do not implement. A home-grown decoder is not the safe initial route. |
+| B. General-purpose `image` crate | Convenient decoding and broad color-type conversion APIs. | Adds dependencies and a broader codec/security surface, and may increase binary size and build time beyond the PNG-only need. | Keep as a comparison point; do not add in Step 1. |
+| C. PNG-focused `png` crate | More narrowly scoped than a general image library and suitable for controlled PNG decode and alpha extraction. | Still adds dependencies; limits, transformations, output buffers, supported color types, interlace policy, binary size, build time, maintenance, and security review remain necessary. | Recommended for the Step 2 feasibility spike only; no dependency is added now. |
+| D. Continue research and prioritize PDF preview first | Improves placement UX and postpones decoder risk. | Does not address the immediate transparent-logo and seal-like image need, and introduces a separate rendering project. | Do not make this the primary path; preview remains an independent later research step. |
+
+Recommendation: make no implementation change in Step 1. In Step 2, evaluate the PNG-focused `png` crate, including dependency tree, binary-size/build-time impact, decoder limits, corrupted-input behavior, and representative fixtures. If feasible, start with Image stamp-only non-interlaced 8-bit RGB/RGBA PNG (plus grayscale where verified), create a PDF `SMask` for per-pixel alpha, and consider Image watermark only after the path can be shared without changing existing JPEG behavior.
+
+Research references for the feasibility spike:
+
+- W3C, [Portable Network Graphics (PNG) Specification (Third Edition)](https://www.w3.org/TR/png-3/)
+- Adobe, [Basic pdfmark Reference - Soft-Mask Images](https://opensource.adobe.com/dc-acrobat-sdk-docs/library/pdfmark/pdfmark_Basic.html)
+- Rust `png` crate, [API documentation](https://docs.rs/png/)
+- Rust `image` crate, [PNG codec module](https://docs.rs/image/latest/image/codecs/png/)
+
+### Safety copy
+
+- PNG alpha support is additive visual styling.
+- It does not edit existing PDF text.
+- It does not remove existing PDF content.
+- It does not remove existing images.
+- It does not remove existing page numbers.
+- It does not remove existing watermarks.
+- It is not redaction.
+- Placing a transparent image over content is not safe redaction.
+- Hidden text, images, and metadata remain unless a real redaction process removes them.
+- Stamp-like and seal-like images are not digital signatures, identity verification, or audit trails.
+- Protected PDFs are rejected; they are not decrypted and their permission restrictions are not bypassed.
+- Original PDFs are not overwritten by default; output is written to a new PDF.
+
+### Recommended staged path
+
+1. **PNG alpha research / design:** Define the goal, JPEG limitations, PDF `SMask` model, risks, narrow scope, safety boundary, and non-goals without implementation.
+2. **PNG dependency feasibility spike:** Evaluate the `png` crate, transitive dependencies, app-size/build-time effect, resource limits, decoded formats, malformed fixtures, and PDF object prototype boundaries.
+3. **PNG alpha core prototype for Image stamp:** Implement only the approved narrow 8-bit, non-interlaced scope with color/alpha stream separation and `SMask`.
+4. **PNG alpha UI connection for Image stamp:** Extend the existing Image stamp selection and validation only after the core contract and failure behavior are stable.
+5. **PNG alpha QA / real PDF check:** Verify transparent and opaque fixtures, all/selected pages, placement controls, source preservation, output size, multiple PDF viewers, malformed input, and regression behavior.
+6. **Version bump / release:** Update versions and release material only after implementation and QA are complete.
+7. **Apply the shared PNG path to Image watermark:** Reuse the proven decode/embed boundary while preserving JPEG Image watermark behavior.
+8. **PDF preview / thumbnails research:** Evaluate a local renderer as a separate project after PNG output is stable.
+9. **Drag positioning research:** Depend on a verified preview coordinate model rather than guessing page coordinates.
+10. **Safe redaction research:** Treat actual content removal as an independent safety-critical feature with extraction and object-level verification.
+
+### Non-goals for Step 1
+
+- PNG decoding, PNG alpha, or PDF `SMask` implementation;
+- npm or Cargo dependency additions;
+- Image stamp or Image watermark core, bridge, UI, or existing JPEG behavior changes;
+- PDF processing, rendering, preview, thumbnails, or drag positioning;
+- safe redaction or calling a visual mask redaction;
+- direct editing or replacement of existing PDF text;
+- deletion or replacement of existing PDF images;
+- deletion of existing page numbers or watermarks;
+- OCR, SVG, or WebP;
+- digital signatures, identity verification, or audit trails;
+- decrypting protected PDFs, bypassing permission restrictions, or adding password handling; and
+- version, updater, signed-build, release, or repository-publishing changes.

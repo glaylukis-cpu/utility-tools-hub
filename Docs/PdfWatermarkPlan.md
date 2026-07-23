@@ -194,3 +194,7 @@ The additive `pdf_image_stamp` core / bridge now places validated baseline grays
 ### v0.11.0 Step 3 - Image stamp UI connection
 
 PDF Workbench now connects `pdf_image_stamp` with JPEG-only selection, seven position presets, bounded settings, page validation, operation-plan details, and new-PDF feedback. Image stamp remains additive; PNG alpha, preview, OCR, redaction, direct PDF text editing, digital signatures, and audit trails remain unimplemented.
+
+### v0.12.0 Step 1 - PNG alpha research / design
+
+PNG alpha support for transparent Image stamp and Image watermark artwork is in research only. The design covers PNG decoding, bounded color/bit-depth handling, separate PDF color and DeviceGray `SMask` Image XObjects, dependency and memory risks, and additive/not-redaction safety boundaries; no decoder, dependency, PDF processing, UI, preview, OCR, redaction, or direct PDF text editing is added.

@@ -490,3 +490,12 @@ v0.8.1 prepares installer, updater, and installed-app QA for the v0.8.0 JPEG-onl
 - [x] Confirm covering content is not safe redaction and does not remove underlying PDF content.
 - [x] Confirm stamp-like images are not digital signatures or audit trails.
 - [x] Confirm preview, thumbnails, OCR, redaction, and direct PDF text editing remain unimplemented.
+
+## v0.12.0 Step 1 PNG alpha research / design
+
+- [x] Confirm PNG alpha research exists for Image stamp and Image watermark without implementation.
+- [x] Confirm PDF `SMask`, PNG decoder dependency, malformed-input, and memory/resource risks are documented.
+- [x] Confirm transparent images are additive and are not described as safe redaction or content removal.
+- [x] Confirm stamp-like and seal-like images are not described as digital signatures or audit trails.
+- [x] Confirm preview, OCR, redaction, and direct PDF text editing remain unimplemented.
+- [x] Confirm existing PDF operations and JPEG-only Image stamp / Image watermark remain available and unchanged.
